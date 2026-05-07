@@ -87,14 +87,61 @@ categories:
 item_ids:
   - minecraft:compass
   - minecraft:wool:*
+  - minecraft:iron_ore#crafting
 ```
 
 这些映射会被 `<ItemLink>` 使用。
+
+可在条目末尾加 `#anchor` 后缀，点击链接时会自动滚动到指定标题。
+锚点由标题文本转换而来：全部小写、空格替换为连字符
+（例如 `## Crafting Recipe` → `#crafting-recipe`）。
 
 查找顺序如下：
 
 1. 精确物品 + 精确 meta
 2. 如果存在，则回退到通配 meta
+
+## 标题锚点链接
+
+GuideNH 在 Markdown 链接和 `<a>` 标签中支持标题锚点跳转。
+锚点由标题文本全部小写并将空格替换为连字符后生成。
+
+**同页面锚点：**
+
+```md
+[跳转到安装章节](#installation)
+[跳转到合成配方](#crafting-recipe)
+```
+
+**跨页面锚点：**
+
+```md
+[查看入门教程](./getting-started.md#installation)
+[其他页面](other-guide.md#usage)
+```
+
+**绝对路径锚点**（使用指南命名空间，可避免子目录中相对路径歧义）：
+
+```md
+[绝对路径](guidenh:other-guide.md#usage)
+[任意命名空间](mymods:crafting/iron.md#smelting)
+```
+
+`namespace:path` 格式直接匹配 ID 为 `namespace:path` 的页面。
+效果与相对路径相同，但无需使用 `../` 导航。
+目标页面必须与链接来源处于同一份指南中。
+
+**命名内联锚点**也可通过 MDX 的 `<a name="...">` 放置：
+
+```md
+<a name="custom-anchor" />
+
+...内容...
+
+[跳转到这里](#custom-anchor)
+```
+
+跳转带锚点的链接时，指南会自动滚动到目标标题或命名锚点处。
 
 ## `<SubPages>`
 

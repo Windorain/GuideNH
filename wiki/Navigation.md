@@ -85,14 +85,61 @@ Pages can register item-to-page mappings using `item_ids`:
 item_ids:
   - minecraft:compass
   - minecraft:wool:*
+  - minecraft:iron_ore#crafting
 ```
 
 These mappings are used by `<ItemLink>`.
+
+An optional `#anchor` suffix scrolls to a specific heading when the link is clicked.
+The anchor is formed by lowercasing the heading text and replacing spaces with hyphens
+(e.g. `## Crafting Recipe` → `#crafting-recipe`).
 
 Lookup behavior:
 
 1. exact item + exact meta
 2. wildcard-meta fallback if present
+
+## Heading Anchor Links
+
+GuideNH supports heading anchor navigation in Markdown links and `<a>` tags.
+Anchors are derived from heading text by lowercasing and replacing spaces with hyphens.
+
+**Same-page anchor:**
+
+```md
+[Jump to Installation](#installation)
+[Jump to Crafting Recipe](#crafting-recipe)
+```
+
+**Cross-page anchor:**
+
+```md
+[See Getting Started](./getting-started.md#installation)
+[Another guide](other-guide.md#usage)
+```
+
+**Absolute path anchor** (using the guide namespace, avoids relative path ambiguity in subdirectories):
+
+```md
+[Absolute link](guidenh:other-guide.md#usage)
+[Any namespace](mymods:crafting/iron.md#smelting)
+```
+
+The `namespace:path` format resolves to the guide page whose id matches `namespace:path`.
+This is identical to what relative paths resolve to, but avoids `../` navigation.
+The page must exist in the same guide as the link source.
+
+**Named inline anchors** can also be placed with `<a name="...">` in MDX:
+
+```md
+<a name="custom-anchor" />
+
+...content...
+
+[Jump here](#custom-anchor)
+```
+
+Navigating to a link with an anchor scrolls the guide to the target heading or named anchor.
 
 ## `<SubPages>`
 

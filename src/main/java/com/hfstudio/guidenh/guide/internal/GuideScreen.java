@@ -39,6 +39,7 @@ import com.hfstudio.guidenh.guide.GuidePageIcon;
 import com.hfstudio.guidenh.guide.PageAnchor;
 import com.hfstudio.guidenh.guide.color.LightDarkMode;
 import com.hfstudio.guidenh.guide.color.SymbolicColor;
+import com.hfstudio.guidenh.guide.compiler.AnchorIndexer;
 import com.hfstudio.guidenh.guide.compiler.FrontmatterPageMeta;
 import com.hfstudio.guidenh.guide.document.DefaultStyles;
 import com.hfstudio.guidenh.guide.document.LytRect;
@@ -48,6 +49,7 @@ import com.hfstudio.guidenh.guide.document.block.LytNode;
 import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.document.block.LytSlot;
 import com.hfstudio.guidenh.guide.document.block.LytVisitor;
+import com.hfstudio.guidenh.guide.document.flow.LytFlowAnchor;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowContent;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowText;
 import com.hfstudio.guidenh.guide.document.interaction.ContentTooltip;
@@ -106,6 +108,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     private final Deque<PageAnchor> forwardHistory = new ArrayDeque<>();
 
     private int scrollY;
+    private boolean pendingAnchorScroll;
     private float currentZoom = 1.0f;
     private int lastLayoutWidth = -1;
     private long lastPageWheelScrollAtMillis;
@@ -264,6 +267,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     private GuideScreen(MutableGuide guide, PageAnchor anchor) {
         this.guide = guide;
         this.currentAnchor = anchor;
+        this.pendingAnchorScroll = anchor != null && anchor.anchor() != null;
         pageTitle = new LytParagraph();
         pageTitle.setStyle(DefaultStyles.HEADING1);
         try {
@@ -322,6 +326,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             loadCurrentPage();
         }
         ensureLayout();
+        scrollToCurrentAnchor();
         clampScroll();
     }
 
@@ -535,6 +540,28 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             activeDocument.updateLayout(new LayoutContext(layoutFontMetrics), layoutWidth);
             layoutDocument = activeDocument;
             lastLayoutWidth = layoutWidth;
+        }
+    }
+
+    private void scrollToCurrentAnchor() {
+        if (!pendingAnchorScroll) return;
+        if (currentAnchor == null || currentAnchor.anchor() == null) return;
+        if (document == null) return;
+        pendingAnchorScroll = false;
+        var target = new AnchorIndexer(document).get(currentAnchor.anchor());
+        if (target == null) return;
+        var blockNode = target.blockNode();
+        var flowContent = target.flowContent();
+        if (flowContent instanceof LytFlowAnchor flowAnchor) {
+            var layoutY = flowAnchor.getLayoutY();
+            if (layoutY.isPresent()) {
+                scrollY = layoutY.getAsInt();
+                return;
+            }
+        }
+        LytRect bounds = blockNode.getBounds();
+        if (bounds != null) {
+            scrollY = bounds.y();
         }
     }
 
@@ -1763,6 +1790,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     private void navigateWithoutHistory(PageAnchor anchor) {
         clearInteractionState();
         currentAnchor = anchor;
+        pendingAnchorScroll = anchor != null && anchor.anchor() != null;
         currentPage = null;
         document = null;
         layoutDocument = null;
@@ -1770,6 +1798,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         scrollY = 0;
         loadCurrentPage();
         ensureLayout();
+        scrollToCurrentAnchor();
         clampScroll();
     }
 

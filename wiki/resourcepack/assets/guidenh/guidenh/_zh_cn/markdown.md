@@ -21,6 +21,9 @@ navigation:
 | `[Link](http://a.com)`              |                   | [Link](http://a.com)              |
 | `[Relative Link](./index.md)`       |                   | [Relative Link](./index.md)       |
 | `[Absolute Link](guidenh:index.md)` |                   | [Absolute Link](guidenh:index.md) |
+| `[锚点链接](#headings)`             |                   | [锚点链接](#标题)                   |
+| `[跨页锚点](./index.md#navigation)` |                | [跨页锚点](./index.md#navigation)               |
+| `[绝对路径锚点](guidenh:index.md#navigation)` |      | [绝对路径锚点](guidenh:index.md#navigation)     |
 | `` `Inline Code` ``                 |                   | `Inline Code`                     |
 | `![Image](test1.png)`               |                   | ![Image](test1.png)               |
 

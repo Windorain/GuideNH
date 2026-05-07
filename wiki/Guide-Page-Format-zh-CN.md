@@ -366,7 +366,10 @@ GuideNH 按以下规则解析 id 和路径：
 | `/assets/example.png` | 相对当前指南命名空间根路径 |
 | `guidenh:index.md` | 显式 `modid:path` 资源定位符 |
 | `subpage.md#anchor` | 页面加锚点片段 |
+| `guidenh:other.md#anchor` | 绝对 `modid:path#anchor` |
 | `https://example.com` | 外部 HTTP/HTTPS 链接 |
+
+锚点片段会使指南滚动到对应标题（标题文本全部小写、空格替换为连字符，例如 `#crafting-recipe` 对应 `## Crafting Recipe`），或滚动到 `<a name="...">` 命名锚点处。
 
 ### 资源链接
 

@@ -84,6 +84,14 @@ public class ItemIndex extends UniqueIndex<ItemId, PageAnchor> {
 
         for (var listEntry : itemIdList) {
             if (listEntry instanceof String itemIdStr) {
+                // Allow an optional "#anchor" suffix to link to a specific heading.
+                String anchor = null;
+                int hashIdx = itemIdStr.indexOf('#');
+                if (hashIdx != -1) {
+                    anchor = itemIdStr.substring(hashIdx + 1);
+                    itemIdStr = itemIdStr.substring(0, hashIdx);
+                }
+
                 ItemId itemId;
                 try {
                     itemId = IdUtils.resolveItemId(
@@ -99,11 +107,11 @@ public class ItemIndex extends UniqueIndex<ItemId, PageAnchor> {
                     LOG.warn(
                         "Page {} references an unknown item {} in its item_ids frontmatter",
                         page.getId(),
-                        itemIdStr);
+                        listEntry);
                     continue;
                 }
 
-                itemAnchors.add(Pair.of(itemId, new PageAnchor(page.getId(), null)));
+                itemAnchors.add(Pair.of(itemId, new PageAnchor(page.getId(), anchor)));
             } else {
                 LOG.warn("Page {} contains a malformed item_ids frontmatter entry: {}", page.getId(), listEntry);
             }

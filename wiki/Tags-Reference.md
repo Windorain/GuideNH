@@ -26,7 +26,7 @@ This page lists the built-in runtime tags registered by `DefaultExtensions`.
 | `<PlayerName>` | inserts current player username | none |
 | `<KeyBind>` | inserts keybinding display name | `id` |
 | `<ItemImage>` | inline item icon | `id` or `ore`, `scale`, `noTooltip`, `showTooltip`, `showIcon`, `label`, `format`, `yOffset`, `labelYOffset` |
-| `<ItemLink>` | item tooltip + optional navigation link | `id` or `ore`, `showTooltip`, `noTooltip`, `showIcon` |
+| `<ItemLink>` | item tooltip + optional navigation link | `id` or `ore`, `linksTo`, `showTooltip`, `noTooltip`, `showIcon` |
 | `<CommandLink>` | clickable chat command link | `command`, `title`, `close` |
 | `<QuestLink>` | BetterQuesting quest link with state-aware styling (compat tag, only registered when BetterQuesting is loaded) | `id`, `text` |
 
@@ -280,6 +280,7 @@ Creates a text link using the item's display name and item tooltip. If `item_ids
 | --- | --- | --- |
 | `id` | — | item registry id, e.g. `minecraft:compass` or `minecraft:wool:1` |
 | `ore` | — | ore-dictionary name; uses the first matching item stack |
+| `linksTo` | *(auto)* | overrides the link target; accepts a page id with optional `#anchor`, e.g. `./crafting.md#usage` or `#usage`; when omitted the target is resolved from `item_ids` / `ore_ids` index |
 | `showTooltip` | `true` | set to `false` to suppress the hover tooltip; `noTooltip` is a legacy alias |
 | `showIcon` | *(none)* | `left` or `right` (or any truthy value → right) — renders the item icon beside the link text; omit to show text only |
 
@@ -290,6 +291,8 @@ Examples:
 <ItemLink id="appliedenergistics2:tile.BlockSkyChest" showIcon="left" />
 <ItemLink id="minecraft:diamond" showIcon="right" showTooltip="false" />
 <ItemLink ore="stickWood" />
+<ItemLink id="minecraft:iron_ore" linksTo="./crafting.md#smelting" />
+<ItemLink id="minecraft:compass" linksTo="#usage" />
 ````
 
 ### `<CommandLink>`

@@ -181,3 +181,11 @@ Icon to the right, tooltip suppressed:
 Ore-dictionary lookup:
 
 <ItemLink ore="stickWood" />
+
+Explicit link target with anchor:
+
+<ItemLink id="minecraft:diamond" linksTo="./markdown.md#headings" />
+
+Same-page anchor link:
+
+<ItemLink id="minecraft:diamond" linksTo="#itemlink" />

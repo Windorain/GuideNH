@@ -3,6 +3,8 @@ package com.hfstudio.guidenh.guide.compiler.tags;
 import java.util.Collections;
 import java.util.Set;
 
+import com.hfstudio.guidenh.guide.PageAnchor;
+import com.hfstudio.guidenh.guide.compiler.LinkParser;
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.document.block.LytItemImage;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
@@ -38,11 +40,31 @@ public class ItemLinkCompiler extends FlowTagCompiler {
         String showIconRaw = el.getAttributeString("showIcon", null);
         String iconPosition = ItemImageCompiler.resolveLabelPosition(showIconRaw);
 
-        var itemAnchor = compiler.getIndex(ItemIndex.class)
-            .findByStack(stack);
-        final var linksTo = itemAnchor != null ? itemAnchor
-            : compiler.getIndex(OreIndex.class)
+        // Manual link target override: linksTo="page.md#heading" or "#heading"
+        PageAnchor linksTo = null;
+        String linksToAttr = el.getAttributeString("linksTo", null);
+        if (linksToAttr != null) {
+            PageAnchor[] holder = new PageAnchor[1];
+            LinkParser.parseLink(compiler, linksToAttr, new LinkParser.Visitor() {
+
+                @Override
+                public void handlePage(PageAnchor page) {
+                    holder[0] = page;
+                }
+
+                @Override
+                public void handleError(String error) {
+                    parent.appendError(compiler, error, el);
+                }
+            });
+            linksTo = holder[0];
+        } else {
+            var itemAnchor = compiler.getIndex(ItemIndex.class)
                 .findByStack(stack);
+            linksTo = itemAnchor != null ? itemAnchor
+                : compiler.getIndex(OreIndex.class)
+                    .findByStack(stack);
+        }
 
         // Build icon inline block if requested.
         LytFlowInlineBlock iconBlock = null;

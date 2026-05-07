@@ -28,7 +28,7 @@
 | `<PlayerName>` | 插入当前玩家用户名 | 无 |
 | `<KeyBind>` | 插入按键绑定显示名 | `id` |
 | `<ItemImage>` | 行内物品图标 | `id` 或 `ore`，`scale`，`noTooltip`，`showTooltip`，`showIcon`，`label`，`format`，`yOffset`，`labelYOffset` |
-| `<ItemLink>` | 物品 tooltip + 可选导航链接 | `id` 或 `ore`，`showTooltip`，`noTooltip`，`showIcon` |
+| `<ItemLink>` | 物品 tooltip + 可选导航链接 | `id` 或 `ore`，`linksTo`，`showTooltip`，`noTooltip`，`showIcon` |
 | `<CommandLink>` | 可点击的聊天命令链接 | `command`, `title`, `close` |
 | `<QuestLink>` | BetterQuesting 任务链接，按任务状态自动调整样式（兼容标签，仅当 BetterQuesting 已加载时注册） | `id`, `text` |
 
@@ -256,6 +256,7 @@ More visible text.
 | --- | --- | --- |
 | `id` | — | 物品注册 ID，如 `minecraft:compass` 或 `minecraft:wool:1` |
 | `ore` | — | 矿辞名称，使用第一个匹配的物品堆叠 |
+| `linksTo` | *（自动）* | 覆盖跳转目标，接受带可选 `#anchor` 的页面 ID，如 `./crafting.md#usage` 或 `#usage`；省略时由 `item_ids` / `ore_ids` 索引自动解析 |
 | `showTooltip` | `true` | 设为 `false` 时悬停不显示 tooltip；`noTooltip` 是旧版兼容别名 |
 | `showIcon` | *（无）* | `left` 或 `right`（或任意真值 → 右侧）— 在链接文字的左侧或右侧显示物品图标；省略则仅显示文字 |
 
@@ -266,6 +267,8 @@ More visible text.
 <ItemLink id="appliedenergistics2:tile.BlockSkyChest" showIcon="left" />
 <ItemLink id="minecraft:diamond" showIcon="right" showTooltip="false" />
 <ItemLink ore="stickWood" />
+<ItemLink id="minecraft:iron_ore" linksTo="./crafting.md#smelting" />
+<ItemLink id="minecraft:compass" linksTo="#usage" />
 ````
 
 ### `<CommandLink>`

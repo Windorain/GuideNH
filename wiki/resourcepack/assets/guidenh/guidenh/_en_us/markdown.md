@@ -23,6 +23,9 @@ See also: [Charts](./charts.md) · [Function Graphs](./function-graph.md)
 | `[Link](http://a.com)`              |                   | [Link](http://a.com)              |
 | `[Relative Link](./index.md)`       |                   | [Relative Link](./index.md)       |
 | `[Absolute Link](guidenh:index.md)` |                   | [Absolute Link](guidenh:index.md) |
+| `[Anchor Link](#headings)`          |                   | [Anchor Link](#headings)          |
+| `[Cross-Page Anchor](./index.md#navigation)` |      | [Cross-Page Anchor](./index.md#navigation)      |
+| `[Absolute Anchor](guidenh:index.md#navigation)` |   | [Absolute Anchor](guidenh:index.md#navigation)  |
 | `` `Inline Code` ``                 |                   | `Inline Code`                     |
 | `![Image](test1.png)`               |                   | ![Image](test1.png)               |
 

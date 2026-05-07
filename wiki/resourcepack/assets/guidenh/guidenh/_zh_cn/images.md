@@ -178,3 +178,11 @@ navigation:
 矿辞查询：
 
 <ItemLink ore="stickWood" />
+
+指定跳转目标（带锚点）：
+
+<ItemLink id="minecraft:diamond" linksTo="./markdown.md#headings" />
+
+同页面锚点跳转：
+
+<ItemLink id="minecraft:diamond" linksTo="#itemlink" />

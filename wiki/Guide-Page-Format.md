@@ -380,7 +380,11 @@ GuideNH resolves ids and paths using these rules:
 | `/assets/example.png` | rooted to the current guide namespace |
 | `guidenh:index.md` | explicit `modid:path` resource location |
 | `subpage.md#anchor` | page plus anchor fragment |
+| `guidenh:other.md#anchor` | absolute `modid:path#anchor` |
 | `https://example.com` | external HTTP/HTTPS link |
+
+Anchor fragments scroll the guide to a heading whose text lowercased and spaces replaced with hyphens
+matches the fragment (e.g. `#crafting-recipe` scrolls to `## Crafting Recipe`), or to a `<a name="...">` anchor.
 
 ### Asset links
 
