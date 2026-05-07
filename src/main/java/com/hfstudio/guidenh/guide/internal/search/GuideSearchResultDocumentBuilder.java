@@ -60,8 +60,7 @@ public class GuideSearchResultDocumentBuilder {
         return document != null && document.getBlocks()
             .size() == 1
             && document.getBlocks()
-                .get(0)
-                .getClass() == CenteredStateBlock.class;
+                .get(0) instanceof CenteredStateBlock;
     }
 
     public static CenteredStateBlock buildCenteredMessage(String message) {
@@ -92,7 +91,7 @@ public class GuideSearchResultDocumentBuilder {
         titleLine.setAlignItems(AlignItems.START);
 
         var titleParagraph = new LytParagraph();
-        titleParagraph.setPaddingTop(2);
+        titleParagraph.setPaddingTop(4);
         var link = new LytFlowLink();
         link.setPageLink(result.anchor());
         link.modifyStyle(
@@ -102,7 +101,7 @@ public class GuideSearchResultDocumentBuilder {
         titleParagraph.append(link);
 
         var pathParagraph = new LytParagraph();
-        pathParagraph.setPaddingTop(2);
+        pathParagraph.setPaddingTop(4);
         pathParagraph.setPaddingRight(8);
         pathParagraph.setFullWidth(true);
         pathParagraph.modifyStyle(style -> style.alignment(TextAlignment.RIGHT));
@@ -152,15 +151,13 @@ public class GuideSearchResultDocumentBuilder {
     }
 
     public static LytFlowContent copySnippetContent(LytFlowContent content) {
-        if (content.getClass() == LytFlowText.class) {
-            var text = (LytFlowText) content;
+        if (content instanceof LytFlowText text) {
             var copy = copyFlowContent(text, new LytFlowText());
             copy.setText(text.getText());
             return copy;
         }
 
-        if (content.getClass() == LytFlowSpan.class) {
-            var span = (LytFlowSpan) content;
+        if (content instanceof LytFlowSpan span) {
             var copy = copyFlowContent(span, new LytFlowSpan());
             for (var child : span.getChildren()) {
                 copy.append(copySnippetContent(child));
@@ -184,17 +181,17 @@ public class GuideSearchResultDocumentBuilder {
     public record SearchPageResult(PageAnchor anchor, @Nullable GuidePageIcon icon, String title, String pagePath,
         LytFlowContent snippet) {}
 
-    static public class CenteredStateBlock extends LytVBox {
+    public static class CenteredStateBlock extends LytVBox {
 
-        CenteredStateBlock() {
+        public CenteredStateBlock() {
             setFullWidth(true);
             setAlignItems(AlignItems.CENTER);
         }
     }
 
-    static public class ResultRowBlock extends LytHBox {
+    public static class ResultRowBlock extends LytHBox {
 
-        ResultRowBlock() {
+        public ResultRowBlock() {
             setFullWidth(true);
             setWrap(false);
             setGap(0);

@@ -23,42 +23,28 @@ public class LytItemImage extends LytBlock implements InteractiveElement {
 
     public static final int BASE_SIZE = 16;
 
-    /** Pixel gap between icon and label text. */
     private static final int LABEL_GAP = 2;
 
-    /**
-     * Base upward render offset, in pixels, applied to <em>inline</em> item icons so they sit
-     * optically centered with the surrounding text line instead of being anchored to the line top.
-     * Negative values shift the icon up. Scales linearly with {@link #getScale()} at render time.
-     * Authors can override globally by mutating this field during guide load, or per-element via
-     * the {@code yOffset} MDX attribute on {@code <ItemImage>}.
-     */
+    public static int DEFAULT_TEXT_INLINE_Y_OFFSET = -3;
     public static int DEFAULT_INLINE_Y_OFFSET = -4;
 
     protected ItemStack stack;
     private float scale = 1f;
     private boolean showTooltip = true;
     private boolean inline = false;
-    /** Per-instance override for {@link #DEFAULT_INLINE_Y_OFFSET}. {@code null} means "use default". */
     @Nullable
     private Integer inlineYOffsetOverride = null;
-    /** Whether to render the item icon graphic. Default {@code true}. */
+    @Nullable
+    private Integer labelYOffsetOverride = null;
     private boolean showIcon = true;
-    /**
-     * Position of the optional label text: {@code "left"} draws text before the icon,
-     * {@code "right"} draws text after the icon. {@code null} means no label (default).
-     */
     @Nullable
     private String labelPosition = null;
-    /**
-     * Format pattern for the label text. Supports wrapping Markdown-style markers:
-     * {@code **bold**}, {@code *italic*}, {@code ~~strikethrough~~}, {@code __underline__},
-     * {@code ^^wavy^^}, {@code ::dotted::}, {@code ++underline++}.
-     * May contain {@code %s} as a placeholder for the item display name.
-     * {@code null} means italic item display name (default).
-     */
     @Nullable
     private String labelFormat = null;
+    @Nullable
+    private ResolvedTextStyle cachedLabelStyle = null;
+    @Nullable
+    private String cachedLabelTemplate = null;
 
     public LytItemImage(ItemStack stack) {
         this.stack = stack;
@@ -102,6 +88,8 @@ public class LytItemImage extends LytBlock implements InteractiveElement {
      */
     public void setLabelFormat(@Nullable String format) {
         this.labelFormat = format;
+        this.cachedLabelStyle = null;
+        this.cachedLabelTemplate = null;
     }
 
     /**
@@ -115,6 +103,11 @@ public class LytItemImage extends LytBlock implements InteractiveElement {
 
     public void setInlineYOffsetOverride(@Nullable Integer override) {
         this.inlineYOffsetOverride = override;
+    }
+
+    /** Overrides the default inline Y offset for the label text only. Does not affect the icon. */
+    public void setLabelYOffsetOverride(@Nullable Integer override) {
+        this.labelYOffsetOverride = override;
     }
 
     public ItemStack getStack() {
@@ -177,6 +170,10 @@ public class LytItemImage extends LytBlock implements InteractiveElement {
                 textX = showIcon ? baseX + iconSize + LABEL_GAP : baseX;
             }
             textY = baseY + textVCenter;
+            if (inline && showIcon) {
+                int base = labelYOffsetOverride != null ? labelYOffsetOverride : DEFAULT_TEXT_INLINE_Y_OFFSET;
+                textY += Math.round(base * scale);
+            }
             context.drawText(text, textX, textY, textStyle);
         }
 
@@ -214,19 +211,23 @@ public class LytItemImage extends LytBlock implements InteractiveElement {
     protected String resolveLabelText() {
         if (stack == null) return "";
         if (labelFormat == null) return stack.getDisplayName();
-        String template = stripFormatMarkers(labelFormat);
-        return template.contains("%s") ? String.format(template, stack.getDisplayName()) : template;
+        if (cachedLabelTemplate == null) {
+            cachedLabelTemplate = stripFormatMarkers(labelFormat);
+        }
+        return cachedLabelTemplate.contains("%s") ? String.format(cachedLabelTemplate, stack.getDisplayName())
+            : cachedLabelTemplate;
     }
 
     /** Resolves the {@link ResolvedTextStyle} for the label based on the format pattern. */
     protected ResolvedTextStyle resolveLabelStyle() {
-        if (labelFormat == null) {
-            return TextStyle.builder()
+        if (cachedLabelStyle == null) {
+            cachedLabelStyle = labelFormat == null ? TextStyle.builder()
                 .italic(true)
                 .build()
-                .mergeWith(DefaultStyles.BASE_STYLE);
+                .mergeWith(DefaultStyles.BASE_STYLE)
+                : buildFormatStyle(labelFormat).mergeWith(DefaultStyles.BASE_STYLE);
         }
-        return buildFormatStyle(labelFormat).mergeWith(DefaultStyles.BASE_STYLE);
+        return cachedLabelStyle;
     }
 
     private int measureTextWidth(LayoutContext context, String text, ResolvedTextStyle style) {

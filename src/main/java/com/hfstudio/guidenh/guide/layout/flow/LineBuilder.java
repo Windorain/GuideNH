@@ -25,6 +25,9 @@ import com.hfstudio.guidenh.guide.style.TextAlignment;
  */
 class LineBuilder implements Consumer<LytFlowContent> {
 
+    private static final ThreadLocal<BreakIterator> LINE_BREAK_ITERATOR = ThreadLocal
+        .withInitial(BreakIterator::getLineInstance);
+
     private final LayoutContext context;
     private final List<Line> lines;
     // Contains any floating elements we construct as part of processing flow content
@@ -40,6 +43,7 @@ class LineBuilder implements Consumer<LytFlowContent> {
     @Nullable
     private LineElement openLineTail;
     private final TextAlignment alignment;
+    private final StringBuilder lineBuffer = new StringBuilder();
 
     public LineBuilder(LayoutContext context, int x, int y, int availableWidth, List<Line> lines,
         List<LineBlock> floats, TextAlignment alignment) {
@@ -198,7 +202,7 @@ class LineBuilder implements Consumer<LytFlowContent> {
     private void iterateRuns(CharSequence text, ResolvedTextStyle style, char lastChar, LineConsumer consumer) {
         float curLineWidth = 0;
 
-        var lineBuffer = new StringBuilder();
+        lineBuffer.setLength(0);
 
         boolean lastCharWasWhitespace = Character.isWhitespace(lastChar);
         boolean canBreakAtStart = lastCharWasWhitespace;
@@ -253,9 +257,12 @@ class LineBuilder implements Consumer<LytFlowContent> {
                     precedingBreakOpportunity = lineBuffer.length();
                 } else {
                     // Find break opportunities and include the current character in it.
-                    var breakIterator = BreakIterator.getLineInstance();
-                    breakIterator.setText(lineBuffer.toString() + (char) codePoint);
-                    precedingBreakOpportunity = breakIterator.preceding(lineBuffer.length() + 1);
+                    // Append the char temporarily to avoid a string-concatenation allocation.
+                    var breakIterator = LINE_BREAK_ITERATOR.get();
+                    lineBuffer.append((char) codePoint);
+                    breakIterator.setText(lineBuffer.toString());
+                    precedingBreakOpportunity = breakIterator.preceding(lineBuffer.length());
+                    lineBuffer.setLength(lineBuffer.length() - 1);
                 }
 
                 // If the preceding text chunk ended on a whitespace, we can break there if the
