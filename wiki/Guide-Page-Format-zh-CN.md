@@ -252,6 +252,7 @@ GuideNH 会读取第一个 YAML frontmatter 块，并解析这些已知键：
 | `authors` | 字符串列表或 `{name: ...}` 映射列表 | 多位作者名称。最多显示两位，多余的用 `...` 替代。与 `author` 同时存在时以 `authors` 为准。 |
 | `date` | 字符串或 YYYY-MM-DD 日期 | 内容创建日期。显示在底部栏中。 |
 | `updated` | 字符串或 YYYY-MM-DD 日期 | 最后更新日期。显示在底部栏中。 |
+| `zoom` | 正浮点数 | 单页内容缩放倍数（如 `1.5` 表示 150%）。与 ModConfig 中全局 `contentZoom` 设置相乘。默认 `1.0`。 |
 | 其他任意键 | 任意 YAML 值 | 保存在 `additionalProperties` 中，供扩展或工具使用 |
 
 ### `navigation`
@@ -261,7 +262,7 @@ GuideNH 会读取第一个 YAML frontmatter 块，并解析这些已知键：
 | `title` | 是 | string | 导航显示名称，也可作为搜索标题后备值 |
 | `parent` | 否 | page id | 父页面 id；省略时为顶级节点 |
 | `position` | 否 | integer | 同级排序顺序，默认 `0` |
-| `icon` | 否 | item id | 导航和搜索中显示的物品图标 |
+| `icon` | 否 | item id | 导航和搜索中显示的物品图标。支持 `modid:name`、`modid:name:meta`（冒号分隔的损伤值/子类型）、`<modid:name:meta>`（严格形式；meta `32767` 匹配所有子类型）以及 `modid:name meta`（空格分隔，过滤表达式风格）。 |
 | `icon_texture` | 否 | asset path | 纹理图标路径，按普通资源路径解析 |
 | `icon_components` | 否 | map | frontmatter 会解析，但当前运行时渲染尚未使用 |
 
@@ -275,6 +276,10 @@ navigation:
   parent: index.md
   position: 10
   icon: minecraft:book
+  # 使用 meta/损伤値选择特定子类型：
+  # icon: minecraft:wool:1       （橙色羊毛，冒号写法）
+  # icon: <minecraft:wool:1>     （严格尖括号写法）
+  # icon: minecraft:wool 1       （空格写法，过滤表达式风格）
   icon_texture: test1.png
 categories:
   - basics
@@ -306,6 +311,29 @@ authors:
   - name: 爱丽丝
   - name: 鲍勃
 ```
+
+### `zoom`
+
+`zoom` 字段可以单独放大或缩小某一页的内容，而不影响其他页面。其值为正浮点数，作为倍数使用：
+
+| 示例值 | 效果 |
+| --- | --- |
+| `1.0`（默认） | 正常大小 |
+| `1.5` | 150%，内容放大 50% |
+| `0.75` | 75%，内容缩小 25% |
+
+单页 `zoom` 与 ModConfig → GuideNH → UI 中的全局 **contentZoom** 设置相乘生效。
+这使模组包可以设置合理的基准缩放，同时允许个别页面根据内容宽窄自行微调。
+
+示例：将本页设置为基准缩放的 150%：
+
+```yaml
+zoom: 1.5
+navigation:
+  title: 我的密集页面
+```
+
+缩放会以调整后的宽度重新计算页面布局，因此无论缩放级别如何，文字换行和所有块布局都能保持正确。
 
 ## 链接解析规则
 

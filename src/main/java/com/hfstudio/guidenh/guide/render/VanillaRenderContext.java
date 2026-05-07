@@ -41,6 +41,8 @@ public class VanillaRenderContext implements RenderContext {
 
     private int scrollOffsetY = 0;
 
+    private float zoom = 1.0f;
+
     public VanillaRenderContext(LightDarkMode mode, LytRect viewport, int screenHeight) {
         this.lightDarkMode = mode;
         this.viewport = viewport;
@@ -77,6 +79,14 @@ public class VanillaRenderContext implements RenderContext {
     @Override
     public int getScrollOffsetY() {
         return scrollOffsetY;
+    }
+
+    public float getZoom() {
+        return zoom;
+    }
+
+    public void setZoom(float zoom) {
+        this.zoom = zoom > 0f ? zoom : 1.0f;
     }
 
     public int getScreenHeight() {

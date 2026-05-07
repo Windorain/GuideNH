@@ -263,6 +263,7 @@ GuideNH reads the first YAML frontmatter block and parses these known keys:
 | `authors` | list of strings or `{name: ...}` maps | Multiple author names. At most two are displayed; additional ones are replaced with `...`. Takes precedence over `author` if both are present. |
 | `date` | string or YYYY-MM-DD date | Content creation date. Displayed in the bottom bar. |
 | `updated` | string or YYYY-MM-DD date | Last updated date. Displayed in the bottom bar. |
+| `zoom` | positive float | Per-page content zoom multiplier (e.g. `1.5` = 150 %). Multiplied with the global `contentZoom` setting in ModConfig. Default `1.0`. |
 | any other key | any YAML value | Preserved in `additionalProperties` for extensions or tooling |
 
 ### `navigation`
@@ -272,7 +273,7 @@ GuideNH reads the first YAML frontmatter block and parses these known keys:
 | `title` | yes | string | Display name in navigation and search title fallback |
 | `parent` | no | page id | Parent page id; omitted means top-level node |
 | `position` | no | integer | Sibling sort order; default `0` |
-| `icon` | no | item id | Item icon shown in navigation/search when valid |
+| `icon` | no | item id | Item icon shown in navigation/search. Accepts `modid:name`, `modid:name:meta` (colon-separated damage/subtype), `<modid:name:meta>` (strict form; meta `32767` matches all subtypes), or `modid:name meta` (space-separated, filter-expression style). |
 | `icon_texture` | no | asset path | Texture icon path resolved like any other asset link |
 | `icon_components` | no | map | Parsed from frontmatter but currently unused by runtime rendering |
 
@@ -286,6 +287,10 @@ navigation:
   parent: index.md
   position: 10
   icon: minecraft:book
+  # Use meta/damage to select a specific subtype:
+  # icon: minecraft:wool:1       (orange wool, colon form)
+  # icon: <minecraft:wool:1>     (strict colon form)
+  # icon: minecraft:wool 1       (space form, filter-expression style)
   icon_texture: test1.png
 categories:
   - basics
@@ -317,6 +322,32 @@ authors:
   - name: Alice
   - name: Bob
 ```
+
+### `zoom`
+
+The `zoom` key lets you enlarge or shrink the content of a single page without
+affecting any other page. The value is a positive float treated as a multiplier:
+
+| Example value | Effect |
+| --- | --- |
+| `1.0` (default) | Normal size |
+| `1.5` | 150 % — content 50 % larger |
+| `0.75` | 75 % — content 25 % smaller |
+
+The per-page zoom is multiplied with the global **contentZoom** slider in
+ModConfig → GuideNH → UI. This lets server packs set a sensible baseline while
+still allowing individual pages to fine-tune layout for narrow or wide content.
+
+Example: set this page to display at 150 % of the base zoom:
+
+```yaml
+zoom: 1.5
+navigation:
+  title: My Dense Page
+```
+
+Page layout is recomputed at the zoom-adjusted width, so text wrapping and all
+block geometry remain correct at any zoom level.
 
 ## Link Resolution
 

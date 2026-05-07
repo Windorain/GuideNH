@@ -90,6 +90,7 @@ public class PageJsonWriter {
                 nav.iconItemId() == null ? null
                     : nav.iconItemId()
                         .toString());
+            n.put("iconItemMeta", nav.iconItemMeta());
             n.put(
                 "iconTextureId",
                 nav.iconTextureId() == null ? null

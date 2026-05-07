@@ -56,7 +56,7 @@ public class NavigationUtil {
             LOG.error("Couldn't find icon item {} for page {}", iconItemId, page.getId());
             return null;
         }
-        return new GuidePageIcon(new ItemStack(item), null, null);
+        return new GuidePageIcon(new ItemStack(item, 1, navigation.iconItemMeta()), null, null);
     }
 
     @Nullable

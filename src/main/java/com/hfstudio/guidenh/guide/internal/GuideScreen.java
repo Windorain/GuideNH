@@ -101,6 +101,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     private final Deque<PageAnchor> forwardHistory = new ArrayDeque<>();
 
     private int scrollY;
+    private float currentZoom = 1.0f;
     private int lastLayoutWidth = -1;
     private long lastPageWheelScrollAtMillis;
 
@@ -463,14 +464,22 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         }
     }
 
+    private float resolveCurrentZoom() {
+        float global = Math.max(0.1f, ModConfig.ui.contentZoom);
+        float perPage = currentPage != null && currentPage.pageMeta() != null ? currentPage.pageMeta()
+            .zoom() : 1.0f;
+        return global * (perPage > 0f ? perPage : 1.0f);
+    }
+
     private void ensureLayout() {
         var activeDocument = getActiveDocument();
         if (activeDocument == null) return;
-        if (!activeDocument.hasLayout() || layoutDocument != activeDocument || lastLayoutWidth != contentW) {
+        int layoutWidth = Math.max(1, Math.round(contentW / currentZoom));
+        if (!activeDocument.hasLayout() || layoutDocument != activeDocument || lastLayoutWidth != layoutWidth) {
             clearInteractionState();
-            activeDocument.updateLayout(new LayoutContext(layoutFontMetrics), contentW);
+            activeDocument.updateLayout(new LayoutContext(layoutFontMetrics), layoutWidth);
             layoutDocument = activeDocument;
-            lastLayoutWidth = contentW;
+            lastLayoutWidth = layoutWidth;
         }
     }
 
@@ -523,7 +532,8 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     }
 
     private int getDocumentViewportHeight() {
-        return contentH;
+        // Return in layout units: divide screen pixels by zoom.
+        return currentZoom == 1.0f ? contentH : Math.max(1, Math.round(contentH / currentZoom));
     }
 
     private int getMaxScroll() {
@@ -542,6 +552,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         recomputePanelBounds();
         ensureSearchField();
         rebuildSearchDocumentIfNeeded(false);
+        currentZoom = resolveCurrentZoom();
         ensureLayout();
         clampScroll();
 
@@ -1028,13 +1039,18 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         ctx.setScreenHeight(this.height);
         ctx.setDocumentOrigin(contentX, documentRenderY);
         ctx.setScrollOffsetY(scrollY);
+        ctx.setZoom(currentZoom);
 
         var interaction = getDocumentInteractionState(mouseX, mouseY);
         activeDocument.setHoveredElement(interaction != null ? interaction.hit : null);
 
         ctx.pushScissor(cachedScissorRect);
         GL11.glPushMatrix();
-        GL11.glTranslatef(contentX, documentRenderY - scrollY, 0f);
+        GL11.glTranslatef(contentX, documentRenderY, 0f);
+        if (currentZoom != 1.0f) {
+            GL11.glScalef(currentZoom, currentZoom, 1f);
+        }
+        GL11.glTranslatef(0f, -(float) scrollY, 0f);
         try {
             activeDocument.render(ctx);
         } catch (Throwable t) {
@@ -1154,7 +1170,8 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         drawRect(barX, barY, barX + barW, barY + barH, 0x40FFFFFF);
 
         int total = getContentHeight();
-        int thumbH = Math.max(16, (int) ((long) barH * barH / Math.max(1, total)));
+        int viewportH = getDocumentViewportHeight();
+        int thumbH = Math.max(16, (int) ((long) barH * viewportH / Math.max(1, total)));
         int maxScroll = getMaxScroll();
         int thumbY = maxScroll > 0 ? barY + (int) ((long) (barH - thumbH) * scrollY / maxScroll) : barY;
         int thumbColor = draggingScrollbar ? 0xFFFFFFFF : 0xFFCCCCCC;
@@ -1166,7 +1183,8 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         int barY = getDocumentViewportY();
         int barH = getDocumentViewportHeight();
         int total = getContentHeight();
-        int thumbH = Math.max(16, (int) ((long) barH * barH / Math.max(1, total)));
+        int viewportH = getDocumentViewportHeight();
+        int thumbH = Math.max(16, (int) ((long) barH * viewportH / Math.max(1, total)));
         int maxScroll = getMaxScroll();
         int thumbY = maxScroll > 0 ? barY + (int) ((long) (barH - thumbH) * scrollY / maxScroll) : barY;
         return new int[] { barX, thumbY, 4, thumbH, barY, barH };
@@ -1497,8 +1515,8 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             scrollY)) {
             return interaction;
         }
-        int docX = mouseX - contentX;
-        int docY = mouseY - getDocumentRenderY(activeDocument) + scrollY;
+        int docX = Math.round((mouseX - contentX) / currentZoom);
+        int docY = Math.round((mouseY - getDocumentRenderY(activeDocument)) / currentZoom) + scrollY;
         var hit = activeDocument.pick(docX, docY);
         var scene = hit != null ? findSceneAncestor(hit.node()) : null;
         SceneButtonHit sceneButtonHit = null;
@@ -1559,9 +1577,11 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     private int[] screenToDocumentPoint(int mouseX, int mouseY) {
         var activeDocument = getActiveDocument();
         if (activeDocument == null) {
-            return new int[] { mouseX - contentX, mouseY - getDocumentViewportY() + scrollY };
+            return new int[] { Math.round((mouseX - contentX) / currentZoom),
+                Math.round((mouseY - getDocumentViewportY()) / currentZoom) + scrollY };
         }
-        return new int[] { mouseX - contentX, mouseY - getDocumentRenderY(activeDocument) + scrollY };
+        return new int[] { Math.round((mouseX - contentX) / currentZoom),
+            Math.round((mouseY - getDocumentRenderY(activeDocument)) / currentZoom) + scrollY };
     }
 
     @Nullable
@@ -1955,6 +1975,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         if (!GuideSearchResultDocumentBuilder.isCenteredStateDocument(activeDocument)) {
             return 0;
         }
+        // Use layout-unit viewport height so centering is correct under any zoom level.
         return Math.max(0, (getDocumentViewportHeight() - activeDocument.getContentHeight()) / 2);
     }
 

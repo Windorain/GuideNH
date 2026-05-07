@@ -827,32 +827,16 @@ public class LytGuidebookScene extends LytBlock {
             outerRect.y(),
             outerRect.width(),
             sceneH);
-        if (level.isEmpty() && annotations.isEmpty() && !shouldRenderOriginAxes()) {
-            this.lastAbsX = sceneRect.x();
-            this.lastAbsY = sceneRect.y();
-            this.lastW = sceneRect.width();
-            this.lastH = sceneRect.height();
-            this.lastOuterAbsX = outerRect.x();
-            this.lastOuterAbsY = outerRect.y();
-            this.lastOuterW = outerRect.width();
-            this.lastOuterH = outerRect.height();
-            this.cachedScreenRect = sceneRect;
-            context.fillRect(sceneRect, sceneBackgroundColor);
-            drawBottomControls(context, outerRect);
-            context.drawBorder(sceneRect, sceneBorderColor, 1);
-            return;
-        }
-
-        context.fillRect(sceneRect, sceneBackgroundColor);
-
+        // Resolve document zoom and compute screen-space absolute coords for both render paths.
+        float docZoom = context instanceof VanillaRenderContext mrc ? mrc.getZoom() : 1.0f;
         int absX = sceneRect.x();
         int absY = sceneRect.y();
         int outerAbsX = outerRect.x();
         int outerAbsY = outerRect.y();
         int clipX = outerAbsX, clipY = outerAbsY, clipW = outerRect.width(), clipH = outerRect.height();
         if (context instanceof VanillaRenderContext mrc) {
-            absX = mrc.getDocumentOriginX() + getBounds().x();
-            absY = mrc.getDocumentOriginY() + getBounds().y() - mrc.getScrollOffsetY();
+            absX = mrc.getDocumentOriginX() + Math.round(getBounds().x() * docZoom);
+            absY = mrc.getDocumentOriginY() + Math.round((getBounds().y() - mrc.getScrollOffsetY()) * docZoom);
             outerAbsX = absX;
             outerAbsY = absY;
             LytRect vp = mrc.viewport();
@@ -861,10 +845,31 @@ public class LytGuidebookScene extends LytBlock {
             clipW = vp.width();
             clipH = vp.height();
         }
+        // Scale layout dimensions to screen pixels when document zoom != 1.
+        int w = Math.round(sceneRect.width() * docZoom);
+        int h = Math.round(sceneRect.height() * docZoom);
+        int outerW = Math.round(outerRect.width() * docZoom);
+        int outerH = Math.round(outerRect.height() * docZoom);
+
+        if (level.isEmpty() && annotations.isEmpty() && !shouldRenderOriginAxes()) {
+            this.lastAbsX = absX;
+            this.lastAbsY = absY;
+            this.lastW = w;
+            this.lastH = h;
+            this.lastOuterAbsX = outerAbsX;
+            this.lastOuterAbsY = outerAbsY;
+            this.lastOuterW = outerW;
+            this.lastOuterH = outerH;
+            this.cachedScreenRect = updateCachedRect(cachedScreenRect, absX, absY, w, h);
+            context.fillRect(sceneRect, sceneBackgroundColor);
+            drawBottomControls(context, outerRect);
+            context.drawBorder(sceneRect, sceneBorderColor, 1);
+            return;
+        }
+
+        context.fillRect(sceneRect, sceneBackgroundColor);
         this.renderedContentClip = updateCachedRect(this.renderedContentClip, clipX, clipY, clipW, clipH);
 
-        int w = sceneRect.width();
-        int h = sceneRect.height();
         if (cameraViewportOverride != null) {
             camera.setViewportSize(cameraViewportOverride);
         } else {
@@ -876,8 +881,8 @@ public class LytGuidebookScene extends LytBlock {
         this.lastH = h;
         this.lastOuterAbsX = outerAbsX;
         this.lastOuterAbsY = outerAbsY;
-        this.lastOuterW = outerRect.width();
-        this.lastOuterH = outerRect.height();
+        this.lastOuterW = outerW;
+        this.lastOuterH = outerH;
         this.cachedScreenRect = updateCachedRect(cachedScreenRect, absX, absY, w, h);
 
         List<InWorldAnnotation> inWorld = inWorldScratch;
@@ -990,7 +995,7 @@ public class LytGuidebookScene extends LytBlock {
         context.drawBorder(sceneRect, sceneBorderColor, 1);
 
         if (interactive && sceneButtonsVisible) {
-            drawSceneButtons(sceneRect.x(), sceneRect.y(), w, h, absX, absY);
+            drawSceneButtons(sceneRect.x(), sceneRect.y(), w, h, absX, absY, docZoom);
         }
     }
 
@@ -999,6 +1004,7 @@ public class LytGuidebookScene extends LytBlock {
     public static final int BTN_OUTSIDE_GAP = 3;
 
     private int lastAbsX, lastAbsY, lastW, lastH;
+    private float lastDocZoom = 1.0f;
     private int lastOuterAbsX, lastOuterAbsY, lastOuterW, lastOuterH;
     /** Width reserved for the inner 3D scene (bounds.width minus the button column). */
     private int layoutSceneWidth;
@@ -1040,11 +1046,12 @@ public class LytGuidebookScene extends LytBlock {
         return annotation;
     }
 
-    private void drawSceneButtons(int drawX, int drawY, int w, int h, int absX, int absY) {
+    private void drawSceneButtons(int drawX, int drawY, int screenW, int screenH, int absX, int absY, float docZoom) {
         this.lastAbsX = absX;
         this.lastAbsY = absY;
-        this.lastW = w;
-        this.lastH = h;
+        this.lastW = screenW;
+        this.lastH = screenH;
+        this.lastDocZoom = docZoom;
         GL11.glDisable(GL11.GL_DEPTH_TEST);
         GL11.glDisable(GL11.GL_LIGHTING);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
@@ -1053,13 +1060,17 @@ public class LytGuidebookScene extends LytBlock {
         GL11.glColor4f(1f, 1f, 1f, 1f);
         OpenGlHelper.setActiveTexture(OpenGlHelper.defaultTexUnit);
 
-        int bx = drawX + w + BTN_OUTSIDE_GAP;
+        // GL drawing uses layout coords; convert screen pixels back to layout units for bx.
+        int layoutW = Math.round(screenW / docZoom);
+        int bx = drawX + layoutW + BTN_OUTSIDE_GAP;
         int by = drawY;
-        int absBx = absX + w + BTN_OUTSIDE_GAP;
+        int btnScreenSize = Math.round(BTN_SIZE * docZoom);
+        int btnScreenStep = Math.round((BTN_SIZE + BTN_GAP) * docZoom);
+        int absBx = absX + screenW + Math.round(BTN_OUTSIDE_GAP * docZoom);
         int absBy = absY;
         sceneButtonsAbsX = absBx;
         sceneButtonsAbsY = absBy;
-        cachedScreenRect = updateCachedRect(cachedScreenRect, absX, absY, w, h);
+        cachedScreenRect = updateCachedRect(cachedScreenRect, absX, absY, screenW, screenH);
         int mx, my;
         try {
             var mc = Minecraft.getMinecraft();
@@ -1072,10 +1083,10 @@ public class LytGuidebookScene extends LytBlock {
         }
         GuideIconButton.Role[] roles = cachedSceneButtonRoles();
         for (var role : roles) {
-            boolean hover = mx >= absBx && my >= absBy && mx < absBx + BTN_SIZE && my < absBy + BTN_SIZE;
+            boolean hover = mx >= absBx && my >= absBy && mx < absBx + btnScreenSize && my < absBy + btnScreenSize;
             drawOneSceneButton(bx, by, role, hover);
             by += BTN_SIZE + BTN_GAP;
-            absBy += BTN_SIZE + BTN_GAP;
+            absBy += btnScreenStep;
         }
     }
 
@@ -1164,18 +1175,20 @@ public class LytGuidebookScene extends LytBlock {
         if (mouseY < lastAbsY || mouseY >= lastAbsY + lastH) return null;
         int bx = sceneButtonsAbsX;
         int by = sceneButtonsAbsY;
-        // Early-out on X: the whole button column lives at [sceneButtonsAbsX, sceneButtonsAbsX + BTN_SIZE).
-        if (mouseX < bx || mouseX >= bx + BTN_SIZE) return null;
+        int btnScreenSize = Math.round(BTN_SIZE * lastDocZoom);
+        int btnScreenStep = Math.round((BTN_SIZE + BTN_GAP) * lastDocZoom);
+        // Early-out on X: the whole button column lives at [sceneButtonsAbsX, sceneButtonsAbsX + btnScreenSize).
+        if (mouseX < bx || mouseX >= bx + btnScreenSize) return null;
         var roles = cachedSceneButtonRoles();
         for (var role : roles) {
-            boolean visible = renderedContentClip == null || (bx + BTN_SIZE > renderedContentClip.x()
+            boolean visible = renderedContentClip == null || (bx + btnScreenSize > renderedContentClip.x()
                 && bx < renderedContentClip.x() + renderedContentClip.width()
-                && by + BTN_SIZE > renderedContentClip.y()
+                && by + btnScreenSize > renderedContentClip.y()
                 && by < renderedContentClip.y() + renderedContentClip.height());
-            if (visible && mouseX >= bx && mouseX < bx + BTN_SIZE && mouseY >= by && mouseY < by + BTN_SIZE) {
+            if (visible && mouseX >= bx && mouseX < bx + btnScreenSize && mouseY >= by && mouseY < by + btnScreenSize) {
                 return role;
             }
-            by += BTN_SIZE + BTN_GAP;
+            by += btnScreenStep;
         }
         return null;
     }

@@ -2,6 +2,7 @@
 navigation:
   title: 图片
   parent: index.md
+  icon: minecraft:wool:1
 ---
 
 # 图片

@@ -3,6 +3,8 @@ package com.hfstudio.guidenh.config;
 import com.gtnewhorizon.gtnhlib.config.Config;
 import com.gtnewhorizon.gtnhlib.config.Config.Comment;
 import com.gtnewhorizon.gtnhlib.config.Config.DefaultBoolean;
+import com.gtnewhorizon.gtnhlib.config.Config.DefaultFloat;
+import com.gtnewhorizon.gtnhlib.config.Config.RangeFloat;
 import com.gtnewhorizon.gtnhlib.config.Config.RequiresMcRestart;
 import com.gtnewhorizon.gtnhlib.config.ConfigException;
 import com.gtnewhorizon.gtnhlib.config.ConfigurationManager;
@@ -35,6 +37,13 @@ public class ModConfig {
         @Comment("Whether guide book opens in full-width layout (no side margins)")
         @DefaultBoolean(false)
         public boolean fullWidth = false;
+
+        @Comment("Global content zoom factor for the guide screen. "
+            + "Individual pages can override this with the 'zoom' frontmatter field. "
+            + "Default: 1.0. Range: 0.5 to 3.0.")
+        @DefaultFloat(1.0f)
+        @RangeFloat(min = 0.5f, max = 3.0f)
+        public float contentZoom = 1.0f;
 
         @Comment("Whether clicking external links in guide markdown should show a confirmation dialog first. "
             + "When false, external links open immediately. Default: true.")

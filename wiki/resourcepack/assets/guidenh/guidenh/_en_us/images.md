@@ -2,6 +2,7 @@
 navigation:
   title: Images
   parent: index.md
+  icon: minecraft:wool:1
 ---
 
 # Images

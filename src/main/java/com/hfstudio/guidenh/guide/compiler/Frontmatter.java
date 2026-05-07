@@ -53,9 +53,45 @@ public record Frontmatter(@Nullable FrontmatterNavigation navigationEntry, Map<S
                 parentId = IdUtils.resolveId(parentIdStr, pageId.getResourceDomain());
             }
 
+            // Parse icon item id, supporting:
+            // modid:name - item with default damage 0
+            // modid:name:meta - item with explicit damage value
+            // <modid:name:meta> - strict form (angle brackets stripped)
+            // modid:name meta - space-separated damage (filter-expression style)
+            int iconMeta = 0;
             ResourceLocation iconId = null;
             if (iconIdStr != null) {
-                iconId = IdUtils.resolveId(iconIdStr, pageId.getResourceDomain());
+                String s = iconIdStr.trim();
+                if (s.startsWith("<") && s.endsWith(">")) {
+                    s = s.substring(1, s.length() - 1)
+                        .trim();
+                }
+                // Space-separated damage comes first (e.g. "minecraft:potion 16384")
+                int spaceIdx = s.indexOf(' ');
+                if (spaceIdx >= 0) {
+                    String metaPart = s.substring(spaceIdx + 1)
+                        .trim();
+                    s = s.substring(0, spaceIdx)
+                        .trim();
+                    try {
+                        iconMeta = Integer.parseInt(metaPart);
+                    } catch (NumberFormatException ignored) {}
+                } else {
+                    // Colon-separated damage: "modid:name:meta"
+                    // ResourceLocation has exactly one colon; a second colon is the meta suffix.
+                    int firstColon = s.indexOf(':');
+                    if (firstColon >= 0) {
+                        int secondColon = s.indexOf(':', firstColon + 1);
+                        if (secondColon >= 0) {
+                            String metaPart = s.substring(secondColon + 1);
+                            try {
+                                iconMeta = Integer.parseInt(metaPart);
+                                s = s.substring(0, secondColon);
+                            } catch (NumberFormatException ignored) {}
+                        }
+                    }
+                }
+                iconId = IdUtils.resolveId(s, pageId.getResourceDomain());
             }
 
             ResourceLocation iconTextureId = null;
@@ -63,7 +99,14 @@ public record Frontmatter(@Nullable FrontmatterNavigation navigationEntry, Map<S
                 iconTextureId = IdUtils.resolveLink(iconTextureStr, pageId);
             }
 
-            navigation = new FrontmatterNavigation(title, parentId, position, iconId, iconComponents, iconTextureId);
+            navigation = new FrontmatterNavigation(
+                title,
+                parentId,
+                position,
+                iconId,
+                iconMeta,
+                iconComponents,
+                iconTextureId);
         }
 
         return new Frontmatter(navigation, Collections.unmodifiableMap(new HashMap<>(data)));
@@ -136,7 +179,14 @@ public record Frontmatter(@Nullable FrontmatterNavigation navigationEntry, Map<S
         String date = toDateString(additionalProperties.get("date"));
         String updated = toDateString(additionalProperties.get("updated"));
 
-        return new FrontmatterPageMeta(Collections.unmodifiableList(authors), date, updated);
+        float zoom = 1.0f;
+        Object zoomObj = additionalProperties.get("zoom");
+        if (zoomObj instanceof Number) {
+            float z = ((Number) zoomObj).floatValue();
+            if (z > 0f) zoom = z;
+        }
+
+        return new FrontmatterPageMeta(Collections.unmodifiableList(authors), date, updated, zoom);
     }
 
     @Nullable
