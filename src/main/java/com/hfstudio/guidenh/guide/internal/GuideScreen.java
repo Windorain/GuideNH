@@ -38,6 +38,7 @@ import com.hfstudio.guidenh.guide.GuidePageIcon;
 import com.hfstudio.guidenh.guide.PageAnchor;
 import com.hfstudio.guidenh.guide.color.LightDarkMode;
 import com.hfstudio.guidenh.guide.color.SymbolicColor;
+import com.hfstudio.guidenh.guide.compiler.FrontmatterPageMeta;
 import com.hfstudio.guidenh.guide.document.DefaultStyles;
 import com.hfstudio.guidenh.guide.document.LytRect;
 import com.hfstudio.guidenh.guide.document.block.LytDocument;
@@ -69,6 +70,8 @@ import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
 import com.hfstudio.guidenh.guide.scene.support.GuideBlockDisplayResolver;
 import com.hfstudio.guidenh.guide.scene.support.GuideEntityDisplayResolver;
 import com.hfstudio.guidenh.guide.ui.GuideUiHost;
+
+import cpw.mods.fml.common.Loader;
 
 public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallback {
 
@@ -326,6 +329,13 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         contentY = panelY + TOOLBAR_H + 2;
         contentW = Math.max(20, panelW - PANEL_PADDING * 2 - navClosed);
         contentH = Math.max(20, panelH - TOOLBAR_H - PANEL_PADDING - 2);
+        if (hasBottomBar()) {
+            contentH = Math.max(20, contentH - TOOLBAR_H);
+        }
+    }
+
+    private boolean hasBottomBar() {
+        return currentPage != null && !isSearchPage();
     }
 
     private void rebuildToolbar() {
@@ -557,17 +567,16 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             drawScrollbar();
         }
 
+        drawBottomBar();
+
         int navX = panelX;
         int navY = panelY + TOOLBAR_H + 1;
-        int navH = Math.max(20, panelH - TOOLBAR_H - 1);
+        int bottomBarH = hasBottomBar() ? TOOLBAR_H : 0;
+        int navH = Math.max(20, panelH - TOOLBAR_H - 1 - bottomBarH);
         navBar.setBounds(navX, navY, navH);
         navBar.update(mouseX, mouseY, guide.getNavigationTree());
         navBar.render(mc, currentAnchor != null ? currentAnchor.pageId() : null, mouseX, mouseY, guide);
 
-        /*
-         * Redraw toolbar strip after the document so stray NEI/GL output cannot obscure the title or search box;
-         * icon buttons are still drawn afterward by GuiScreen.drawScreen.
-         */
         drawRect(panelX, panelY, panelX + panelW, panelY + TOOLBAR_H, BG_COLOR);
         drawRect(panelX, panelY + TOOLBAR_H, panelX + panelW, panelY + TOOLBAR_H + 1, 0xFF2A2A2A);
         drawPageTitle();
@@ -578,6 +587,158 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         super.drawScreen(mouseX, mouseY, partialTicks);
 
         drawButtonTooltip(mouseX, mouseY);
+    }
+
+    private void drawBottomBar() {
+        if (!hasBottomBar()) return;
+        @Nullable
+        FrontmatterPageMeta meta = currentPage.pageMeta();
+
+        int barY = panelY + panelH - TOOLBAR_H;
+        drawRect(panelX, barY, panelX + panelW, panelY + panelH, BG_COLOR);
+        drawRect(panelX, barY, panelX + panelW, barY + 1, 0xFF2A2A2A);
+
+        FontRenderer fr = mc.fontRenderer;
+        String text = buildBottomBarText(meta);
+        if (text.isEmpty()) return;
+
+        int textRightX = panelX + panelW - 6 - 2;
+        int textW = fr.getStringWidth(text);
+        int textX = textRightX - textW;
+        int textY = barY + (TOOLBAR_H - fr.FONT_HEIGHT) / 2 + 1;
+        fr.drawString(text, textX, textY, 0xFFAAAAAA, false);
+    }
+
+    private String buildBottomBarText(@Nullable FrontmatterPageMeta meta) {
+        FontRenderer fr = mc.fontRenderer;
+        int maxW = (int) (this.width * 0.8);
+
+        String sourceDisplay = getSourceDisplayName(currentPage.sourcePack());
+        List<String> authors = meta != null ? meta.authors() : Collections.emptyList();
+        String dateVal = meta != null ? meta.date() : null;
+        String updatedVal = meta != null ? meta.updated() : null;
+        String authorsStr = buildAuthorsString(authors);
+
+        // Width calculations use raw (non-italic) text so getStringWidth() is accurate
+        String rawAuthorPart = authorsStr.isEmpty() ? "" : GuidebookText.PageMetaAuthor.text(authorsStr);
+        String rawDatePart = dateVal != null ? GuidebookText.PageMetaDate.text(dateVal) : "";
+        String rawUpdatedPart = updatedVal != null ? GuidebookText.PageMetaUpdated.text(updatedVal) : "";
+        String rawFull = GuidebookText.PageMetaContentFrom.text(sourceDisplay) + rawAuthorPart
+            + rawDatePart
+            + rawUpdatedPart;
+
+        if (fr.getStringWidth(rawFull) <= maxW) {
+            return formatBottomBar(sourceDisplay, authorsStr, dateVal, updatedVal);
+        }
+
+        int prefixW = fr.getStringWidth(GuidebookText.PageMetaContentFrom.text(""));
+        int ellipsisW = fr.getStringWidth("...");
+        int rawSuffixW = fr.getStringWidth(rawAuthorPart + rawDatePart + rawUpdatedPart);
+        int availableForSource = maxW - prefixW - rawSuffixW - ellipsisW;
+        if (availableForSource > 0) {
+            String truncSrc = truncateStringToWidth(fr, sourceDisplay, availableForSource);
+            String attempt = GuidebookText.PageMetaContentFrom.text(truncSrc + "...") + rawAuthorPart
+                + rawDatePart
+                + rawUpdatedPart;
+            if (fr.getStringWidth(attempt) <= maxW) {
+                return formatBottomBar(truncSrc + "...", authorsStr, dateVal, updatedVal);
+            }
+        }
+
+        if (!authors.isEmpty()) {
+            String firstAuthor = authors.get(0);
+            int authorPrefixW = fr.getStringWidth(GuidebookText.PageMetaAuthor.text(""));
+            int availableForAuthor = maxW - prefixW
+                - ellipsisW
+                - authorPrefixW
+                - ellipsisW
+                - fr.getStringWidth(rawDatePart + rawUpdatedPart);
+            String truncSrc2 = truncateStringToWidth(
+                fr,
+                sourceDisplay,
+                availableForAuthor > 0 ? availableForAuthor : fr.getStringWidth(sourceDisplay));
+            String rawSingleAuthorPart = GuidebookText.PageMetaAuthor.text(firstAuthor);
+            String attempt2 = GuidebookText.PageMetaContentFrom.text(truncSrc2 + "...") + rawSingleAuthorPart
+                + rawDatePart
+                + rawUpdatedPart;
+            if (fr.getStringWidth(attempt2) <= maxW) {
+                return formatBottomBar(truncSrc2 + "...", firstAuthor, dateVal, updatedVal);
+            }
+        }
+
+        return truncateStringToWidth(fr, rawFull, maxW);
+    }
+
+    /**
+     * Builds the bottom-bar string with §o italic formatting around each placeholder value.
+     * §r resets to white; §7 restores dark gray (#AAAAAA) to match the draw color.
+     */
+    private static String formatBottomBar(String sourceDisplay, String authorsStr, @Nullable String dateVal,
+        @Nullable String updatedVal) {
+        String authorPart = authorsStr.isEmpty() ? ""
+            : GuidebookText.PageMetaAuthor.text("\u00A7o" + authorsStr + "\u00A7r\u00A77");
+        String datePart = dateVal != null ? GuidebookText.PageMetaDate.text("\u00A7o" + dateVal + "\u00A7r\u00A77")
+            : "";
+        String updatedPart = updatedVal != null
+            ? GuidebookText.PageMetaUpdated.text("\u00A7o" + updatedVal + "\u00A7r\u00A77")
+            : "";
+        return GuidebookText.PageMetaContentFrom.text("\u00A7o" + sourceDisplay + "\u00A7r\u00A77") + authorPart
+            + datePart
+            + updatedPart;
+    }
+
+    private static String buildAuthorsString(List<String> authors) {
+        if (authors.isEmpty()) return "";
+        if (authors.size() == 1) return authors.get(0);
+        if (authors.size() == 2) return authors.get(0) + ", " + authors.get(1);
+        return authors.get(0) + ", " + authors.get(1) + "...";
+    }
+
+    private static String truncateStringToWidth(FontRenderer fr, String text, int maxW) {
+        if (fr.getStringWidth(text) <= maxW) return text;
+        int len = text.length();
+        while (len > 0 && fr.getStringWidth(text.substring(0, len)) > maxW) {
+            len--;
+        }
+        return text.substring(0, len);
+    }
+
+    private static String getSourceDisplayName(String sourcePack) {
+        int colon = sourcePack.indexOf(':');
+        String prefix = colon >= 0 ? sourcePack.substring(0, colon) : "";
+        String namespace = colon >= 0 ? sourcePack.substring(colon + 1) : sourcePack;
+
+        if ("resources".equals(prefix)) {
+            try {
+                var entries = Minecraft.getMinecraft()
+                    .getResourcePackRepository()
+                    .getRepositoryEntries();
+                for (int i = entries.size() - 1; i >= 0; i--) {
+                    var pack = entries.get(i)
+                        .getResourcePack();
+                    if (pack != null && pack.getResourceDomains()
+                        .contains(namespace)) {
+                        String packName = pack.getPackName();
+                        if (packName.length() > 4 && packName.substring(packName.length() - 4)
+                            .equalsIgnoreCase(".zip")) {
+                            packName = packName.substring(0, packName.length() - 4);
+                        }
+                        return packName;
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        // For "development:" or no matching user resource pack: fall back to FML mod name
+        try {
+            var mod = Loader.instance()
+                .getIndexedModList()
+                .get(namespace);
+            if (mod != null) {
+                return mod.getName();
+            }
+        } catch (Throwable ignored) {}
+        return namespace;
     }
 
     private void drawPageTitle() {

@@ -248,6 +248,10 @@ GuideNH 会读取第一个 YAML frontmatter 块，并解析这些已知键：
 | `item_ids` | 物品引用列表 | 让页面可被 `<ItemLink>` 发现 |
 | `ore_ids` | 矿辞名列表 | 让页面可被矿辞物品（如 `ingotIron`、`oreCopper`）索引 |
 | `quest_ids` | BetterQuesting 任务 UUID 字符串列表 | 让页面可被 `<QuestLink>` / `<QuestCard>` 以及 BQ 任务 GUI 中的打开指南快捷键发现。仅在 BetterQuesting 加载时生效。参见 [模组兼容](Mod-Compatibility-zh-CN) |
+| `author` | string | 单一作者名称。显示在底部栏中。 |
+| `authors` | 字符串列表或 `{name: ...}` 映射列表 | 多位作者名称。最多显示两位，多余的用 `...` 替代。与 `author` 同时存在时以 `authors` 为准。 |
+| `date` | 字符串或 YYYY-MM-DD 日期 | 内容创建日期。显示在底部栏中。 |
+| `updated` | 字符串或 YYYY-MM-DD 日期 | 最后更新日期。显示在底部栏中。 |
 | 其他任意键 | 任意 YAML 值 | 保存在 `additionalProperties` 中，供扩展或工具使用 |
 
 ### `navigation`
@@ -280,6 +284,27 @@ ore_ids:
   - oreCopper
 quest_ids:
   - 01234567-89ab-cdef-0123-456789abcdef
+author: 示例作者
+date: 2024-01-15
+updated: 2024-06-01
+```
+
+当 `author`、`authors`、`date` 或 `updated` 中任意一项存在时，GuideNH 会在
+指南界面底部显示一个与顶部工具栏风格一致的底部栏，靠右对齐显示形如：
+*内容来自 我的模组，作者 示例作者，日期 2024-01-15，更新日期 2024-06-01* 的信息。
+
+多作者示例：
+```yaml
+authors:
+  - 爱丽丝
+  - 鲍勃
+  - 查理   # 只显示爱丽丝和鲍勃，后跟 ...
+```
+或使用结构化写法：
+```yaml
+authors:
+  - name: 爱丽丝
+  - name: 鲍勃
 ```
 
 ## 链接解析规则

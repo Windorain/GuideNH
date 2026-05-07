@@ -259,6 +259,10 @@ GuideNH reads the first YAML frontmatter block and parses these known keys:
 | `item_ids` | list of item references | Makes the page discoverable by `<ItemLink>` |
 | `ore_ids` | list of ore dictionary names | Makes the page discoverable by ore-dictionary items (e.g. `ingotIron`, `oreCopper`) |
 | `quest_ids` | list of BetterQuesting quest UUID strings | Makes the page discoverable by `<QuestLink>` / `<QuestCard>` and by the open-guide hotkey when a quest is hovered in the BQ GUI. Only consumed when BetterQuesting is loaded. See [Mod Compatibility](Mod-Compatibility) |
+| `author` | string | Single author name. Displayed in the bottom bar. |
+| `authors` | list of strings or `{name: ...}` maps | Multiple author names. At most two are displayed; additional ones are replaced with `...`. Takes precedence over `author` if both are present. |
+| `date` | string or YYYY-MM-DD date | Content creation date. Displayed in the bottom bar. |
+| `updated` | string or YYYY-MM-DD date | Last updated date. Displayed in the bottom bar. |
 | any other key | any YAML value | Preserved in `additionalProperties` for extensions or tooling |
 
 ### `navigation`
@@ -291,6 +295,27 @@ ore_ids:
   - oreCopper
 quest_ids:
   - 01234567-89ab-cdef-0123-456789abcdef
+author: ExampleAuthor
+date: 2024-01-15
+updated: 2024-06-01
+```
+
+When any of `author`, `authors`, `date`, or `updated` is present, GuideNH shows a
+bottom bar in the guide screen (matching the top toolbar style) with right-aligned
+text like: *Content from MyMod, Author ExampleAuthor, Date 2024-01-15, Updated 2024-06-01*.
+
+Multiple authors example:
+```yaml
+authors:
+  - Alice
+  - Bob
+  - Charlie   # only Alice and Bob are shown, "..." appended
+```
+Or with structured entries:
+```yaml
+authors:
+  - name: Alice
+  - name: Bob
 ```
 
 ## Link Resolution

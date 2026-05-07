@@ -293,7 +293,9 @@ public class PageCompiler {
         var document = new PageCompiler(pages, extensions, parsedPage.sourcePack, parsedPage.id, parsedPage.source)
             .compile(parsedPage.astRoot);
         var titleHeading = extractPageTitleHeading(document);
-        return new GuidePage(parsedPage.sourcePack, parsedPage.id, document, titleHeading);
+        FrontmatterPageMeta pageMeta = parsedPage.frontmatter != null ? parsedPage.frontmatter.parseMeta() : null;
+        if (pageMeta != null && pageMeta.isEmpty()) pageMeta = null;
+        return new GuidePage(parsedPage.sourcePack, parsedPage.id, document, titleHeading, pageMeta);
     }
 
     /**

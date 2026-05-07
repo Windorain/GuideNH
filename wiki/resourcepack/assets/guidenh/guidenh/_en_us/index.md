@@ -4,6 +4,8 @@ item_ids:
 navigation:
   title: Root
   icon_texture: test1.png
+author: GuideNH Example
+date: 2024-01-01
 ---
 
 # Start Page

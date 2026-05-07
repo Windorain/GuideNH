@@ -8,6 +8,7 @@ import net.minecraft.util.ResourceLocation;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.hfstudio.guidenh.guide.compiler.FrontmatterPageMeta;
 import com.hfstudio.guidenh.guide.document.block.LytDocument;
 import com.hfstudio.guidenh.guide.document.block.LytHeading;
 import com.hfstudio.guidenh.guide.document.block.LytNode;
@@ -21,16 +22,24 @@ public final class GuidePage {
     private final List<LytGuidebookScene> scenes;
     @Nullable
     private final LytHeading titleHeading;
+    @Nullable
+    private final FrontmatterPageMeta pageMeta;
 
     public GuidePage(String sourcePack, ResourceLocation id, LytDocument document) {
-        this(sourcePack, id, document, null);
+        this(sourcePack, id, document, null, null);
     }
 
     public GuidePage(String sourcePack, ResourceLocation id, LytDocument document, @Nullable LytHeading titleHeading) {
+        this(sourcePack, id, document, titleHeading, null);
+    }
+
+    public GuidePage(String sourcePack, ResourceLocation id, LytDocument document, @Nullable LytHeading titleHeading,
+        @Nullable FrontmatterPageMeta pageMeta) {
         this.sourcePack = sourcePack;
         this.id = id;
         this.document = document;
         this.titleHeading = titleHeading;
+        this.pageMeta = pageMeta;
         this.scenes = collectScenes(document);
     }
 
@@ -52,6 +61,11 @@ public final class GuidePage {
 
     public @Nullable LytHeading titleHeading() {
         return titleHeading;
+    }
+
+    @Nullable
+    public FrontmatterPageMeta pageMeta() {
+        return pageMeta;
     }
 
     public void prepareForDisplay() {

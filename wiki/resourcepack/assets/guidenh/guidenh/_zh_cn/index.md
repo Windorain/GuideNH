@@ -4,6 +4,8 @@ item_ids:
 navigation:
   title: 首页
   icon_texture: test1.png
+author: GuideNH 示例
+date: 2024-01-01
 ---
 
 # 起始页

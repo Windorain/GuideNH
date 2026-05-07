@@ -1,7 +1,10 @@
 package com.hfstudio.guidenh.guide.compiler;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import net.minecraft.util.ResourceLocation;
@@ -96,5 +99,56 @@ public record Frontmatter(@Nullable FrontmatterNavigation navigationEntry, Map<S
             throw new IllegalArgumentException("Key " + key + " has to be a map!");
         }
         return mapValue;
+    }
+
+    /**
+     * Parses {@code author}/{@code authors}, {@code date}, and {@code updated} from
+     * {@link #additionalProperties()} into a {@link FrontmatterPageMeta} value object.
+     */
+    public FrontmatterPageMeta parseMeta() {
+        List<String> authors = new ArrayList<>();
+
+        // Single-author shorthand: author: "Name"
+        Object authorObj = additionalProperties.get("author");
+        if (authorObj instanceof String) {
+            String s = (String) authorObj;
+            if (!s.trim()
+                .isEmpty()) authors.add(s.trim());
+        }
+
+        // Multi-author list: authors: ["Name"] or authors: [{name: "Name"}]
+        Object authorsObj = additionalProperties.get("authors");
+        if (authorsObj instanceof List<?>) {
+            for (Object item : (List<?>) authorsObj) {
+                if (item instanceof String) {
+                    String s = ((String) item).trim();
+                    if (!s.isEmpty()) authors.add(s);
+                } else if (item instanceof Map<?, ?>) {
+                    Object name = ((Map<?, ?>) item).get("name");
+                    if (name instanceof String) {
+                        String s = ((String) name).trim();
+                        if (!s.isEmpty()) authors.add(s);
+                    }
+                }
+            }
+        }
+
+        String date = toDateString(additionalProperties.get("date"));
+        String updated = toDateString(additionalProperties.get("updated"));
+
+        return new FrontmatterPageMeta(Collections.unmodifiableList(authors), date, updated);
+    }
+
+    @Nullable
+    private static String toDateString(@Nullable Object value) {
+        if (value == null) return null;
+        if (value instanceof String) {
+            String s = ((String) value).trim();
+            return s.isEmpty() ? null : s;
+        }
+        if (value instanceof java.util.Date) {
+            return new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format((java.util.Date) value);
+        }
+        return value.toString();
     }
 }
