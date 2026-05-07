@@ -30,12 +30,10 @@ import gregtech.api.util.GTOreDictUnificator;
 import gregtech.api.util.HatchElementBuilder;
 import gregtech.common.blocks.ItemMachines;
 
-public final class GregTechHelpers {
+public class GregTechHelpers {
 
     public static final Logger LOG = LogManager.getLogger("GuideNH/GregTechHelpers");
     public static final Set<String> LOGGED_KEYS = Collections.synchronizedSet(new HashSet<>());
-
-    private GregTechHelpers() {}
 
     public static ItemStack applyOreDictUnification(ItemStack stack) {
         if (stack == null || !Mods.GregTech.isModLoaded()) {

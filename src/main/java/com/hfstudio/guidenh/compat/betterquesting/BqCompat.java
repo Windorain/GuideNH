@@ -17,12 +17,10 @@ import com.hfstudio.guidenh.guide.compiler.TagCompiler;
  * through {@link BqHelpers}. That keeps {@code BqCompat} safe to load even when BetterQuesting
  * is missing from the classpath, so it can be statically referenced from the rest of the mod.
  */
-public final class BqCompat {
+public class BqCompat {
 
     @Nullable
-    private static volatile UUID currentHoveredQuestUuid;
-
-    private BqCompat() {}
+    public static volatile UUID currentHoveredQuestUuid;
 
     /**
      * Attaches the {@link QuestIndex} to the given guide builder. Safe to call when BQ is

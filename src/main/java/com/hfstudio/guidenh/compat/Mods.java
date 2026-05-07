@@ -28,6 +28,7 @@ public enum Mods implements IMod, ITargetMod {
     EtFuturum("etfuturum"),
     SimpleSkinBackport("simpleskinbackport"),
     Translocators("Translocator"),
+    TinkersConstruct("TConstruct"),
     ;
     // spotless:on
 

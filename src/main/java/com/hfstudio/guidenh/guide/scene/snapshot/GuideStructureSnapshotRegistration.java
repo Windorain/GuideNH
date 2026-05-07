@@ -6,6 +6,7 @@ import com.hfstudio.guidenh.compat.buildcraft.BuildCraftPreviewPrepareContributo
 import com.hfstudio.guidenh.compat.gregtech.GregTechPreviewPrepareContributor;
 import com.hfstudio.guidenh.compat.logisticspipes.LogisticsPipesPreviewPrepareContributor;
 import com.hfstudio.guidenh.compat.preview.GuideCompatStructurePreviewBootstrap;
+import com.hfstudio.guidenh.compat.tinkerconstruct.TinkersConstructPreviewPrepareContributor;
 
 /**
  * Registers default structure snapshot / preview contributors. Call once from {@link com.hfstudio.guidenh.CommonProxy}
@@ -23,6 +24,7 @@ public final class GuideStructureSnapshotRegistration {
         PreviewPreparePipeline.register(new GregTechPreviewPrepareContributor());
         PreviewPreparePipeline.register(new BuildCraftPreviewPrepareContributor());
         PreviewPreparePipeline.register(new LogisticsPipesPreviewPrepareContributor());
+        PreviewPreparePipeline.register(new TinkersConstructPreviewPrepareContributor());
 
         if (Mods.AE2.isModLoaded()) {
             PreviewPreparePipeline.register(new Ae2PreviewPrepareContributor());

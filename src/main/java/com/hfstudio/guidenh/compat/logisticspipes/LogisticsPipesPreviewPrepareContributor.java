@@ -8,10 +8,10 @@ import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.guide.scene.snapshot.PreviewPrepareContributor;
 import com.hfstudio.guidenh.guide.scene.support.GuideDebugLog;
 
-public final class LogisticsPipesPreviewPrepareContributor implements PreviewPrepareContributor {
+public class LogisticsPipesPreviewPrepareContributor implements PreviewPrepareContributor {
 
-    private static final Logger LOG = LogManager.getLogger("GuideNH/ScenePreview");
-    private static volatile boolean invokeFailureLogged;
+    public static final Logger LOG = LogManager.getLogger("GuideNH/ScenePreview");
+    public static volatile boolean invokeFailureLogged;
 
     @Override
     public int priority() {

@@ -26,7 +26,7 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
  * no-op token when DH is absent so the JVM never resolves the {@link ForgeClientProxy}
  * reference outside the {@link Optional.Method}-guarded body.
  */
-public final class DistantHorizonsCompat {
+public class DistantHorizonsCompat {
 
     private static final Object SUPPRESSION_LOCK = new Object();
     private static final SuppressionToken NOOP_TOKEN = () -> {};
@@ -41,8 +41,6 @@ public final class DistantHorizonsCompat {
     @Nullable
     private static volatile Method privateRegisterMethod;
     private static volatile boolean reflectionResolved;
-
-    private DistantHorizonsCompat() {}
 
     public interface SuppressionToken extends AutoCloseable {
 

@@ -20,6 +20,7 @@ import net.minecraft.world.EnumDifficulty;
 import net.minecraft.world.WorldSettings;
 import net.minecraft.world.WorldType;
 import net.minecraft.world.biome.BiomeGenBase;
+import net.minecraft.world.chunk.Chunk;
 import net.minecraftforge.common.util.ForgeDirection;
 
 import org.jetbrains.annotations.Nullable;
@@ -129,6 +130,11 @@ public class GuidebookFakeWorld extends WorldClient {
     @Override
     public boolean isAirBlock(int x, int y, int z) {
         return getBlock(x, y, z) == Blocks.air;
+    }
+
+    @Override
+    public Chunk getChunkFromBlockCoords(int x, int z) {
+        return new GuidebookFakeChunk(this, x >> 4, z >> 4);
     }
 
     @Override

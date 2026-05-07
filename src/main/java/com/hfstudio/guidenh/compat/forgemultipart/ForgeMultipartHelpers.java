@@ -32,7 +32,7 @@ import org.jetbrains.annotations.Nullable;
 import com.hfstudio.guidenh.compat.Mods;
 import com.hfstudio.guidenh.mixins.late.compat.forgemultipart.AccessorBlockMicroMaterial;
 
-public final class ForgeMultipartHelpers {
+public class ForgeMultipartHelpers {
 
     private static final Logger LOG = LogManager.getLogger("GuideNH/ForgeMultipart");
     private static final ConcurrentMap<String, Boolean> ONCE_KEYS = new ConcurrentHashMap<>();
@@ -66,8 +66,6 @@ public final class ForgeMultipartHelpers {
     public static final String BLOCK_MICRO_MATERIAL_OBJECT_CLASS = "codechicken.microblock.BlockMicroMaterial$";
     public static final String SAVED_MULTIPART_ID = "savedMultipart";
     public static final Object INVOCATION_MISSING = new Object();
-
-    private ForgeMultipartHelpers() {}
 
     public static boolean isForgeMultipartBlock(@Nullable Block block) {
         return Mods.ForgeMultipart.isModLoaded() && isInstanceOf(block, BLOCK_MULTIPART_CLASS);

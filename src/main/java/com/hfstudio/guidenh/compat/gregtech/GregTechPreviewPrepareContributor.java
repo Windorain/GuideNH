@@ -8,7 +8,7 @@ import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.guide.scene.snapshot.PreviewPrepareContributor;
 import com.hfstudio.guidenh.guide.scene.support.GuideDebugLog;
 
-public final class GregTechPreviewPrepareContributor implements PreviewPrepareContributor {
+public class GregTechPreviewPrepareContributor implements PreviewPrepareContributor {
 
     private static final Logger LOG = LogManager.getLogger("GuideNH/ScenePreview");
     private static volatile boolean invokeFailureLogged;

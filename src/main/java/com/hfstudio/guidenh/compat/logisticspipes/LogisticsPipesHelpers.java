@@ -15,9 +15,7 @@ import logisticspipes.pipes.basic.CoreUnroutedPipe;
 import logisticspipes.pipes.basic.LogisticsBlockGenericPipe;
 import logisticspipes.renderer.state.PipeRenderState;
 
-public final class LogisticsPipesHelpers {
-
-    private LogisticsPipesHelpers() {}
+public class LogisticsPipesHelpers {
 
     /**
      * Resolves the display {@link ItemStack} for a LogisticsPipes pipe at the given position.

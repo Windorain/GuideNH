@@ -19,11 +19,9 @@ import betterquesting.api2.utils.QuestTranslation;
 import betterquesting.client.gui2.GuiQuest;
 import betterquesting.questing.QuestDatabase;
 
-public final class BqHelpers {
+public class BqHelpers {
 
     public static final Logger LOG = LoggerFactory.getLogger(BqHelpers.class);
-
-    private BqHelpers() {}
 
     /**
      * Resolves the per-player display attributes of a quest by its UUID. Never returns

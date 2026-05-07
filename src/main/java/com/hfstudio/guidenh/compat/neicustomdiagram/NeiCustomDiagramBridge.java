@@ -23,7 +23,7 @@ import com.hfstudio.guidenh.guide.internal.recipe.NeiHandlerRenderer;
 import com.hfstudio.guidenh.guide.internal.tooltip.AppendedItemTooltip;
 import com.hfstudio.guidenh.guide.internal.util.DisplayScale;
 
-public final class NeiCustomDiagramBridge {
+public class NeiCustomDiagramBridge {
 
     private static final Logger LOG = LoggerFactory.getLogger(NeiCustomDiagramBridge.class);
 

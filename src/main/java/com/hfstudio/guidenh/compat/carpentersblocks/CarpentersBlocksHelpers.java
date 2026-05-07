@@ -14,13 +14,11 @@ import com.hfstudio.guidenh.compat.Mods;
 
 import cpw.mods.fml.common.Optional;
 
-public final class CarpentersBlocksHelpers {
+public class CarpentersBlocksHelpers {
 
     public static final String CARPENTERS_BLOCK_PACKAGE = "com.carpentersblocks.block.";
     public static final String CARPENTERS_TILE_PACKAGE = "com.carpentersblocks.tileentity.";
     public static final int BASE_COVER_SIDE = 6;
-
-    private CarpentersBlocksHelpers() {}
 
     public static boolean isCarpentersBlock(@Nullable Block block) {
         if (block == null || !Mods.CarpentersBlocks.isModLoaded()) {

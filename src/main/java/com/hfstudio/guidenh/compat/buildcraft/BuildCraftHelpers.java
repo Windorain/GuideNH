@@ -14,7 +14,7 @@ import buildcraft.transport.Pipe;
 import buildcraft.transport.TileGenericPipe;
 import cpw.mods.fml.common.Optional;
 
-public final class BuildCraftHelpers {
+public class BuildCraftHelpers {
 
     /**
      * Resolves the display {@link ItemStack} for a BuildCraft pipe at the given position.

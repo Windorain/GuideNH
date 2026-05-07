@@ -12,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.compat.Mods;
 
-public final class EtFuturumHelpers {
+public class EtFuturumHelpers {
 
     @Nullable
     private static final Method ALEX_CHECKER = findAlexChecker();
@@ -20,8 +20,6 @@ public final class EtFuturumHelpers {
     private static final Class<?> ELYTRA_ITEM_CLASS = findElytraItemClass();
     @Nullable
     private static final Method ELYTRA_RENDER_LAYER = findElytraRenderLayer();
-
-    private EtFuturumHelpers() {}
 
     @Nullable
     public static Boolean resolveSlim(AbstractClientPlayer player) {

@@ -27,6 +27,8 @@ dependencies {
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:Angelica:2.1.19:dev")
     runtimeOnlyNonPublishable(rfg.deobf("curse.maven:spark-361579:4271867"))
 
+    compileOnlyApi("com.github.GTNewHorizons:TinkersConstruct:1.14.64-GTNH:dev") { transitive = false }
+    compileOnlyApi("com.github.GTNewHorizons:Mantle:0.5.1:dev") { transitive = false }
     compileOnlyApi("com.github.GTNewHorizons:Mobs-Info:0.5.14-GTNH:dev") { transitive = false }
     compileOnlyApi("com.github.GTNewHorizons:LogisticsPipes:1.5.24-GTNH:dev") { transitive = false }
     compileOnlyApi("com.github.GTNewHorizons:BuildCraft:7.1.59:dev") { transitive = false }

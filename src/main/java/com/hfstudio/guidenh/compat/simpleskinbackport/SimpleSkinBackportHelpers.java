@@ -8,7 +8,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.compat.Mods;
 
-public final class SimpleSkinBackportHelpers {
+public class SimpleSkinBackportHelpers {
 
     @Nullable
     private static final Method SLIM_GETTER = findSlimGetter();
