@@ -50,6 +50,66 @@ GuideNH 会解析路径，并从指南内容根目录加载对应的二进制资
 <FloatingImage src="test1.png" align="left" width="64" title="Example" />
 ````
 
+## `ImageAnnotation`
+
+`<ImageAnnotation>` 是 `<FloatingImage>` 的子标签，用于为图片的矩形区域附加富文本 tooltip（以及可选的彩色边框）。坐标以**图片像素**为单位，当图片被缩放或拉伸时会自动等比例调整。
+
+### 属性
+
+| 属性 | 必需 | 默认值 | 含义 |
+| --- | --- | --- | --- |
+| `x` | 否 | — | 区域左边缘（图片像素） |
+| `y` | 否 | — | 区域上边缘（图片像素） |
+| `w` | 否 | — | 区域宽度（图片像素） |
+| `h` | 否 | — | 区域高度（图片像素） |
+| `border` | 否 | `false` | 是否显示彩色边框 |
+| `borderColor` | 否 | 随机 | 边框颜色（`#RRGGBB` 或 `#AARRGGBB`） |
+| `borderThickness` | 否 | `1` | 边框粗细（显示像素） |
+
+### 说明
+
+- 同时省略 `x`、`y`、`w`、`h` 时，注解覆盖**整张图片**
+- 若任一坐标存在，省略的坐标默认为 `0`（原点）或 `1`（尺寸）
+- 默认**不显示**边框；添加 `border` 或 `border={true}` 属性来启用
+- 启用边框但未指定 `borderColor` 时，自动生成随机不透明颜色
+- 子 MDX 内容作为 tooltip 正文渲染，支持任意内联/块级元素
+- 多个注解区域重叠时，列表中靠后的注解（覆盖在上方）优先响应悬停
+
+### 示例
+
+整图注解：
+
+````md
+<FloatingImage src="test1.png" align="left" width="128">
+  <ImageAnnotation>
+    鼠标悬停在图片任意位置都会显示此 tooltip。
+  </ImageAnnotation>
+</FloatingImage>
+````
+
+带可见边框的区域注解：
+
+````md
+<FloatingImage src="test1.png" align="left" width="128">
+  <ImageAnnotation x="10" y="10" w="60" h="40" border borderColor="#FFFF4444" borderThickness="2">
+    悬停在**红框区域**内显示此 tooltip。
+  </ImageAnnotation>
+</FloatingImage>
+````
+
+同一图片上的多个注解：
+
+````md
+<FloatingImage src="test1.png" align="left" width="128">
+  <ImageAnnotation x="0" y="0" w="64" h="64" border borderColor="#FF44FF44">
+    左半部分
+  </ImageAnnotation>
+  <ImageAnnotation x="64" y="0" w="64" h="64" border borderColor="#FF4444FF">
+    右半部分
+  </ImageAnnotation>
+</FloatingImage>
+````
+
 ## 导航纹理图标
 
 frontmatter 可以使用 `icon_texture`，在导航/搜索中显示纹理而不是物品：

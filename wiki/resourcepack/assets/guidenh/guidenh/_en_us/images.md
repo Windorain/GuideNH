@@ -30,6 +30,48 @@ Fixed height 40 (width derived):
 
 <FloatingImage src="test1.png" align="left" height="40" title="height=40" />
 
+## ImageAnnotation
+
+`<ImageAnnotation>` children attach hover tooltips (and optional colored borders) to rectangular
+regions of a `<FloatingImage>`. Coordinates (`x`, `y`, `w`, `h`) are in **image pixels**; the
+region is automatically scaled when the image is resized or stretched. Omitting all four covers the
+entire image.
+
+Whole-image annotation (hover anywhere over the image to see the tooltip):
+
+<FloatingImage src="test1.png" align="left" width="128">
+  <ImageAnnotation>
+    This tooltip appears when you hover over **any part** of the image.
+  </ImageAnnotation>
+</FloatingImage>
+
+Region annotation with a visible red border (x=10, y=10, w=60, h=40):
+
+<FloatingImage src="test1.png" align="left" width="128">
+  <ImageAnnotation x="10" y="10" w="60" h="40" border borderColor="#FFFF4444" borderThickness="2">
+    Hovering the **red-bordered region** shows this tooltip.
+  </ImageAnnotation>
+</FloatingImage>
+
+Multiple annotations on one image — each region shows a different tooltip:
+
+<FloatingImage src="test1.png" align="left" width="128">
+  <ImageAnnotation x="0" y="0" w="64" h="64" border borderColor="#FF44FF44">
+    Left half
+  </ImageAnnotation>
+  <ImageAnnotation x="64" y="0" w="64" h="64" border borderColor="#FF4444FF">
+    Right half
+  </ImageAnnotation>
+</FloatingImage>
+
+Stretched image (200×80) with an annotation that follows the stretch:
+
+<FloatingImage src="test1.png" align="right" width="200" height="80">
+  <ImageAnnotation x="0" y="0" w="128" h="128" border borderColor="#FFFFFF44" borderThickness="2">
+    Left portion of the stretched image.
+  </ImageAnnotation>
+</FloatingImage>
+
 ## ItemImage Scale
 
 <Row>

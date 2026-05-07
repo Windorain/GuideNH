@@ -284,6 +284,10 @@ public class MdxAttrs {
         if (attribute == null) {
             return defaultValue;
         }
+        // Bare attribute (no value) is standard JSX shorthand for {true}.
+        if (!attribute.hasExpressionValue() && !attribute.hasStringValue()) {
+            return true;
+        }
         if (attribute.hasExpressionValue()) {
             var expressionValue = attribute.getExpressionValue();
             if (expressionValue.equals("true")) {

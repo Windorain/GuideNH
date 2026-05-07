@@ -1,5 +1,7 @@
 package com.hfstudio.guidenh.guide.document.block;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import net.minecraft.util.ResourceLocation;
@@ -7,12 +9,14 @@ import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.guide.document.LytRect;
+import com.hfstudio.guidenh.guide.document.interaction.GuideTooltip;
+import com.hfstudio.guidenh.guide.document.interaction.InteractiveElement;
 import com.hfstudio.guidenh.guide.layout.LayoutContext;
 import com.hfstudio.guidenh.guide.render.GuiAssets;
 import com.hfstudio.guidenh.guide.render.GuidePageTexture;
 import com.hfstudio.guidenh.guide.render.RenderContext;
 
-public class LytImage extends LytBlock {
+public class LytImage extends LytBlock implements InteractiveElement {
 
     private ResourceLocation imageId;
     private GuidePageTexture texture = GuidePageTexture.missing();
@@ -21,6 +25,8 @@ public class LytImage extends LytBlock {
 
     private int explicitWidth = -1;
     private int explicitHeight = -1;
+
+    private final List<ImageRegionAnnotation> annotations = new ArrayList<>();
 
     public ResourceLocation getImageId() {
         return imageId;
@@ -42,7 +48,7 @@ public class LytImage extends LytBlock {
         this.alt = alt;
     }
 
-    public void setImage(ResourceLocation id, @Nullable byte[] imageData) {
+    public void setImage(ResourceLocation id, byte @Nullable [] imageData) {
         this.imageId = id;
         if (imageData != null) {
             this.texture = GuidePageTexture.load(id, imageData);
@@ -109,11 +115,99 @@ public class LytImage extends LytBlock {
         } else {
             context.fillTexturedRect(getBounds(), texture);
         }
+        drawAnnotationBorders(context);
     }
 
-    public Optional<String> getTooltip(float x, float y) {
-        if (title != null) {
-            return Optional.of("tooltip");
+    private void drawAnnotationBorders(RenderContext context) {
+        if (annotations.isEmpty()) {
+            return;
+        }
+        var bounds = getBounds();
+        int dispW = bounds.width();
+        int dispH = bounds.height();
+        if (dispW <= 0 || dispH <= 0) {
+            return;
+        }
+        int natW;
+        int natH;
+        if (texture != null && !texture.isMissing()) {
+            var size = texture.getSize();
+            natW = Math.max(1, size.width());
+            natH = Math.max(1, size.height());
+        } else {
+            natW = dispW;
+            natH = dispH;
+        }
+        for (var ann : annotations) {
+            if (!ann.isShowBorder()) {
+                continue;
+            }
+            LytRect borderRect;
+            if (ann.isWholeImage()) {
+                borderRect = bounds;
+            } else {
+                // Clamp the annotation region to [0, natW] x [0, natH] so the border
+                // cannot extend beyond the displayed image area regardless of scaling.
+                int clampedX = Math.max(0, Math.min(ann.getImgX(), natW));
+                int clampedY = Math.max(0, Math.min(ann.getImgY(), natH));
+                int clampedW = Math.min(ann.getImgX() + ann.getImgW(), natW) - clampedX;
+                int clampedH = Math.min(ann.getImgY() + ann.getImgH(), natH) - clampedY;
+                if (clampedW <= 0 || clampedH <= 0) {
+                    continue;
+                }
+                int bx = bounds.x() + clampedX * dispW / natW;
+                int by = bounds.y() + clampedY * dispH / natH;
+                int bw = Math.max(1, clampedW * dispW / natW);
+                int bh = Math.max(1, clampedH * dispH / natH);
+                borderRect = new LytRect(bx, by, bw, bh);
+            }
+            context.drawBorder(borderRect, context.resolveColor(ann.getBorderColor()), ann.getBorderThickness());
+        }
+    }
+
+    /**
+     * Adds a region annotation to this image. Annotations are tested in reverse insertion order
+     * (last-added wins) when querying the tooltip for a given cursor position.
+     */
+    public void addAnnotation(ImageRegionAnnotation annotation) {
+        if (annotation != null) {
+            annotations.add(annotation);
+        }
+    }
+
+    public List<ImageRegionAnnotation> getAnnotations() {
+        return annotations;
+    }
+
+    @Override
+    public Optional<GuideTooltip> getTooltip(float x, float y) {
+        if (annotations.isEmpty()) {
+            return Optional.empty();
+        }
+        var bounds = getBounds();
+        if (texture == null || texture.isMissing()) {
+            return Optional.empty();
+        }
+        int dispW = bounds.width();
+        int dispH = bounds.height();
+        if (dispW <= 0 || dispH <= 0) {
+            return Optional.empty();
+        }
+        var size = texture.getSize();
+        int natW = Math.max(1, size.width());
+        int natH = Math.max(1, size.height());
+        float localX = x - bounds.x();
+        float localY = y - bounds.y();
+        float imgPx = localX * natW / dispW;
+        float imgPy = localY * natH / dispH;
+        for (int i = annotations.size() - 1; i >= 0; i--) {
+            var ann = annotations.get(i);
+            if (ann.getTooltip() == null) {
+                continue;
+            }
+            if (ann.containsImagePoint(imgPx, imgPy)) {
+                return Optional.of(ann.getTooltip());
+            }
         }
         return Optional.empty();
     }

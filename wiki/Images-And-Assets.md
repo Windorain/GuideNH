@@ -48,6 +48,68 @@ GuideNH resolves the path and loads the binary asset from the guide content root
 <FloatingImage src="test1.png" align="left" width="64" title="Example" />
 ````
 
+## `ImageAnnotation`
+
+`<ImageAnnotation>` is a child element of `<FloatingImage>` that attaches a rich-text tooltip (and
+an optional colored border) to a rectangular region of the image. Coordinates are specified in
+**image pixels** and are automatically proportionally scaled when the image is resized or stretched.
+
+### Attributes
+
+| Attribute | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `x` | no | — | left edge of the region in image pixels |
+| `y` | no | — | top edge of the region in image pixels |
+| `w` | no | — | width of the region in image pixels |
+| `h` | no | — | height of the region in image pixels |
+| `border` | no | `false` | show a colored border around the region |
+| `borderColor` | no | random | border color (`#RRGGBB` or `#AARRGGBB`) |
+| `borderThickness` | no | `1` | border thickness in display pixels |
+
+### Notes
+
+- omitting all four of `x`, `y`, `w`, `h` makes the annotation cover the **whole image**
+- if any of the four is present, the remaining omitted ones default to `0` (origin) or `1` (size)
+- border is **not shown by default**; add `border` or `border={true}` to enable it
+- when `borderColor` is omitted and `border` is enabled, a random fully-opaque color is used
+- child MDX content is rendered as the tooltip body and may include any inline/block elements
+- later annotations (lower in the list) take hover priority over earlier ones when regions overlap
+
+### Example
+
+Whole-image annotation:
+
+````md
+<FloatingImage src="test1.png" align="left" width="128">
+  <ImageAnnotation>
+    Hover anywhere on the image to see this tooltip.
+  </ImageAnnotation>
+</FloatingImage>
+````
+
+Region annotation with a visible border:
+
+````md
+<FloatingImage src="test1.png" align="left" width="128">
+  <ImageAnnotation x="10" y="10" w="60" h="40" border borderColor="#FFFF4444" borderThickness="2">
+    This is the **highlighted region** tooltip.
+  </ImageAnnotation>
+</FloatingImage>
+````
+
+Multiple regions on one image:
+
+````md
+<FloatingImage src="test1.png" align="left" width="128">
+  <ImageAnnotation x="0" y="0" w="64" h="64" border borderColor="#FF44FF44">
+    Left half
+  </ImageAnnotation>
+  <ImageAnnotation x="64" y="0" w="64" h="64" border borderColor="#FF4444FF">
+    Right half
+  </ImageAnnotation>
+</FloatingImage>
+````
+
 ## Navigation Texture Icons
 
 Frontmatter can use `icon_texture` to show a texture instead of an item in navigation/search:

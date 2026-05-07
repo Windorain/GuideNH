@@ -1,25 +1,34 @@
 package com.hfstudio.guidenh.guide.compiler.tags;
 
 import java.util.Collections;
+import java.util.Random;
 import java.util.Set;
 
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.hfstudio.guidenh.guide.color.ColorValue;
+import com.hfstudio.guidenh.guide.color.ConstantColor;
 import com.hfstudio.guidenh.guide.compiler.IdUtils;
 import com.hfstudio.guidenh.guide.compiler.IndexingContext;
 import com.hfstudio.guidenh.guide.compiler.IndexingSink;
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
+import com.hfstudio.guidenh.guide.document.block.ImageRegionAnnotation;
 import com.hfstudio.guidenh.guide.document.block.LytImage;
+import com.hfstudio.guidenh.guide.document.block.LytVBox;
 import com.hfstudio.guidenh.guide.document.flow.InlineBlockAlignment;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowParent;
+import com.hfstudio.guidenh.guide.document.interaction.ContentTooltip;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
 
 public class FloatingImageCompiler extends FlowTagCompiler {
 
     public static final String TAG_NAME = "FloatingImage";
     public static final Logger LOG = LoggerFactory.getLogger(FloatingImageCompiler.class);
+
+    private static final Random RANDOM = new Random();
 
     @Override
     public Set<String> getTagNames() {
@@ -53,6 +62,17 @@ public class FloatingImageCompiler extends FlowTagCompiler {
             image.setTitle("Invalid image URL: " + src);
         }
 
+        // Parse <ImageAnnotation> child elements.
+        var children = el.children();
+        if (children != null) {
+            for (var child : children) {
+                if (child instanceof MdxJsxElementFields annEl && "ImageAnnotation".equals(annEl.name())) {
+                    var ann = parseImageAnnotation(compiler, parent, annEl);
+                    image.addAnnotation(ann);
+                }
+            }
+        }
+
         // Wrap it in a flow content inline block
         var inlineBlock = new LytFlowInlineBlock();
         inlineBlock.setBlock(image);
@@ -74,6 +94,62 @@ public class FloatingImageCompiler extends FlowTagCompiler {
         }
 
         parent.append(inlineBlock);
+    }
+
+    /**
+     * Parses a single {@code <ImageAnnotation>} child element into an {@link ImageRegionAnnotation}.
+     * Returns {@code null} only when a fatal parse error occurs.
+     *
+     * <p>
+     * Attributes:
+     * <ul>
+     * <li>{@code x}, {@code y}, {@code w}, {@code h} — region in image pixels; omitting all four
+     * means the annotation covers the whole image.</li>
+     * <li>{@code border} — boolean flag; presence (or {@code {true}}) enables the border.</li>
+     * <li>{@code borderColor} — {@code #RRGGBB} or {@code #AARRGGBB}; omit for a random color.</li>
+     * <li>{@code borderThickness} — integer pixel thickness, default 1.</li>
+     * </ul>
+     * Child MDX content is compiled as the rich-text tooltip body.
+     */
+    @NotNull
+    private static ImageRegionAnnotation parseImageAnnotation(PageCompiler compiler, LytFlowParent parent,
+        MdxJsxElementFields annEl) {
+        int x = MdxAttrs.getInt(compiler, parent, annEl, "x", -1);
+        int y = MdxAttrs.getInt(compiler, parent, annEl, "y", -1);
+        int w = MdxAttrs.getInt(compiler, parent, annEl, "w", -1);
+        int h = MdxAttrs.getInt(compiler, parent, annEl, "h", -1);
+        boolean wholeImage = x < 0 && y < 0 && w < 0 && h < 0;
+
+        boolean showBorder = MdxAttrs.getBoolean(compiler, parent, annEl, "border", false);
+        int borderThickness = MdxAttrs.getInt(compiler, parent, annEl, "borderThickness", 1);
+
+        ColorValue borderColor;
+        if (annEl.getAttribute("borderColor") != null) {
+            borderColor = MdxAttrs.getColor(compiler, parent, annEl, "borderColor", ConstantColor.WHITE);
+        } else {
+            borderColor = new ConstantColor(0xFF000000 | RANDOM.nextInt(0x1000000));
+        }
+
+        ImageRegionAnnotation ann;
+        if (wholeImage) {
+            ann = new ImageRegionAnnotation(showBorder, borderColor, borderThickness);
+        } else {
+            int ax = Math.max(x, 0);
+            int ay = Math.max(y, 0);
+            int aw = Math.max(1, w < 0 ? 1 : w);
+            int ah = Math.max(1, h < 0 ? 1 : h);
+            ann = new ImageRegionAnnotation(ax, ay, aw, ah, showBorder, borderColor, borderThickness);
+        }
+
+        // Compile tooltip rich-text content from child elements.
+        var contentBox = new LytVBox();
+        compiler.compileBlockTagChildren(annEl, contentBox);
+        if (!contentBox.getChildren()
+            .isEmpty()) {
+            ann.setTooltip(new ContentTooltip(contentBox));
+        }
+
+        return ann;
     }
 
     @Override
