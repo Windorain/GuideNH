@@ -455,7 +455,7 @@ public class LytGuidebookScene extends LytBlock {
     }
 
     public boolean isGridButtonEnabled() {
-        return gridButtonEnabled;
+        return gridButtonEnabled || ModConfig.debug.enableDebugMode;
     }
 
     public void setGridButtonEnabled(boolean gridButtonEnabled) {
@@ -993,7 +993,14 @@ public class LytGuidebookScene extends LytBlock {
         appendOriginAxesAnnotations(inWorld);
         if (gridVisible && !level.isEmpty()) {
             int[] bounds = level.getBounds();
-            inWorld.add(new SceneFloorGridAnnotation(bounds[0] - 1, bounds[2] - 1, bounds[3] + 2, bounds[5] + 2, 0f));
+            SceneFloorGridAnnotation grid = new SceneFloorGridAnnotation(
+                bounds[0] - 1,
+                bounds[2] - 1,
+                bounds[3] + 2,
+                bounds[5] + 2,
+                0f);
+            grid.setShowDebugLabels(ModConfig.debug.enableDebugMode);
+            inWorld.add(grid);
         }
         for (SceneAnnotation pa : ponderOutgoingAnnotations) {
             if (pa instanceof OverlayAnnotation ov) {

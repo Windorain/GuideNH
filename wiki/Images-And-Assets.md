@@ -110,6 +110,70 @@ Multiple regions on one image:
 </FloatingImage>
 ````
 
+## Content Embedding and Text Wrapping
+
+All block-level tags — `<FloatingImage>`, `<Recipe>`, `<GameScene>`, `<ItemImage>`, `<BlockImage>`,
+and any other tag backed by `BlockTagCompiler` — support two optional layout attributes that
+provide Word-style content embedding.
+
+| Attribute | Values | Default | Meaning |
+| --- | --- | --- | --- |
+| `wrap` | `inline` · `square` · `tight` · `through` · `top-bottom` · `behind` · `front` | `inline` | Text-wrapping mode |
+| `align` | `left` · `center` · `right` | `left` | Horizontal alignment |
+
+### Wrap modes
+
+| Mode | Word equivalent | Block-context behaviour | Flow-context behaviour |
+| --- | --- | --- | --- |
+| `inline` | In line with text | Default stack (嵌入型) | Sits on the text line |
+| `square` | Square | Document-level float; text wraps around (方形环绕) | `FLOAT_LEFT` / `FLOAT_RIGHT` |
+| `tight` | Tight | Same as `square` (紧密型) | Same as `square` |
+| `through` | Through | Same as `square` (穿越型) | Same as `square` |
+| `top-bottom` | Top and Bottom | Full-width slot; `align` repositions horizontally (上下型) | Line-inline with breaks |
+| `behind` | Behind text | Aligned inline slot; renders behind text (衬于文字下方) | Sits on the line |
+| `front` | In front of text | Aligned inline slot; renders in front of text (浮于文字上方) | Sits on the line |
+
+### Alignment with floating wrap
+
+For `wrap=square/tight/through`:
+- `align=left` (default) — block floats to the **left**; text fills the right side.
+- `align=right` — block floats to the **right**; text fills the left side.
+- `align=center` — block is centred without floating (no text wrapping).
+
+### Examples
+
+Left-floating image using the new `wrap` attribute:
+
+````md
+<FloatingImage src="test1.png" wrap="square" align="left" width="64" />
+
+Paragraph text that flows to the right of the image...
+````
+
+Right-floating recipe:
+
+````md
+<Recipe id="minecraft:stone" wrap="square" align="right" />
+
+Text that flows to the left of the recipe box...
+````
+
+Centred item image (no text wrapping):
+
+````md
+<ItemImage id="minecraft:diamond" align="center" />
+````
+
+Right-aligned item image:
+
+````md
+<ItemImage id="minecraft:diamond" align="right" />
+````
+
+> **Note** — `<FloatingImage>` also supports its own `align="left/right"` attribute for
+> historical reasons. For new content, prefer the universal `wrap` + `align` approach above,
+> which works on any block tag.
+
 ## Navigation Texture Icons
 
 Frontmatter can use `icon_texture` to show a texture instead of an item in navigation/search:

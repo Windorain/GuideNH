@@ -23,6 +23,39 @@
 | `gridButtonEnabled` | boolean | `true` | shows the floor grid toggle button |
 | `showGrid` | boolean | `false` | initial visibility of the floor grid |
 
+## Debug Mode Overlays
+
+When the `enableDebugMode` option is enabled in the GuideNH mod config, the following extra
+overlays become available in the 3D scene preview.
+
+### Grid Coordinate Labels
+
+When debug mode is **on** and the floor grid is **visible**, coordinate labels are rendered
+below each grid line:
+
+- **X-axis numbers** are shown along the near edge of the grid (north/−Z edge in the default
+  `isometric-north-east` camera).  Each integer X world-coordinate receives a label.
+- **Z-axis numbers** are shown along the near edge of the grid (east/+X edge).  Each integer
+  Z world-coordinate receives a label.
+- **Cardinal direction initials** (`N`, `S`, `E`, `W`) are drawn at the midpoint of each
+  respective grid edge.
+
+Coordinates follow the actual world X/Z values stored in the scene level, so they can be
+negative when the structure contains blocks with negative coordinates.
+
+The grid toggle button is **always enabled** while debug mode is active, regardless of the
+`gridButtonEnabled` attribute, so you can show or hide the grid and its labels at any time.
+The default grid visibility (`showGrid`) is not affected.
+
+### Block Coordinate Tooltip
+
+When debug mode is **on** and the cursor hovers over a block inside the scene, a second
+tooltip is rendered above the primary block tooltip, showing the world-space block position
+as `X, Y, Z` in gold text.
+
+If the coordinate tooltip would be clipped at the top of the screen it automatically snaps
+below the cursor area instead (magnetic snapping).
+
 ## Perspective Presets
 
 Accepted `perspective` values:
@@ -32,6 +65,66 @@ Accepted `perspective` values:
 - `up`
 
 Unknown values fall back to `isometric-north-east`.
+
+## Content Embedding and Text Wrapping
+
+Any block-level tag — including `<GameScene>` — supports two optional attributes that control
+how it is embedded in the page, mirroring Microsoft Word's "Text Wrapping" options.
+
+| Attribute | Values | Default | Meaning |
+| --- | --- | --- | --- |
+| `wrap` | `inline` · `square` · `tight` · `through` · `top-bottom` · `behind` · `front` | `inline` | Text-wrapping mode |
+| `align` | `left` · `center` · `right` | `left` | Horizontal alignment |
+
+### Wrap modes
+
+| Mode | Word equivalent | Effect |
+| --- | --- | --- |
+| `inline` | In line with text | Default flow: scene occupies its own vertical slot (嵌入型) |
+| `square` | Square | Scene floats left or right; surrounding text wraps in a rectangle around it (方形环绕) |
+| `tight` | Tight | Tighter wrap; equivalent to `square` in this layout system (紧密型) |
+| `through` | Through | Through-wrap; equivalent to `square` in this layout system (穿越型) |
+| `top-bottom` | Top and Bottom | Text only above and below, not beside; respects `align` for horizontal placement (上下型) |
+| `behind` | Behind text | Block renders behind surrounding text; respects `align` (衬于文字下方) |
+| `front` | In front of text | Block renders in front of surrounding text; respects `align` (浮于文字上方) |
+
+### Examples
+
+Left-floating scene — text in the next paragraph wraps to the right:
+
+````md
+<GameScene wrap="square" align="left" width="200" height="150">
+  <Block id="minecraft:stone" />
+</GameScene>
+
+Text that flows to the right of the scene...
+````
+
+Right-floating scene:
+
+````md
+<GameScene wrap="square" align="right" width="200" height="150">
+  <Block id="minecraft:stone" />
+</GameScene>
+
+Text that flows to the left of the scene...
+````
+
+Centred scene (no text wrapping):
+
+````md
+<GameScene align="center" width="200" height="150">
+  <Block id="minecraft:stone" />
+</GameScene>
+````
+
+Inline in text (flow context) — text wraps around a small scene:
+
+````md
+Some text {<GameScene wrap="square" align="left" width="80" height="80">
+  <Block id="minecraft:grass" />
+</GameScene>} and more text that wraps to the right.
+````
 
 ## Example
 

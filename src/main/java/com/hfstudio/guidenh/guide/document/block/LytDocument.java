@@ -112,9 +112,19 @@ public class LytDocument extends LytNode implements LytBlockContainer {
 
     private Layout createLayout(LayoutContext context, int availableWidth) {
         var bounds = Layouts.verticalLayout(context, blocks, 0, 0, availableWidth, 5, 5, 5, 5, 0, AlignItems.START);
-        var cachedBounds = new LytRect(0, 0, availableWidth, bounds.height());
-
-        return new Layout(availableWidth, bounds.height(), cachedBounds);
+        int contentHeight = bounds.height();
+        // Document-level floats (LytDocumentFloat) report zero height so they do not advance the
+        // vertical cursor in verticalLayout. If a float is taller than the text that wraps beside
+        // it, the float visually extends below the last paragraph but the computed contentHeight
+        // does not reflect this, causing the scroll area to be truncated.
+        // After the full layout pass, any remaining active floats represent exactly this case.
+        // Retrieve their maximum bottom edge and extend contentHeight to cover them.
+        var floatBottom = context.clearFloats(true, true);
+        if (floatBottom.isPresent() && floatBottom.getAsInt() > contentHeight) {
+            contentHeight = floatBottom.getAsInt() + 5;
+        }
+        var cachedBounds = new LytRect(0, 0, availableWidth, contentHeight);
+        return new Layout(availableWidth, contentHeight, cachedBounds);
     }
 
     public void render(RenderContext context) {

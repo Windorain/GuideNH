@@ -2,11 +2,15 @@ package com.hfstudio.guidenh.guide.document.block;
 
 import com.hfstudio.guidenh.guide.color.SymbolicColor;
 import com.hfstudio.guidenh.guide.document.DefaultStyles;
+import com.hfstudio.guidenh.guide.document.LytRect;
+import com.hfstudio.guidenh.guide.layout.LayoutContext;
 import com.hfstudio.guidenh.guide.render.RenderContext;
 
 public class LytHeading extends LytParagraph {
 
     private int depth = 1;
+    // Horizontal offset from bounds.x() to the float-adjusted text start position
+    private int separatorXOffset = 0;
 
     public LytHeading() {
         setMarginTop(5);
@@ -32,15 +36,27 @@ public class LytHeading extends LytParagraph {
     }
 
     @Override
+    public LytRect computeLayout(LayoutContext context, int x, int y, int availableWidth) {
+        // Capture the left float edge so the separator line starts at the text, not the block edge
+        var leftEdge = context.getLeftFloatRightEdge();
+        separatorXOffset = leftEdge.isPresent() ? Math.max(0, leftEdge.getAsInt() - x) : 0;
+        return super.computeLayout(context, x, y, availableWidth);
+    }
+
+    @Override
     public void render(RenderContext context) {
         super.render(context);
 
         if (depth == 1) {
             var bounds = getBounds();
-            context.fillRect(bounds.x(), bounds.bottom() - 1, bounds.width(), 1, SymbolicColor.HEADER1_SEPARATOR);
+            int sepX = bounds.x() + separatorXOffset;
+            int sepW = Math.max(0, bounds.width() - separatorXOffset);
+            context.fillRect(sepX, bounds.bottom() - 1, sepW, 1, SymbolicColor.HEADER1_SEPARATOR);
         } else if (depth == 2) {
             var bounds = getBounds();
-            context.fillRect(bounds.x(), bounds.bottom() - 1, bounds.width(), 1, SymbolicColor.HEADER2_SEPARATOR);
+            int sepX = bounds.x() + separatorXOffset;
+            int sepW = Math.max(0, bounds.width() - separatorXOffset);
+            context.fillRect(sepX, bounds.bottom() - 1, sepW, 1, SymbolicColor.HEADER2_SEPARATOR);
         }
     }
 }

@@ -25,6 +25,31 @@
 | `gridButtonEnabled` | boolean | `true` | 是否显示地板网格切换按钮 |
 | `showGrid` | boolean | `false` | 地板网格的初始可见性 |
 
+## Debug 模式叠加层
+
+在 GuideNH Mod 配置中启用 `enableDebugMode` 选项后，3D 场景预览将提供以下额外叠加层。
+
+### 网格坐标标签
+
+当 debug 模式**开启**且地板网格**可见**时，坐标标签将渲染在各网格线旁：
+
+- **X 轴数字**：沿网格的近侧边缘（默认 `isometric-north-east` 视角下为北/−Z 边）显示，
+  每个整数 X 世界坐标处各有一个标签。
+- **Z 轴数字**：沿网格的近侧边缘（东/+X 边）显示，每个整数 Z 世界坐标处各有一个标签。
+- **基本方向首字母**（`N`/`S`/`E`/`W`）：绘制在各方向对应网格边缘的中点处。
+
+坐标值使用场景 Level 中存储的实际世界 X/Z 数值，因此当结构包含负坐标方块时，数字可以为负。
+
+只要 debug 模式激活，**网格切换按钮将始终可用**，不受 `gridButtonEnabled` 属性限制，
+随时可显示或隐藏网格及其坐标标签；`showGrid` 属性控制的默认网格可见性不受影响。
+
+### 方块坐标 Tooltip
+
+当 debug 模式**开启**且鼠标悬停在场景内的方块上时，除主 Tooltip 外，还会在其上方渲染
+一个额外 Tooltip，以金色文字显示该方块的世界空间坐标 `X, Y, Z`。
+
+若坐标 Tooltip 超出屏幕顶部则自动磁吸到光标下方显示。
+
 ## 视角预设
 
 可接受的 `perspective` 值：
@@ -34,6 +59,65 @@
 - `up`
 
 未知值会回退到 `isometric-north-east`。
+
+## 内容嵌入与文字环绕
+
+所有块级标签（包括 `<GameScene>`）均支持两个可选属性，用于控制其在页面中的嵌入方式，对应 Microsoft Word 的"文字环绕"选项。
+
+| 属性 | 可选值 | 默认值 | 含义 |
+| --- | --- | --- | --- |
+| `wrap` | `inline` · `square` · `tight` · `through` · `top-bottom` · `behind` · `front` | `inline` | 文字环绕模式 |
+| `align` | `left` · `center` · `right` | `left` | 水平对齐方式 |
+
+### 环绕模式
+
+| 模式 | Word 对应 | 效果 |
+| --- | --- | --- |
+| `inline` | 嵌入型 | 默认行为：场景独占一行（嵌入型） |
+| `square` | 方形 | 场景浮动到左侧或右侧，文字在其周围方形环绕（方形环绕） |
+| `tight` | 紧密型 | 更紧密的环绕；本布局系统中等价于 `square`（紧密型） |
+| `through` | 穿越型 | 穿越型环绕；本布局系统中等价于 `square`（穿越型） |
+| `top-bottom` | 上下型 | 文字仅在上下方，不在侧面；`align` 控制水平位置（上下型） |
+| `behind` | 衬于文字下方 | 场景渲染在文字下方；`align` 控制水平位置（衬于文字下方） |
+| `front` | 浮于文字上方 | 场景渲染在文字上方；`align` 控制水平位置（浮于文字上方） |
+
+### 示例
+
+左浮动场景——后续段落文字环绕在右侧：
+
+````md
+<GameScene wrap="square" align="left" width="200" height="150">
+  <Block id="minecraft:stone" />
+</GameScene>
+
+此处文字将环绕在场景右侧……
+````
+
+右浮动场景：
+
+````md
+<GameScene wrap="square" align="right" width="200" height="150">
+  <Block id="minecraft:stone" />
+</GameScene>
+
+此处文字将环绕在场景左侧……
+````
+
+居中场景（无文字环绕）：
+
+````md
+<GameScene align="center" width="200" height="150">
+  <Block id="minecraft:stone" />
+</GameScene>
+````
+
+行内嵌入（流式上下文）——文字环绕小场景：
+
+````md
+一段文字 {<GameScene wrap="square" align="left" width="80" height="80">
+  <Block id="minecraft:grass" />
+</GameScene>} 右侧继续的文字将自动环绕。
+````
 
 ## 示例
 

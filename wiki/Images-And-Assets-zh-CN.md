@@ -110,6 +110,68 @@ GuideNH 会解析路径，并从指南内容根目录加载对应的二进制资
 </FloatingImage>
 ````
 
+## 内容嵌入与文字环绕
+
+所有块级标签——`<FloatingImage>`、`<Recipe>`、`<GameScene>`、`<ItemImage>`、`<BlockImage>` 以及
+其他基于 `BlockTagCompiler` 的标签——均支持两个可选的布局属性，提供类似 Word 的内容嵌入功能。
+
+| 属性 | 可选值 | 默认值 | 含义 |
+| --- | --- | --- | --- |
+| `wrap` | `inline` · `square` · `tight` · `through` · `top-bottom` · `behind` · `front` | `inline` | 文字环绕模式 |
+| `align` | `left` · `center` · `right` | `left` | 水平对齐方式 |
+
+### 环绕模式
+
+| 模式 | Word 对应 | 块级上下文效果 | 流式上下文效果 |
+| --- | --- | --- | --- |
+| `inline` | 嵌入型 | 默认堆叠（嵌入型） | 嵌入在文字行中 |
+| `square` | 方形 | 文档级浮动，文字在方形框内环绕（方形环绕） | `FLOAT_LEFT` / `FLOAT_RIGHT` |
+| `tight` | 紧密型 | 等同 `square`（紧密型） | 等同 `square` |
+| `through` | 穿越型 | 等同 `square`（穿越型） | 等同 `square` |
+| `top-bottom` | 上下型 | 占满整行宽度；`align` 控制水平位置（上下型） | 行内嵌入（含换行） |
+| `behind` | 衬于文字下方 | 对齐的行内槽；渲染在文字下方（衬于文字下方） | 嵌入在文字行中 |
+| `front` | 浮于文字上方 | 对齐的行内槽；渲染在文字上方（浮于文字上方） | 嵌入在文字行中 |
+
+### 浮动模式下的对齐
+
+对于 `wrap=square/tight/through`：
+- `align=left`（默认）——向**左**浮动，文字填充右侧区域。
+- `align=right`——向**右**浮动，文字填充左侧区域。
+- `align=center`——居中对齐（无文字环绕）。
+
+### 示例
+
+使用新 `wrap` 属性的左浮动图片：
+
+````md
+<FloatingImage src="test1.png" wrap="square" align="left" width="64" />
+
+此段落文字将流向图片右侧……
+````
+
+右浮动配方：
+
+````md
+<Recipe id="minecraft:stone" wrap="square" align="right" />
+
+此处文字将流向配方框左侧……
+````
+
+居中物品图标（无文字环绕）：
+
+````md
+<ItemImage id="minecraft:diamond" align="center" />
+````
+
+右对齐物品图标：
+
+````md
+<ItemImage id="minecraft:diamond" align="right" />
+````
+
+> **注意** — `<FloatingImage>` 自身也支持 `align="left/right"` 属性（历史原因保留）。
+> 新内容建议改用上述通用的 `wrap` + `align` 方式，适用于任何块级标签。
+
 ## 导航纹理图标
 
 frontmatter 可以使用 `icon_texture`，在导航/搜索中显示纹理而不是物品：

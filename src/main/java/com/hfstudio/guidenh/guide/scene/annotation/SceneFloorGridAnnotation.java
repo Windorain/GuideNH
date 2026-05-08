@@ -5,7 +5,10 @@ package com.hfstudio.guidenh.guide.scene.annotation;
  * covering the structure's XZ footprint extended by one block in each direction.
  *
  * <p>
- * Grid lines are drawn at every integer X and Z coordinate within the specified bounds.
+ * Grid lines are drawn at every integer X and Z coordinate within the annotation's bounds.
+ * When {@link #showDebugLabels} is {@code true}, coordinate numbers (X and Z axis) and
+ * cardinal direction initials (N/S/E/W) are additionally rendered in 3D world space, flat
+ * on the ground plane — exactly like the Ponder editor mode overlay.
  */
 public class SceneFloorGridAnnotation extends InWorldAnnotation {
 
@@ -14,6 +17,7 @@ public class SceneFloorGridAnnotation extends InWorldAnnotation {
     private final int maxX;
     private final int maxZ;
     private final float y;
+    private boolean showDebugLabels;
 
     /**
      * @param minX inclusive grid start X (one block outside structure minX)
@@ -49,5 +53,13 @@ public class SceneFloorGridAnnotation extends InWorldAnnotation {
 
     public float getY() {
         return y;
+    }
+
+    public boolean isShowDebugLabels() {
+        return showDebugLabels;
+    }
+
+    public void setShowDebugLabels(boolean showDebugLabels) {
+        this.showDebugLabels = showDebugLabels;
     }
 }

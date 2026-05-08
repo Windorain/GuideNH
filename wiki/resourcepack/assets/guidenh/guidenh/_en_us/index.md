@@ -17,7 +17,7 @@ date: 2024-01-01
 | Markdown | [Markdown Basics](./markdown.md) · [Charts](./charts.md) · [Function Graphs](./function-graph.md) |
 | 3D Scenes | [Block Scenes](./scene-blocks.md) · [Entity Scenes](./scene-entities.md) · [Camera & Viewport](./scene-camera.md) |
 | Annotations | [Annotations](./scene-annotations.md) · [Import Structure](./scene-import.md) · [Ponder Animations](./ponder.md) |
-| Widgets | [Recipes](./recipes.md) · [Images](./images.md) · [Tooltips](./tooltips.md) |
+| Widgets | [Recipes](./recipes.md) · [Images](./images.md) · [Tooltips](./tooltips.md) · [Content Embedding](./content-embed.md) |
 | Other | [Rendering Demo](./rendering.md) · [Debug](./debug.md) |
 
 ## Inline Elements

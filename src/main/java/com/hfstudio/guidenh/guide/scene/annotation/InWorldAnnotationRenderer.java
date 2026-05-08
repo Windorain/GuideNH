@@ -1,5 +1,8 @@
 package com.hfstudio.guidenh.guide.scene.annotation;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.FontRenderer;
+
 import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
 
@@ -365,5 +368,128 @@ public class InWorldAnnotationRenderer {
             GL11.glVertex3f(x0, planeY, iz + half);
         }
         GL11.glEnd();
+
+        if (grid.isShowDebugLabels()) {
+            drawFloorGridLabels(grid);
+        }
+    }
+
+    /**
+     * Renders X/Z coordinate numbers and N/S/E/W direction initials in 3D world space.
+     *
+     * <p>
+     * Labels are rendered as vertical signs standing just outside each grid edge, facing the viewer
+     * from outside the grid — matching the Ponder editor overlay style. Text scale is computed so
+     * the widest label on each axis fits within one block width, ensuring negative numbers and
+     * multi-digit values never overflow their cell.
+     */
+    private static void drawFloorGridLabels(SceneFloorGridAnnotation grid) {
+        FontRenderer fr = Minecraft.getMinecraft().fontRenderer;
+
+        int x0 = grid.getMinX();
+        int z0 = grid.getMinZ();
+        int x1 = grid.getMaxX();
+        int z1 = grid.getMaxZ();
+        float baseY = grid.getY();
+
+        // FontRenderer height in pixels. One label should span at most 0.8 blocks tall
+        // (leaving breathing room) and the widest label at most 1.0 block wide.
+        // Compute per-axis scales so the widest label fits within 1 block.
+        int maxXLabelPx = 1;
+        for (int ix = x0; ix <= x1; ix++) {
+            maxXLabelPx = Math.max(maxXLabelPx, fr.getStringWidth(Integer.toString(ix)));
+        }
+        int maxZLabelPx = 1;
+        for (int iz = z0; iz <= z1; iz++) {
+            maxZLabelPx = Math.max(maxZLabelPx, fr.getStringWidth(Integer.toString(iz)));
+        }
+
+        // Scale so that widest label <= 0.85 blocks; height capped to 0.85 blocks too.
+        float limitBlocks = 0.85f;
+        float scaleX = Math.min(limitBlocks / maxXLabelPx, limitBlocks / fr.FONT_HEIGHT);
+        float scaleZ = Math.min(limitBlocks / maxZLabelPx, limitBlocks / fr.FONT_HEIGHT);
+        // Direction initials are always single letters; 0.75-block fixed size looks best.
+        float scaleDir = Math.min(0.75f / fr.getStringWidth("W"), 0.75f / fr.FONT_HEIGHT);
+
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glColor4f(1f, 1f, 1f, 1f);
+
+        // X-axis numbers: vertical signs standing at the north (-Z) edge, one per column.
+        // Sign faces outward toward -Z, so rotateY = 0.
+        for (int ix = x0; ix <= x1; ix++) {
+            String label = Integer.toString(ix);
+            int labelW = fr.getStringWidth(label);
+            drawVerticalLabel(fr, label, ix + 0.5f, baseY, z0 - 0.1f, scaleX, labelW, 0f);
+        }
+
+        // Z-axis numbers: vertical signs standing at the west (-X) edge, one per row.
+        // Sign faces outward toward -X, so rotateY = 90.
+        for (int iz = z0; iz <= z1; iz++) {
+            String label = Integer.toString(iz);
+            int labelW = fr.getStringWidth(label);
+            drawVerticalLabel(fr, label, x0 - 0.1f, baseY, iz + 0.5f, scaleZ, labelW, 90f);
+        }
+
+        // Cardinal direction labels: flat on the ground at midpoints of each grid edge,
+        // with Ponder-style fade trail.
+        final float dirOffset = 3.0f;
+        float midX = (x0 + x1) * 0.5f;
+        float midZ = (z0 + z1) * 0.5f;
+        drawFloorGridDirLabel(fr, "N", midX, baseY, z0 - dirOffset, scaleDir, 180f);
+        drawFloorGridDirLabel(fr, "S", midX, baseY, z1 + dirOffset, scaleDir, 0f);
+        drawFloorGridDirLabel(fr, "E", x1 + dirOffset, baseY, midZ, scaleDir, 90f);
+        drawFloorGridDirLabel(fr, "W", x0 - dirOffset, baseY, midZ, scaleDir, -90f);
+
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+    }
+
+    /**
+     * Draws a vertically-standing label sign at the given world position.
+     *
+     * <p>
+     * The sign is upright (not flat on the ground). {@code rotateY} spins it to face outward from
+     * its grid edge: 0° faces -Z, 90° faces -X, 180° faces +Z, -90° faces +X.
+     */
+    private static void drawVerticalLabel(FontRenderer fr, String text, float wx, float wy, float wz, float scale,
+        int textWidthPx, float rotateYDeg) {
+        GL11.glPushMatrix();
+        GL11.glTranslatef(wx, wy, wz);
+        if (rotateYDeg != 0f) {
+            GL11.glRotatef(rotateYDeg, 0f, 1f, 0f);
+        }
+        // Scale from pixel space to block space; negate X so text is not mirrored.
+        GL11.glScalef(-scale, -scale, scale);
+        // Center the label horizontally within the cell.
+        GL11.glTranslatef(-textWidthPx / 2f, 0f, 0f);
+        fr.drawStringWithShadow(text, 0, 0, 0xFFFFFF);
+        GL11.glPopMatrix();
+    }
+
+    /**
+     * Draws a cardinal direction label lying flat on the ground plane outside a grid edge,
+     * with a Ponder-style fading bar-and-dot trail. The label is rotated around Y to face
+     * outward from the correct edge, then tipped 90° around X to lie on the XZ plane.
+     */
+    private static void drawFloorGridDirLabel(FontRenderer fr, String text, float wx, float wy, float wz, float scale,
+        float rotateYDeg) {
+        int labelW = fr.getStringWidth(text);
+        GL11.glPushMatrix();
+        GL11.glTranslatef(wx, wy, wz);
+        if (rotateYDeg != 0f) {
+            GL11.glRotatef(rotateYDeg, 0f, 1f, 0f);
+        }
+        // Tip text flat onto the XZ ground plane.
+        GL11.glRotatef(90f, 1f, 0f, 0f);
+        GL11.glScalef(-scale, -scale, scale);
+        GL11.glTranslatef(-labelW / 2f, 0f, 0f);
+        fr.drawStringWithShadow(text, 0, 0, 0x66FFFFFF);
+        // Ponder-style fade: bar then dot below the initial.
+        int barX = labelW / 2 - fr.getStringWidth("|") / 2;
+        int dotX = labelW / 2 - fr.getStringWidth(".") / 2;
+        fr.drawStringWithShadow("|", barX, fr.FONT_HEIGHT - 1, 0x44FFFFFF);
+        fr.drawStringWithShadow(".", dotX, fr.FONT_HEIGHT * 2 - 2, 0x22FFFFFF);
+        GL11.glPopMatrix();
     }
 }

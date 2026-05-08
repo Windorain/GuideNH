@@ -961,6 +961,9 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
                 GuideTooltip tooltip = resolveSceneBlockTooltip(scene, hb[0], hb[1], hb[2]);
                 if (tooltip != null) {
                     renderGuideTooltip(tooltip, mouseX, mouseY);
+                    if (ModConfig.debug.enableDebugMode) {
+                        drawDebugBlockCoordTooltip(hb, mouseX, mouseY);
+                    }
                     return;
                 }
             }
@@ -1103,6 +1106,32 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             this.itemRender.zLevel = 0.0F;
             GL11.glEnable(GL11.GL_DEPTH_TEST);
         }
+    }
+
+    /**
+     * Renders a small coordinate tooltip above the block tooltip when debug mode is active.
+     * Uses magnetic snapping: if there is not enough space above the cursor, the tooltip
+     * moves to below the cursor area instead.
+     */
+    private void drawDebugBlockCoordTooltip(int[] pos, int mouseX, int mouseY) {
+        FontRenderer fr = mc.fontRenderer;
+        String coordText = pos[0] + ", " + pos[1] + ", " + pos[2];
+        // §6 = gold color; the coordinate tooltip renders above the main block tooltip.
+        // drawHoveringText(list, x, y, font) draws starting at (x+12, y-12).
+        // We want the debug tooltip to appear above the default position (mouseY - 12).
+        // Targeting 26px above the cursor leaves room above the typical single-line tooltip.
+        int debugY = mouseY - 26;
+        // Snap to below cursor when the tooltip would be cut off at the top of the screen.
+        // The tooltip box top is at debugY - 12 - 4 = debugY - 16.
+        if (debugY - 16 < 0) {
+            debugY = mouseY + 26;
+        }
+        // Clamp bottom edge as well.
+        int lineH = fr.FONT_HEIGHT + 8;
+        if (debugY + lineH > this.height) {
+            debugY = this.height - lineH;
+        }
+        drawHoveringText(java.util.Collections.singletonList("\u00a76" + coordText), mouseX, debugY, fr);
     }
 
     private void drawTooltipText(String text, int mouseX, int mouseY) {
