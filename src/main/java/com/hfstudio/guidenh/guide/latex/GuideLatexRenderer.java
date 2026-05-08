@@ -62,14 +62,21 @@ public final class GuideLatexRenderer {
     }
 
     /**
-     * Returns the pixel dimensions [widthPx, heightPx] of {@code formula} rendered at
+     * Returns the pixel dimensions {@code [widthPx, heightPx, depthPx]} of {@code formula} rendered at
      * {@code sourceScale}, or {@code null} if the formula is invalid/failed.
+     *
+     * <p>
+     * {@code depthPx} is the typographic depth in jlatexmath pixels — the number of pixels the formula
+     * extends <em>below</em> its math baseline (e.g. denominators in fractions). For formulas with no
+     * descenders (letters, superscripts) this is {@code 0}.
+     *
+     * <p>
      * Safe to call from any thread; does NOT upload any OpenGL texture.
      *
      * @param formula       LaTeX source string
      * @param fillColorArgb ARGB colour (only used for cache key uniformity; does not affect size)
      * @param sourceScale   jlatexmath render size parameter
-     * @return [widthPx, heightPx] or null on parse failure
+     * @return [widthPx, heightPx, depthPx] or null on parse failure
      */
     public int[] measureSize(String formula, int fillColorArgb, float sourceScale) {
         if (formula == null || formula.isEmpty()) {
@@ -94,8 +101,9 @@ public final class GuideLatexRenderer {
             icon.setInsets(new Insets(2, 2, 2, 2));
             int w = icon.getIconWidth();
             int h = icon.getIconHeight();
-            GuideLatexTextureCache.INSTANCE.putSize(sizeKey, w, h);
-            return new int[] { w, h };
+            int d = getIconDepthPx(icon);
+            GuideLatexTextureCache.INSTANCE.putSize(sizeKey, w, h, d);
+            return new int[] { w, h, d };
         } catch (ParseException e) {
             LOG.warn("[GuideNH/LaTeX] Parse error measuring '{}': {}", formula, e.getMessage());
             GuideLatexTextureCache.INSTANCE.markFailed(formula, e.getMessage());
@@ -147,7 +155,8 @@ public final class GuideLatexRenderer {
             GuideLatexTextureCache.INSTANCE.putTexture(texKey, textureId, w, h);
 
             String sizeKey = GuideLatexTextureCache.buildSizeCacheKey(formula, sourceScale);
-            GuideLatexTextureCache.INSTANCE.putSize(sizeKey, w, h);
+            int d = getIconDepthPx(icon);
+            GuideLatexTextureCache.INSTANCE.putSize(sizeKey, w, h, d);
 
             return new int[] { textureId, w, h };
         } catch (ParseException e) {
@@ -193,6 +202,10 @@ public final class GuideLatexRenderer {
         } finally {
             GL11.glPopAttrib();
         }
+    }
+
+    private static int getIconDepthPx(TeXIcon icon) {
+        return Math.max(0, (int) Math.ceil(icon.getTrueIconDepth()));
     }
 
     private BufferedImage renderToImage(TeXIcon icon) {

@@ -56,7 +56,8 @@ public final class GuideLatexTextureCache {
 
     /**
      * Returns the cached pixel dimensions for the given size-key, or {@code null} if not available yet.
-     * The returned array is [widthPx, heightPx]. Safe to call from any thread.
+     * The returned array is {@code [widthPx, heightPx, depthPx]} where {@code depthPx} is the formula's
+     * typographic depth (pixels below the math baseline). Safe to call from any thread.
      */
     public int[] getSize(String sizeKey) {
         return sizeCache.get(sizeKey);
@@ -68,9 +69,10 @@ public final class GuideLatexTextureCache {
      * @param sizeKey  key produced by {@link #buildSizeCacheKey}
      * @param widthPx  icon width from jlatexmath
      * @param heightPx icon height from jlatexmath
+     * @param depthPx  depth below the math baseline in jlatexmath pixels (≥ 0)
      */
-    public void putSize(String sizeKey, int widthPx, int heightPx) {
-        sizeCache.put(sizeKey, new int[] { widthPx, heightPx });
+    public void putSize(String sizeKey, int widthPx, int heightPx, int depthPx) {
+        sizeCache.put(sizeKey, new int[] { widthPx, heightPx, depthPx });
     }
 
     /**

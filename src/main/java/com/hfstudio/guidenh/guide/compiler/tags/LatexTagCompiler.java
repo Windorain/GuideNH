@@ -30,8 +30,8 @@ import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxTextElement;
  * higher values produce crisper output at the cost of more memory</li>
  * <li>{@code showTooltip} (boolean, optional, default {@code false}) — when {@code true}, hovering over
  * the formula shows the raw LaTeX source in a tooltip</li>
- * <li>{@code valign} (String, optional, default {@code "center"}) — inline-only; vertical alignment of
- * the formula within the text line: {@code top}, {@code center}, or {@code bottom}</li>
+ * <li>{@code valign} (String, optional, default {@code "baseline"}) — inline-only; vertical alignment of
+ * the formula within the text line: {@code baseline}, {@code top}, {@code center}, or {@code bottom}</li>
  * <li>{@code offsetX} (int, optional, default {@code 0}) — horizontal pixel offset applied after alignment</li>
  * <li>{@code offsetY} (int, optional, default {@code 0}) — vertical pixel offset applied after alignment</li>
  * </ul>

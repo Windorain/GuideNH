@@ -62,7 +62,7 @@ $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
 | `scale` | float | `1.0` | 显示大小倍率 |
 | `sourceScale` | float | `100.0` | jlatexmath 渲染分辨率 |
 | `showTooltip` | boolean | `false` | 悬停时显示原式内容 |
-| `valign` | `top`/`center`/`bottom` | `center` | 行内公式垂直对齐方式 |
+| `valign` | `baseline`/`top`/`center`/`bottom` | `baseline` | 行内公式垂直对齐方式 |
 | `offsetX` | int | `0` | 对齐后的水平像素偏移 |
 | `offsetY` | int | `0` | 对齐后的垂直像素偏移 |
 

@@ -23,8 +23,11 @@ import com.hfstudio.guidenh.guide.render.RenderContext;
  * <p>
  * Vertical alignment is controlled by {@link LatexVerticalAlign}:
  * <ul>
+ * <li>{@link LatexVerticalAlign#BASELINE} — formula math baseline aligns with the text baseline (default).
+ * This is the best choice for most inline formulas: letters and superscripts sit flush with
+ * surrounding text, while fractions and integrals extend above/below the baseline naturally.</li>
  * <li>{@link LatexVerticalAlign#TOP} — formula top aligns with the text line top.</li>
- * <li>{@link LatexVerticalAlign#CENTER} — formula is centered on the text line (default).</li>
+ * <li>{@link LatexVerticalAlign#CENTER} — formula is centered on the text line.</li>
  * <li>{@link LatexVerticalAlign#BOTTOM} — formula bottom aligns with the text line bottom.</li>
  * </ul>
  * {@code offsetX} and {@code offsetY} are pixel offsets applied on top of the alignment.
@@ -72,7 +75,23 @@ public class LytLatexBlock extends LytBlock implements InteractiveElement {
         int alignOffset = switch (valign) {
             case CENTER -> (lineHeight - displayH) / 2;
             case BOTTOM -> lineHeight - displayH;
-            default -> 0;
+            case BASELINE -> {
+                // Align the formula's math baseline with the text baseline.
+                //
+                // Both calibrateRefHeight() and measureSize() apply the same Insets value,
+                // so the bottom-inset term B cancels out in the algebra:
+                //
+                // text_baseline = (refH - B) * lineHeight / refH
+                // formula_ascent = (size[1] - B - size[2]) * lineHeight * userScale / refH
+                // alignOffset = text_baseline - formula_ascent
+                // = (lineHeight - displayH) + size[2] * lineHeight * userScale / refH
+                // = (lineHeight - displayH) + depthDisplay
+                //
+                // For depth-zero formulas (size[2]==0) this is identical to BOTTOM.
+                int depthDisplay = (int) Math.round((double) size[2] * lineHeight * userScale / refH);
+                yield lineHeight - displayH + depthDisplay;
+            }
+            default -> 0; // TOP
         };
         renderYOffset = alignOffset + offsetY;
 

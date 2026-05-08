@@ -415,7 +415,7 @@ gold,17
 | `scale` | float | `1.0` | 在自动行高缩放的基础上额外叠加的显示大小倍率 |
 | `sourceScale` | float | `100.0` | jlatexmath 内部渲染分辨率；数值越高，在较大尺寸下渲染越清晰 |
 | `showTooltip` | boolean | `false` | 鼠标悬停时以 tooltip 展示原始 LaTeX 源文本 |
-| `valign` | `top` / `center` / `bottom` | `center` | 仅限行内公式。行内垂直对齐方式：`top` 使公式顶部与行顶对齐；`center`（默认）将公式垂直居中于文字行高；`bottom` 使公式底部与文字底部对齐 |
+| `valign` | `baseline` / `top` / `center` / `bottom` | `baseline` | 仅限行内公式。行内垂直对齐方式：`baseline`（默认）使公式数学基线与文字基线对齐；`top` 使公式顶部与行顶对齐；`center` 将公式垂直居中于文字行高；`bottom` 使公式底部与文字底部对齐 |
 | `offsetX` | int | `0` | 对齐后额外施加的水平像素偏移（正值为向右） |
 | `offsetY` | int | `0` | 对齐后额外施加的垂直像素偏移（正值为向下） |
 
@@ -434,6 +434,8 @@ gold,17
 
 底部对齐（公式底部与文字底部对齐）：<Latex formula="\frac{a}{b}" valign="bottom" />
 
+显式基线对齐（与默认效果相同）：<Latex formula="E=mc^2" valign="baseline" />
+
 顶部对齐并向上微调：<Latex formula="x^2" valign="top" offsetY="-1" />
 
 <Latex formula="\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}" />
@@ -444,7 +446,7 @@ gold,17
 #### `$$公式$$` 简写语法
 
 你可以在 Markdown 文本中直接使用 `$$公式$$` 语法，无需使用 `<Latex>` 标签。
-所有渲染参数均使用默认值（白色、比例 1.0、无悬停提示、居中对齐）。
+所有渲染参数均使用默认值（白色、比例 1.0、无悬停提示、基线对齐）。
 
 - **行内模式**：嵌入段落内的 `$$公式$$` 使用行内渲染。
 - **展示模式**：整个段落内容仅为 `$$公式$$`（首尾可有空白）时，渲染为居中的展示式公式块。

@@ -63,7 +63,7 @@ $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
 | `scale` | float | `1.0` | Display size multiplier |
 | `sourceScale` | float | `100.0` | jlatexmath render quality |
 | `showTooltip` | boolean | `false` | Show formula source on hover |
-| `valign` | `top`/`center`/`bottom` | `center` | Inline vertical alignment |
+| `valign` | `baseline`/`top`/`center`/`bottom` | `baseline` | Inline vertical alignment |
 | `offsetX` | int | `0` | Horizontal pixel offset after alignment |
 | `offsetY` | int | `0` | Vertical pixel offset after alignment |
 

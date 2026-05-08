@@ -960,7 +960,7 @@ public class PageCompiler {
                     100f,
                     1.0f,
                     false,
-                    LatexVerticalAlign.CENTER,
+                    LatexVerticalAlign.BASELINE,
                     0,
                     0);
                 layoutParent.append(LytFlowInlineBlock.of(block));

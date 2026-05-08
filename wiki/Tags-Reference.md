@@ -450,7 +450,7 @@ Renders a LaTeX math formula using jlatexmath. When used inline (inside a paragr
 | `scale` | float | `1.0` | Display size multiplier applied on top of the automatic line-height scaling |
 | `sourceScale` | float | `100.0` | jlatexmath internal render resolution; higher values improve quality at large sizes |
 | `showTooltip` | boolean | `false` | Show the raw LaTeX source as a tooltip on hover |
-| `valign` | `top` / `center` / `bottom` | `center` | Inline-only. Vertical alignment within the text line: `top` aligns the formula top with the line top; `center` (default) centers it on the text; `bottom` aligns the formula bottom with the text bottom |
+| `valign` | `baseline` / `top` / `center` / `bottom` | `baseline` | Inline-only. Vertical alignment within the text line: `baseline` (default) aligns the formula's math baseline with the text baseline; `top` aligns the formula top with the line top; `center` centers it on the text; `bottom` aligns the formula bottom with the text bottom |
 | `offsetX` | int | `0` | Horizontal pixel offset applied after alignment (positive = right) |
 | `offsetY` | int | `0` | Vertical pixel offset applied after alignment (positive = down) |
 
@@ -469,6 +469,8 @@ With hover tooltip: <Latex formula="\sum_{n=1}^{\infty} \frac{1}{n^2}" showToolt
 
 Bottom-aligned (formula bottom matches text bottom): <Latex formula="\frac{a}{b}" valign="bottom" />
 
+Explicit baseline alignment (same as default): <Latex formula="E=mc^2" valign="baseline" />
+
 Top-aligned with an upward nudge: <Latex formula="x^2" valign="top" offsetY="-1" />
 
 <Latex formula="\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}" />
@@ -479,7 +481,7 @@ Top-aligned with an upward nudge: <Latex formula="x^2" valign="top" offsetY="-1"
 #### `$$formula$$` shorthand
 
 As a convenience you can write `$$formula$$` directly in Markdown text without using the `<Latex>` tag.
-All rendering parameters use their defaults (white colour, scale 1.0, no tooltip, centre-aligned).
+All rendering parameters use their defaults (white colour, scale 1.0, no tooltip, baseline-aligned).
 
 - **Inline**: `$$formula$$` embedded inside a paragraph renders as an inline formula.
 - **Display**: a paragraph whose entire content is `$$formula$$` (with optional surrounding whitespace) renders as a centred display-mode block.
