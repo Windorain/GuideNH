@@ -87,7 +87,7 @@ navigation:
 
 ## 文本注解
 
-`<TextAnnotation>` 是通用的气泡文本注解，既可用于普通 `<GameScene>`，也可用于导入的 Ponder 时间轴。
+`<TextAnnotation>` 是通用的气泡文本注解，既可用于普通游戏场景（`<GameScene>`），也可用于导入的思索时间轴。
 
 ```mdx
 <GameScene width="256" height="192" zoom={4} interactive={true}>

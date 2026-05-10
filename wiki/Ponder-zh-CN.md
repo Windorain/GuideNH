@@ -1,11 +1,11 @@
-# Ponder 动画时间轴
+# 思索动画时间轴
 
-GuideNH 在 `<GameScene>` 块中支持思索风格的动画时间轴。你只需提供一个外部 JSON 文件来定义关键帧、摄像机运动和世界内注释，GuideNH 就会在 3D 场景下方渲染一个带播放/暂停控件的交互式进度条。
+GuideNH 在游戏场景（`<GameScene>`）块中支持思索风格的动画时间轴。你只需提供一个外部 JSON 文件来定义关键帧、摄像机运动和世界内注释，GuideNH 就会在 3D 场景下方渲染一个带播放/暂停控件的交互式进度条。
 
 ## 快速上手
 
-1. 创建一个 Ponder JSON 文件，并将其放入资源包（参见[文件位置](#文件位置)）。
-2. 在 guide 页面的 `<GameScene>` 块中，与 `<ImportStructure>` 并列添加 `<ImportPonder src="..."/>`。
+1. 创建一个思索 JSON 文件，并将其放入资源包（参见[文件位置](#文件位置)）。
+2. 在 guide 页面的游戏场景（`<GameScene>`）块中，与 `<ImportStructure>` 并列添加 `<ImportPonder src="..."/>`。
 
 ```mdx
 <GameScene zoom="4" background="#0a0a10">
@@ -14,17 +14,17 @@ GuideNH 在 `<GameScene>` 块中支持思索风格的动画时间轴。你只需
 </GameScene>
 ```
 
-> **注意：** `<ImportPonder>` 必须位于 `<GameScene>` 块内，`src` 属性为必填项。结构数据仍由 `<ImportStructure>` 或 `<ImportStructureLib>` 提供。
+> **注意：** `<ImportPonder>` 必须位于游戏场景（`<GameScene>`）块内，`src` 属性为必填项。结构数据仍由 `<ImportStructure>` 或 `<ImportStructureLib>` 提供。
 
 ## 文件位置
 
-Ponder JSON 文件遵循与 SNBT 结构文件相同的资源包路径规则：
+思索 JSON 文件遵循与 SNBT 结构文件相同的资源包路径规则：
 
 ```
 assets/<modid>/guidebooks/
   pages/machines/my_machine.mdx       ← guide 页面
   pages/machines/my_machine.snbt      ← 结构数据
-  pages/machines/my_machine.json      ← Ponder JSON
+  pages/machines/my_machine.json      ← 思索 JSON
 ```
 
 `src` 属性支持相对路径和绝对 ID：
@@ -57,7 +57,7 @@ assets/<modid>/guidebooks/
 | `mergeTileNBT` | 数组 | 否 | 将 SNBT 复合标签合并到指定坐标的方块实体。 |
 | `modifyTileNBT` | 数组 | 否 | 将某个方块实体 NBT 路径设置为指定 SNBT 值。 |
 | `removeTileNBT` | 数组 | 否 | 删除某个方块实体 NBT 路径。 |
-| `createEntities` | 数组 | 否 | 创建可被后续实体 NBT 操作引用的 Ponder 专用实体。 |
+| `createEntities` | 数组 | 否 | 创建可被后续实体 NBT 操作引用的思索专用实体。 |
 | `setEntityNBT` | 数组 | 否 | 用提供的 SNBT 复合标签替换引用实体的 NBT。 |
 | `mergeEntityNBT` | 数组 | 否 | 将 SNBT 复合标签合并到引用实体。 |
 | `modifyEntityNBT` | 数组 | 否 | 将引用实体的某个 NBT 路径设置为指定 SNBT 值。 |
@@ -156,7 +156,7 @@ assets/<modid>/guidebooks/
 
 ## 实体操作
 
-`GameScene` 本身已经支持普通 `<Entity>` 标签。Ponder 时间轴现在也可以通过
+游戏场景（`<GameScene>`）本身已经支持普通 `<Entity>` 标签。思索时间轴现在也可以通过
 `createEntities` 创建由时间轴管理的实体，并在后续关键帧中通过 `ref` 引用它们。
 
 ```json
@@ -176,7 +176,7 @@ assets/<modid>/guidebooks/
 
 | 字段 | 说明 |
 |------|------|
-| `ref` | 必填，本 Ponder JSON 内用于后续操作的引用名。 |
+| `ref` | 必填，本思索 JSON 内用于后续操作的引用名。 |
 | `id` | 实体 ID，例如 `minecraft:pig`、`Pig` 或场景实体加载器支持的模组实体 ID。 |
 | `x`, `y`, `z` | 可选生成位置。未填写且 `nbt` 没有 `Pos` 时默认为 `0, 0, 0`。 |
 | `yaw`, `pitch` | 可选生成旋转。未填写且 `nbt` 没有 `Rotation` 时默认为 `0, 0`。 |
@@ -212,7 +212,7 @@ assets/<modid>/guidebooks/
 ```
 
 与方块实体操作一样，实体操作会在关键帧变化时从头重放；向后拖动进度条时，
-Ponder 创建的实体会被移除并重新创建到目标时刻的正确状态。
+思索时间轴创建的实体会被移除并重新创建到目标时刻的正确状态。
 
 ---
 
@@ -606,7 +606,7 @@ assets/mymod/guidebooks/
 - 思索进度条绘制在层/StructureLib 滑条上方。播放期间结构滑条被隐藏，暂停后重新出现。
 - 即使某些关键帧仅更改部分摄像机轴，摄像机插值始终平滑（缓入/缓出）。使用 `cameraEaseTicks` 可以让摄像机立即跳转（`0`）或在指定刻数内完成缓动后保持目标位置。
 - 注释属于单个关键帧，仅在该关键帧激活期间（从其 `time` 刻到下一关键帧的 `time` 刻之前）显示。正向播放时叠加文字注释会平滑淡出后切换。
-- 每个 `<GameScene>` 只有一个 `<ImportPonder>` 标签生效，多个标签时后者覆盖前者。
+- 每个游戏场景（`<GameScene>`）只有一个 `<ImportPonder>` 标签生效，多个标签时后者覆盖前者。
 - `text` 字段缺失或为空的 `text` 注释将被静默跳过。
 - `inputType` 字段缺失或无法识别时默认为 `"lmb"`。
 - `blockChanges` 按从第 0 帧到当前帧的顺序应用；在多个关键帧中修改同一位置的方块完全正常。

@@ -2,7 +2,7 @@
 
 # 注解
 
-GuideNH 的场景注解是放在 `<GameScene>` / `<Scene>` 内部的子标签。它们在世界空间中渲染，并且可以包含子 Markdown/标签内容，后者会成为富 tooltip。
+GuideNH 的场景注解是放在游戏场景（`<GameScene>` / `<Scene>`）内部的子标签。它们在世界空间中渲染，并且可以包含子 Markdown/标签内容，后者会成为富 tooltip。
 
 ## 通用规则
 
@@ -117,7 +117,7 @@ GuideNH 会在每个轴上自动交换反向提供的 min/max 坐标。
 | `hlMinX/Y/Z`, `hlMaxX/Y/Z` | 否 | 可选伴生高亮框范围 |
 | `highlightColor` | 否 | 可选高亮框颜色 |
 
-世界锚定的气泡会绘制一条连接线指向锚点。独立气泡会水平居中，并使用 `yOffset` 控制垂直位置。导入 Ponder 的 `text` 注解时也会使用同一个运行时注解。
+世界锚定的气泡会绘制一条连接线指向锚点。独立气泡会水平居中，并使用 `yOffset` 控制垂直位置。导入思索时间线的 `text` 注解时也会使用同一个运行时注解。
 
 示例：
 
@@ -182,5 +182,5 @@ GuideNH 会在每个轴上自动交换反向提供的 min/max 坐标。
 
 ## 相关页面
 
-- [GameScene](GameScene-zh-CN)
+- [游戏场景](GameScene-zh-CN)
 - [示例](Examples-zh-CN)

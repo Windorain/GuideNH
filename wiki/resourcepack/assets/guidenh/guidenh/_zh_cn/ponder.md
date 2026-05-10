@@ -1,12 +1,12 @@
 ---
 navigation:
-  title: Ponder 动画
+  title: 思索动画
   parent: index.md
 ---
 
-# Ponder 动画
+# 思索动画
 
-`<ImportPonder>` 标签为任意 `<GameScene>` 添加完全由关键帧驱动的动画时间轴。
+`<ImportPonder>` 标签为任意游戏场景（`<GameScene>`）添加完全由关键帧驱动的思索动画时间轴。
 所有时间轴数据均在 JSON 文件中声明，包括摄像机插值、每帧的 3D 标注、方块变换和标注淡入过渡。
 
 ## 完整功能演示
@@ -56,7 +56,7 @@ navigation:
 | `annotations` | array? | 该关键帧激活期间显示的标注列表 |
 | `blockChanges` | array? | 该关键帧激活时应用的方块替换列表 |
 | `mergeTileNBT` / `modifyTileNBT` / `removeTileNBT` | array? | 支持定位重放的方块实体 NBT 操作 |
-| `createEntities` | array? | 创建由 Ponder 管理、可用 `ref` 引用的实体 |
+| `createEntities` | array? | 创建由思索时间轴管理、可用 `ref` 引用的实体 |
 | `setEntityNBT` / `mergeEntityNBT` / `modifyEntityNBT` / `removeEntityNBT` | array? | 对引用实体执行支持定位重放的 NBT 操作 |
 
 ---
@@ -248,9 +248,9 @@ navigation:
 
 ---
 
-## Ponder 实体
+## 思索实体
 
-`GameScene` 支持普通 `<Entity>` 元素。Ponder 也可以创建时间轴管理的实体，并在后续关键帧中通过
+游戏场景（`<GameScene>`）支持普通 `<Entity>` 元素。思索时间轴也可以创建由时间轴管理的实体，并在后续关键帧中通过
 `ref` 修改它们的 NBT。
 
 ```json
@@ -274,7 +274,7 @@ navigation:
 ```
 
 `setEntityNBT` 会用新的 SNBT 复合标签替换引用实体的 NBT。所有实体操作在定位时都会从关键帧
-0 重新播放，因此向后拖动时间轴时，Ponder 创建的实体不会残留在旧状态。
+0 重新播放，因此向后拖动时间轴时，思索时间轴创建的实体不会残留在旧状态。
 
 ---
 
