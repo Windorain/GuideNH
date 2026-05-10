@@ -123,6 +123,7 @@ public class LytGuidebookScene extends LytBlock {
     private int ponderAnnotationFadeTick = 5;
     private final Map<Long, PonderBlockInfo> ponderBlockSnapshot = new LinkedHashMap<>();
     private final Map<String, PonderEntityRuntime> ponderEntityRefs = new LinkedHashMap<>();
+    private boolean ponderTimelineBaselineReady;
     @Nullable
     private LytRect cachedPonderBarTrackRect;
     @Nullable
@@ -2141,7 +2142,20 @@ public class LytGuidebookScene extends LytBlock {
         this.ponderOutgoingAnnotations.clear();
         this.ponderOutgoingFadeTick = 0;
         this.ponderSceneParticles.clear();
+        updatePonderState();
+    }
+
+    public void initializePonderTimelineBaseline() {
+        if (ponderSceneData == null) {
+            return;
+        }
+        restoreFromPonderSnapshot();
+        clearPonderEntities();
+        ponderBlockSnapshot.clear();
+        ponderEntityRefs.clear();
         snapshotPonderBlocks();
+        ponderTimelineBaselineReady = true;
+        ponderLastKeyframeIdx = -2;
         updatePonderState();
     }
 
@@ -2431,9 +2445,13 @@ public class LytGuidebookScene extends LytBlock {
         clearPonderEntities();
         ponderBlockSnapshot.clear();
         ponderEntityRefs.clear();
+        ponderTimelineBaselineReady = false;
     }
 
     private boolean hasPonderReplayActions() {
+        if (!ponderTimelineBaselineReady) {
+            return false;
+        }
         if (!ponderBlockSnapshot.isEmpty() || !ponderEntityRefs.isEmpty()) {
             return true;
         }

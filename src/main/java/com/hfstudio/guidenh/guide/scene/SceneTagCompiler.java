@@ -122,6 +122,7 @@ public class SceneTagCompiler extends BlockTagCompiler {
 
         if (el instanceof MdxJsxFlowElement flow) {
             compileSceneChildren(scene, compiler, parent, flow);
+            scene.initializePonderTimelineBaseline();
             scene.setStructureLibSelectionChangeListener(
                 selection -> rebuildSceneForStructureLibSelection(scene, compiler, flow, explicitCenter, selection));
         }
@@ -313,6 +314,7 @@ public class SceneTagCompiler extends BlockTagCompiler {
         scene.setLevel(new GuidebookLevel());
         try {
             compileSceneChildren(scene, compiler, NOOP_ERROR_SINK, flow);
+            scene.initializePonderTimelineBaseline();
         } finally {
             scene.setPendingStructureLibPreviewSelection(null);
         }
