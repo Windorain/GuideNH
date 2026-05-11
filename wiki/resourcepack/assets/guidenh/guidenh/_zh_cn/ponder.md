@@ -2,6 +2,9 @@
 navigation:
   title: Ponder 动画
   parent: index.md
+  position: 40
+categories:
+  - scenes
 ---
 
 # Ponder 动画
