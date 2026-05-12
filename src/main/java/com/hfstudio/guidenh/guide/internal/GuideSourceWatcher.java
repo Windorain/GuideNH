@@ -59,8 +59,12 @@ public class GuideSourceWatcher implements AutoCloseable {
     @Desugar
     private record PageSource(String language, Path path) {}
 
+    @Desugar
+    private record PageReloadRequest(@Nullable String namespace) {}
+
     private final Map<PageLangKey, ParsedGuidePage> changedPages = new HashMap<>();
     private final Set<PageLangKey> deletedPages = new HashSet<>();
+    private final Set<PageReloadRequest> reloadRequests = new HashSet<>();
 
     private final ExecutorService watchExecutor;
 
@@ -107,6 +111,10 @@ public class GuideSourceWatcher implements AutoCloseable {
     }
 
     public List<ParsedGuidePage> loadAll() {
+        return loadAll(null);
+    }
+
+    private List<ParsedGuidePage> loadAll(@Nullable String namespaceFilter) {
         var stopwatch = Stopwatch.createStarted();
         var currentLanguage = LangUtil.getCurrentLanguage();
         var pageSources = new HashMap<PageLangKey, Path>();
@@ -158,6 +166,9 @@ public class GuideSourceWatcher implements AutoCloseable {
                 pageSources.size());
         var loadedPages = new ArrayList<ParsedGuidePage>(pageIds.size());
         for (var pageId : pageIds) {
+            if (namespaceFilter != null && !namespaceFilter.equals(pageId.getResourceDomain())) {
+                continue;
+            }
             var pageSource = resolvePageSource(pageSources, pageId, currentLanguage);
             if (pageSource == null) {
                 continue;
@@ -180,13 +191,45 @@ public class GuideSourceWatcher implements AutoCloseable {
         return loadedPages;
     }
 
-    public synchronized void clearChanges() {
-        changedPages.clear();
-        deletedPages.clear();
+    public void clearChanges() {
+        synchronized (this) {
+            changedPages.clear();
+            deletedPages.clear();
+            reloadRequests.clear();
+        }
     }
 
-    public synchronized List<GuidePageChange> takeChanges() {
+    public List<GuidePageChange> takeChanges() {
+        Set<PageReloadRequest> requests = takeReloadRequests();
+        if (!requests.isEmpty()) {
+            for (PageReloadRequest request : requests) {
+                queueReloadedPages(loadAll(request.namespace()));
+            }
+        }
 
+        synchronized (this) {
+            return takeQueuedChanges();
+        }
+    }
+
+    private synchronized Set<PageReloadRequest> takeReloadRequests() {
+        if (reloadRequests.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<PageReloadRequest> requests = new HashSet<>(reloadRequests);
+        reloadRequests.clear();
+        return requests;
+    }
+
+    private synchronized void queueReloadedPages(List<ParsedGuidePage> pages) {
+        for (ParsedGuidePage page : pages) {
+            PageLangKey pageKey = new PageLangKey(page.getLanguage(), page.getId());
+            changedPages.put(pageKey, page);
+            deletedPages.remove(pageKey);
+        }
+    }
+
+    private List<GuidePageChange> takeQueuedChanges() {
         if (deletedPages.isEmpty() && changedPages.isEmpty()) {
             return Collections.emptyList();
         }
@@ -212,6 +255,7 @@ public class GuideSourceWatcher implements AutoCloseable {
     public synchronized void close() {
         changedPages.clear();
         deletedPages.clear();
+        reloadRequests.clear();
         watchExecutor.shutdownNow();
         try {
             watchExecutor.awaitTermination(2, TimeUnit.SECONDS);
@@ -303,14 +347,16 @@ public class GuideSourceWatcher implements AutoCloseable {
         return getGuideRelativePath(sourceFolder, sourceLayout, namespace, contentRootFolder, path) != null;
     }
 
+    public static boolean isPagePathForSourcePath(Path sourceFolder, String namespace, String contentRootFolder,
+        Path path) {
+        return resolvePageIdForSourcePath(sourceFolder, namespace, contentRootFolder, path) != null;
+    }
+
     private synchronized void resourceChanged(Path path) {
         if (!isGuideResourcePath(path)) {
             return;
         }
-        for (ParsedGuidePage page : loadAll()) {
-            changedPages.put(new PageLangKey(page.getLanguage(), page.getId()), page);
-            deletedPages.remove(new PageLangKey(page.getLanguage(), page.getId()));
-        }
+        reloadRequests.add(new PageReloadRequest(getGuideResourceNamespace(path)));
     }
 
     @Nullable
@@ -322,6 +368,16 @@ public class GuideSourceWatcher implements AutoCloseable {
     private boolean isGuideResourcePath(Path path) {
         String relativePath = getGuideRelativePath(sourceFolder, sourceLayout, namespace, contentRootFolder, path);
         return relativePath != null;
+    }
+
+    @Nullable
+    private String getGuideResourceNamespace(Path path) {
+        String relativePath = getGuideRelativePath(sourceFolder, sourceLayout, namespace, contentRootFolder, path);
+        if (relativePath == null) {
+            return null;
+        }
+        int namespaceEnd = relativePath.indexOf('/');
+        return namespaceEnd > 0 ? relativePath.substring(0, namespaceEnd) : null;
     }
 
     @Nullable
