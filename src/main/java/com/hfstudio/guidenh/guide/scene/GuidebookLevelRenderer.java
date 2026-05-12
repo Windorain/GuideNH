@@ -261,7 +261,7 @@ public class GuidebookLevelRenderer {
                             InWorldAnnotationRenderer.render(annotations, lightDarkMode);
                         }
                         if (!particles.isEmpty()) {
-                            renderParticlesInContext(particles);
+                            renderParticlesInContext(particles, partialTicks);
                         }
                     } finally {
                         mc.entityRenderer.disableLightmap(partialTicks);
@@ -521,7 +521,7 @@ public class GuidebookLevelRenderer {
         GL11.glDepthMask(false);
     }
 
-    private void renderParticlesInContext(List<GuidebookSceneParticle> particles) {
+    private void renderParticlesInContext(List<GuidebookSceneParticle> particles, float partialTicks) {
         matrixBuffer.clear();
         GL11.glGetFloat(GL11.GL_MODELVIEW_MATRIX, matrixBuffer);
         // For a billboard facing the camera we need the camera right/up vectors in scene space.
@@ -564,10 +564,10 @@ public class GuidebookLevelRenderer {
             tess.startDrawingQuads();
             for (GuidebookSceneParticle p : particles) {
                 if (p.isDead()) continue;
-                float alpha = p.getAlpha();
+                float alpha = p.getAlpha(partialTicks);
                 tess.setColorRGBA_F(p.red, p.green, p.blue, alpha);
                 float s = p.size;
-                float cx = p.x, cy = p.y, cz = p.z;
+                float cx = p.getRenderX(partialTicks), cy = p.getRenderY(partialTicks), cz = p.getRenderZ(partialTicks);
                 tess.addVertexWithUV(cx - rx * s - ux * s, cy - ry * s - uy * s, cz - rz * s - uz * s, p.u0, p.v1);
                 tess.addVertexWithUV(cx + rx * s - ux * s, cy + ry * s - uy * s, cz + rz * s - uz * s, p.u1, p.v1);
                 tess.addVertexWithUV(cx + rx * s + ux * s, cy + ry * s + uy * s, cz + rz * s + uz * s, p.u1, p.v0);

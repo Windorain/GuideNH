@@ -12,6 +12,10 @@ package com.hfstudio.guidenh.guide.scene;
  */
 public class GuidebookSceneParticle {
 
+    public float prevX;
+    public float prevY;
+    public float prevZ;
+
     /** Current world-space X position. */
     public float x;
     /** Current world-space Y position. */
@@ -35,11 +39,11 @@ public class GuidebookSceneParticle {
     /** Texture atlas maximum V coordinate. */
     public final float v1;
 
-    /** Red color channel multiplier (0–1). */
+    /** Red color channel multiplier. */
     public final float red;
-    /** Green color channel multiplier (0–1). */
+    /** Green color channel multiplier. */
     public final float green;
-    /** Blue color channel multiplier (0–1). */
+    /** Blue color channel multiplier. */
     public final float blue;
 
     /** Current age in ticks. */
@@ -54,6 +58,9 @@ public class GuidebookSceneParticle {
         this.x = x;
         this.y = y;
         this.z = z;
+        this.prevX = x;
+        this.prevY = y;
+        this.prevZ = z;
         this.vx = vx;
         this.vy = vy;
         this.vz = vz;
@@ -71,6 +78,9 @@ public class GuidebookSceneParticle {
 
     /** Advances the particle by one tick: applies velocity, gravity, and friction. */
     public void tick() {
+        prevX = x;
+        prevY = y;
+        prevZ = z;
         x += vx;
         y += vy;
         z += vz;
@@ -86,8 +96,39 @@ public class GuidebookSceneParticle {
         return age >= maxAge;
     }
 
-    /** Returns a 0–1 alpha value that linearly decreases from 1 to 0 as the particle ages. */
+    /** Returns the vanilla digging particle alpha. */
     public float getAlpha() {
-        return 1f - (float) age / maxAge;
+        return 1f;
+    }
+
+    public float getRenderX(float partialTicks) {
+        return interpolate(prevX, x, partialTicks);
+    }
+
+    public float getRenderY(float partialTicks) {
+        return interpolate(prevY, y, partialTicks);
+    }
+
+    public float getRenderZ(float partialTicks) {
+        return interpolate(prevZ, z, partialTicks);
+    }
+
+    public float getAlpha(float partialTicks) {
+        return getAlpha();
+    }
+
+    private static float interpolate(float previous, float current, float partialTicks) {
+        float t = clampPartialTicks(partialTicks);
+        return previous + (current - previous) * t;
+    }
+
+    private static float clampPartialTicks(float partialTicks) {
+        if (partialTicks <= 0f) {
+            return 0f;
+        }
+        if (partialTicks >= 1f) {
+            return 1f;
+        }
+        return partialTicks;
     }
 }

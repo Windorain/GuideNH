@@ -88,6 +88,7 @@ import com.hfstudio.guidenh.guide.scene.support.GuideGregTechTileSupport;
 import com.hfstudio.guidenh.guide.style.ResolvedTextStyle;
 import com.hfstudio.guidenh.integration.Mods;
 import com.hfstudio.guidenh.integration.ae2.Ae2Helpers;
+import com.hfstudio.guidenh.integration.ae2.Ae2PonderSupport;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibPreviewSelection;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibSceneMetadata;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibTooltipContentBuilder;
@@ -3852,7 +3853,7 @@ public class LytGuidebookScene extends LytBlock {
     }
 
     @Nullable
-    private static Block resolveBlock(@Nullable String name, @Nullable NBTTagCompound tileTag) {
+    private static Block resolveBlock(@Nullable String name, @Nullable NBTTagCompound tileTag, int meta) {
         if (name == null || name.isEmpty()) return null;
         Block block = (Block) Block.blockRegistry.getObject(name);
         if (block != null && block != Blocks.air) {
@@ -3866,7 +3867,7 @@ public class LytGuidebookScene extends LytBlock {
             }
         }
         if (Mods.AE2.isModLoaded()) {
-            block = Ae2Helpers.resolvePonderBlock(tileTag);
+            block = Ae2PonderSupport.resolvePonderBlock(name, tileTag, meta);
             if (block != null && block != Blocks.air) {
                 return block;
             }
@@ -3990,24 +3991,39 @@ public class LytGuidebookScene extends LytBlock {
                 Block oldBlock = level.getBlock(bc.getX(), bc.getY(), bc.getZ());
                 int oldMeta = level.getBlockMetadata(bc.getX(), bc.getY(), bc.getZ());
                 NBTTagCompound targetTag = parsePonderBlockNbt(bc);
-                Block newBlock = resolveBlock(bc.getBlock(), targetTag);
+                boolean hasTargetTileState = targetTag != null;
+                if (targetTag != null && Mods.AE2.isModLoaded()) {
+                    targetTag = Ae2PonderSupport.normalizePonderTileTag(targetTag);
+                }
+                if (targetTag == null && Mods.AE2.isModLoaded()) {
+                    targetTag = Ae2PonderSupport.createCableBusTileTag(bc.getBlock(), bc.getMeta());
+                    hasTargetTileState = targetTag != null;
+                }
+                Block newBlock = resolveBlock(bc.getBlock(), targetTag, bc.getMeta());
+                int newMeta = resolvePonderBlockMeta(newBlock, bc.getMeta());
                 long posKey = GuidebookLevel.packPos(bc.getX(), bc.getY(), bc.getZ());
                 Map<String, byte[]> targetPreviewSupplements = readPreviewSupplements(targetTag);
+                Map<String, byte[]> previousPreviewSupplements = level.previewAuthorityStore()
+                    .snapshotAt(posKey);
                 placePonderBlockChange(bc, newBlock, targetTag);
-                targetPreviewSupplements = completePonderPreviewSupplements(
+                targetPreviewSupplements = resolvePonderPreviewSupplements(
                     targetPreviewSupplements,
+                    previousPreviewSupplements,
+                    hasTargetTileState,
+                    oldBlock,
+                    oldMeta,
                     bc.getX(),
                     bc.getY(),
                     bc.getZ(),
                     newBlock,
-                    bc.getMeta());
+                    newMeta);
                 blocksChanged = true;
                 level.previewAuthorityStore()
                     .restoreAt(posKey, targetPreviewSupplements);
                 if (triggerParticles && isTarget && bc.shouldSpawnParticles()) {
                     boolean removing = newBlock == null || newBlock == Blocks.air;
                     Block particleBlock = removing ? oldBlock : newBlock;
-                    int particleMeta = removing ? oldMeta : bc.getMeta();
+                    int particleMeta = removing ? oldMeta : newMeta;
                     if (particleBlock != null && particleBlock != Blocks.air) {
                         spawnBlockParticles(bc.getX(), bc.getY(), bc.getZ(), particleBlock, particleMeta);
                     }
@@ -4325,30 +4341,92 @@ public class LytGuidebookScene extends LytBlock {
         if (iconW <= 0 || iconH <= 0) return;
 
         Random rng = ponderParticleRng;
-        int count = 4 + rng.nextInt(5);
-        for (int i = 0; i < count; i++) {
-            float px = bx + 0.1f + rng.nextFloat() * 0.8f;
-            float py = by + 0.1f + rng.nextFloat() * 0.8f;
-            float pz = bz + 0.1f + rng.nextFloat() * 0.8f;
+        float[] color = resolveDiggingParticleColor(block, meta, bx, by, bz);
+        int grid = 4;
+        for (int ix = 0; ix < grid; ix++) {
+            for (int iy = 0; iy < grid; iy++) {
+                for (int iz = 0; iz < grid; iz++) {
+                    float px = bx + (ix + 0.5f) / grid;
+                    float py = by + (iy + 0.5f) / grid;
+                    float pz = bz + (iz + 0.5f) / grid;
 
-            float angle = rng.nextFloat() * (float) (Math.PI * 2.0);
-            float hSpeed = 0.05f + rng.nextFloat() * 0.12f;
-            float vx = (float) Math.cos(angle) * hSpeed;
-            float vy = 0.1f + rng.nextFloat() * 0.15f;
-            float vz = (float) Math.sin(angle) * hSpeed;
+                    float[] velocity = vanillaDiggingParticleVelocity(
+                        rng,
+                        px - bx - 0.5f,
+                        py - by - 0.5f,
+                        pz - bz - 0.5f);
 
-            float uFrac = rng.nextFloat() * 0.75f;
-            float vFrac = rng.nextFloat() * 0.75f;
-            float u0 = icon.getMinU() + uFrac * iconW;
-            float v0 = icon.getMinV() + vFrac * iconH;
-            float u1 = u0 + iconW * 0.25f;
-            float v1 = v0 + iconH * 0.25f;
+                    float textureJitterX = rng.nextFloat() * 3.0f;
+                    float textureJitterY = rng.nextFloat() * 3.0f;
+                    float u0 = icon.getInterpolatedU(textureJitterX / 4.0f * 16.0f);
+                    float v0 = icon.getInterpolatedV(textureJitterY / 4.0f * 16.0f);
+                    float u1 = icon.getInterpolatedU((textureJitterX + 1.0f) / 4.0f * 16.0f);
+                    float v1 = icon.getInterpolatedV((textureJitterY + 1.0f) / 4.0f * 16.0f);
 
-            int maxAge = 8 + rng.nextInt(8);
-            float size = 0.045f + rng.nextFloat() * 0.03f;
-            ponderSceneParticles
-                .add(new GuidebookSceneParticle(px, py, pz, vx, vy, vz, u0, v0, u1, v1, 1f, 1f, 1f, maxAge, size));
+                    int maxAge = vanillaDiggingParticleMaxAge(rng);
+                    float size = vanillaDiggingParticleHalfSize(rng);
+                    ponderSceneParticles.add(
+                        new GuidebookSceneParticle(
+                            px,
+                            py,
+                            pz,
+                            velocity[0],
+                            velocity[1],
+                            velocity[2],
+                            u0,
+                            v0,
+                            u1,
+                            v1,
+                            color[0],
+                            color[1],
+                            color[2],
+                            maxAge,
+                            size));
+                }
+            }
         }
+    }
+
+    private float[] resolveDiggingParticleColor(Block block, int meta, int x, int y, int z) {
+        float red = 0.6f;
+        float green = 0.6f;
+        float blue = 0.6f;
+        try {
+            int color = block.colorMultiplier(level.getOrCreateFakeWorld(), x, y, z);
+            red *= (color >> 16 & 255) / 255.0f;
+            green *= (color >> 8 & 255) / 255.0f;
+            blue *= (color & 255) / 255.0f;
+        } catch (Throwable ignored) {
+            try {
+                int color = block.getRenderColor(meta);
+                red *= (color >> 16 & 255) / 255.0f;
+                green *= (color >> 8 & 255) / 255.0f;
+                blue *= (color & 255) / 255.0f;
+            } catch (Throwable ignoredAgain) {}
+        }
+        return new float[] { red, green, blue };
+    }
+
+    private static float[] vanillaDiggingParticleVelocity(Random rng, float baseX, float baseY, float baseZ) {
+        float vx = baseX + (rng.nextFloat() * 2.0f - 1.0f) * 0.4f;
+        float vy = baseY + (rng.nextFloat() * 2.0f - 1.0f) * 0.4f;
+        float vz = baseZ + (rng.nextFloat() * 2.0f - 1.0f) * 0.4f;
+        float speed = (float) Math.sqrt(vx * vx + vy * vy + vz * vz);
+        if (speed <= 1.0e-6f) {
+            return new float[] { 0.0f, 0.1f, 0.0f };
+        }
+        float scale = (rng.nextFloat() + rng.nextFloat() + 1.0f) * 0.15f * 0.4f;
+        return new float[] { vx / speed * scale, vy / speed * scale + 0.1f, vz / speed * scale };
+    }
+
+    private static int vanillaDiggingParticleMaxAge(Random rng) {
+        return Math.max(1, (int) (4.0f / (rng.nextFloat() * 0.9f + 0.1f)));
+    }
+
+    private static float vanillaDiggingParticleHalfSize(Random rng) {
+        float baseParticleScale = (rng.nextFloat() * 0.5f + 0.5f) * 2.0f;
+        float diggingParticleScale = baseParticleScale / 2.0f;
+        return 0.1f * diggingParticleScale;
     }
 
     @Nullable
@@ -4392,9 +4470,16 @@ public class LytGuidebookScene extends LytBlock {
             bc.getY(),
             bc.getZ(),
             block,
-            bc.getMeta(),
+            resolvePonderBlockMeta(block, bc.getMeta()),
             tileTag != null ? (NBTTagCompound) tileTag.copy() : null,
             GuidebookLevel.resolveBlockId(block));
+    }
+
+    private static int resolvePonderBlockMeta(@Nullable Block block, int requestedMeta) {
+        if (Mods.AE2.isModLoaded()) {
+            return Ae2PonderSupport.resolvePonderBlockMeta(block, requestedMeta);
+        }
+        return requestedMeta;
     }
 
     private static Map<String, byte[]> readPreviewSupplements(@Nullable NBTTagCompound tag) {
@@ -4421,6 +4506,31 @@ public class LytGuidebookScene extends LytBlock {
             return Collections.emptyMap();
         }
         return Ae2Helpers.capturePonderPreviewSupplements(level, x, y, z, block, meta);
+    }
+
+    private Map<String, byte[]> resolvePonderPreviewSupplements(Map<String, byte[]> explicitSupplements,
+        Map<String, byte[]> previousSupplements, boolean hasTargetTileState, @Nullable Block oldBlock, int oldMeta,
+        int x, int y, int z, @Nullable Block block, int meta) {
+        if (explicitSupplements != null && !explicitSupplements.isEmpty()) {
+            return explicitSupplements;
+        }
+        if (!hasTargetTileState
+            && shouldReusePonderPreviewSupplements(previousSupplements, oldBlock, oldMeta, block, meta)) {
+            return previousSupplements;
+        }
+        return completePonderPreviewSupplements(explicitSupplements, x, y, z, block, meta);
+    }
+
+    private static boolean shouldReusePonderPreviewSupplements(Map<String, byte[]> previousSupplements,
+        @Nullable Block oldBlock, int oldMeta, @Nullable Block block, int meta) {
+        if (previousSupplements == null || previousSupplements.isEmpty() || oldBlock == null || block == null) {
+            return false;
+        }
+        if (oldBlock == block && oldMeta == meta) {
+            return true;
+        }
+        return Mods.AE2.isModLoaded() && Ae2PonderSupport.isCableBusBlock(oldBlock)
+            && Ae2PonderSupport.isCableBusBlock(block);
     }
 
     /** Compact holder for the initial block state at a ponder-changed position. */
