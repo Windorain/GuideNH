@@ -29,13 +29,26 @@ GuideNH 支持一种面向开发模式的实时预览工作流。启用后，Gui
 对于本仓库内置示例指南：
 
 - guide id: `guidenh:guidenh`
-- 开发源根目录: `wiki/resourcepack/assets/guidenh/guidenh`
+- 开发源根目录：`wiki/resourcepack/assets/guidenh/guidenh`
 
 对应的系统属性是：
 
 ```text
 guideme.guidenh.guidenh.sources=<absolute-path-to-repo>/wiki/resourcepack/assets/guidenh/guidenh
 ```
+
+GuideNH 也支持更宽的开发源根目录：
+
+| 源根目录 | 页面 id 映射 |
+| --- | --- |
+| `wiki/resourcepack/assets/guidenh/guidenh` | 内容根模式；文件通过 `sourcesNamespace` 映射，默认是 `guidenh` |
+| `wiki/resourcepack/assets` | assets 根模式；`assets/<modid>/guidenh/...` 映射为 `<modid>:...` |
+| `wiki/resourcepack` | resourcepack 根模式；`assets/<modid>/guidenh/...` 映射为 `<modid>:...` |
+
+数据驱动指南仍然会合并为同一本 guide。多个命名空间下存在同名 Markdown 时，会保留命名空间作为页面 id
+的一部分，因此 `assets/gregtech/guidenh/_zh_cn/index.md` 和
+`assets/appliedenergistics2/guidenh/_zh_cn/index.md` 会分别成为 `gregtech:index.md` 与
+`appliedenergistics2:index.md`，不会互相覆盖。
 
 ## `showOnStartup` 支持的格式
 

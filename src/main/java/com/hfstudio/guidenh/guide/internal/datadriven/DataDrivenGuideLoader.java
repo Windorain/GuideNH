@@ -73,8 +73,17 @@ public class DataDrivenGuideLoader {
             scanZipPagePathsAllNamespaces(resourcePackFile, folder, pagePaths);
             return;
         }
+        scanPagePathsAllNamespaces(resourcePackFile, folder, pagePaths);
+    }
 
-        var assetsDir = new File(resourcePackFile, "assets");
+    public static void scanPagePathsAllNamespaces(File resourcePackRoot, String folder,
+        LinkedHashMap<String, LinkedHashSet<String>> pagePaths) {
+        if (!resourcePackRoot.isDirectory()) {
+            scanZipPagePathsAllNamespaces(resourcePackRoot, folder, pagePaths);
+            return;
+        }
+
+        var assetsDir = new File(resourcePackRoot, "assets");
         var namespaceDirs = assetsDir.listFiles(File::isDirectory);
         if (namespaceDirs == null) {
             return;
@@ -89,7 +98,7 @@ public class DataDrivenGuideLoader {
             var namespace = namespaceDir.getName();
             var prefix = toFolderPrefix(namespace, folder);
             var paths = pagePaths.computeIfAbsent(namespace, k -> new LinkedHashSet<>());
-            scanFolderPagePaths(resourcePackFile, prefix, paths);
+            scanFolderPagePaths(resourcePackRoot, prefix, paths);
         }
     }
 

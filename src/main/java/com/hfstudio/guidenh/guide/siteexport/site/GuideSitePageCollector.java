@@ -23,7 +23,7 @@ public class GuideSitePageCollector {
     @FunctionalInterface
     public interface PageLoader {
 
-        Optional<ParsedGuidePage> load(String language, String pagePath);
+        Optional<ParsedGuidePage> load(String language, ResourceLocation pageId);
     }
 
     private final PageLoader pageLoader;
@@ -54,12 +54,14 @@ public class GuideSitePageCollector {
             languages.add(0, guide.getDefaultLanguage());
         }
 
-        LinkedHashSet<String> pagePathSet;
+        LinkedHashSet<ResourceLocation> pageIdSet;
         try {
-            pagePathSet = new LinkedHashSet<>();
+            pageIdSet = new LinkedHashSet<>();
             var pathsByNs = DataDrivenGuideLoader.discoverPagePaths(guide.getContentRootFolder());
-            for (var paths : pathsByNs.values()) {
-                pagePathSet.addAll(paths);
+            for (var entry : pathsByNs.entrySet()) {
+                for (String path : entry.getValue()) {
+                    pageIdSet.add(new ResourceLocation(entry.getKey(), path));
+                }
             }
         } catch (Throwable t) {
             FMLLog.getLogger()
@@ -67,31 +69,29 @@ public class GuideSitePageCollector {
                     "[GuideNH] [GuideSitePageCollector] Falling back to already loaded page ids for {}",
                     guide.getId(),
                     t);
-            pagePathSet = new LinkedHashSet<>();
+            pageIdSet = new LinkedHashSet<>();
         }
         for (ParsedGuidePage page : guide.getPages()) {
-            pagePathSet.add(
-                page.getId()
-                    .getResourcePath());
+            pageIdSet.add(page.getId());
         }
-        List<String> pagePaths = new ArrayList<>(pagePathSet);
-        return collect(guide.getId(), guide.getDefaultLanguage(), languages, pagePaths);
+        List<ResourceLocation> pageIds = new ArrayList<>(pageIdSet);
+        return collect(guide.getId(), guide.getDefaultLanguage(), languages, pageIds);
     }
 
     public List<GuideSitePageVariant> collect(ResourceLocation guideId, String defaultLanguage, List<String> languages,
-        List<String> pagePaths) {
+        List<ResourceLocation> pageIds) {
         List<GuideSitePageVariant> variants = new ArrayList<>();
 
         for (String language : languages) {
-            for (String pagePath : pagePaths) {
-                Optional<ParsedGuidePage> localized = pageLoader.load(language, pagePath);
+            for (ResourceLocation pageId : pageIds) {
+                Optional<ParsedGuidePage> localized = pageLoader.load(language, pageId);
                 if (localized.isPresent()) {
                     ParsedGuidePage page = localized.get();
                     variants.add(new GuideSitePageVariant(guideId, page.getId(), language, language, false, page));
                     continue;
                 }
 
-                Optional<ParsedGuidePage> fallback = pageLoader.load(defaultLanguage, pagePath);
+                Optional<ParsedGuidePage> fallback = pageLoader.load(defaultLanguage, pageId);
                 fallback.ifPresent(
                     page -> variants
                         .add(new GuideSitePageVariant(guideId, page.getId(), language, defaultLanguage, true, page)));
@@ -114,9 +114,9 @@ public class GuideSitePageCollector {
     }
 
     private static Optional<ParsedGuidePage> tryLoadPage(MutableGuide guide, IResourceManager resourceManager,
-        String language, String pagePath) {
-        String namespace = resolveNamespace(guide, pagePath);
-        ResourceLocation pageId = new ResourceLocation(namespace, pagePath);
+        String language, ResourceLocation pageId) {
+        String namespace = pageId.getResourceDomain();
+        String pagePath = pageId.getResourcePath();
         ResourceLocation localizedSource = new ResourceLocation(
             namespace,
             guide.getContentRootFolder() + "/_" + language + "/" + pagePath);
@@ -129,18 +129,5 @@ public class GuideSitePageCollector {
         } catch (Exception e) {
             return Optional.empty();
         }
-    }
-
-    private static String resolveNamespace(MutableGuide guide, String pagePath) {
-        for (var page : guide.getPages()) {
-            if (page.getId()
-                .getResourcePath()
-                .equals(pagePath)) {
-                return page.getId()
-                    .getResourceDomain();
-            }
-        }
-        return guide.getId()
-            .getResourceDomain();
     }
 }

@@ -36,7 +36,7 @@ import io.methvin.watcher.DirectoryChangeEvent;
 import io.methvin.watcher.DirectoryChangeListener;
 import io.methvin.watcher.DirectoryWatcher;
 
-class GuideSourceWatcher implements AutoCloseable {
+public class GuideSourceWatcher implements AutoCloseable {
 
     private final String defaultLanguage;
 
@@ -44,12 +44,9 @@ class GuideSourceWatcher implements AutoCloseable {
      * The {@link ResourceLocation} namespace to use for files in the watched folder.
      */
     private final String namespace;
-    /**
-     * The ID of the resource pack to use as the source pack.
-     */
-    private final String sourcePackId;
-
+    private final String contentRootFolder;
     private final Path sourceFolder;
+    private final GuideDevelopmentSourceLayout sourceLayout;
 
     // Recursive directory watcher for the guidebook sources.
     @Nullable
@@ -67,11 +64,12 @@ class GuideSourceWatcher implements AutoCloseable {
 
     private final ExecutorService watchExecutor;
 
-    public GuideSourceWatcher(String namespace, String defaultLanguage, Path sourceFolder) {
+    public GuideSourceWatcher(String namespace, String contentRootFolder, String defaultLanguage, Path sourceFolder) {
         this.namespace = namespace;
-        this.sourcePackId = "development:" + namespace;
+        this.contentRootFolder = contentRootFolder;
         this.defaultLanguage = LangUtil.normalizeLanguage(defaultLanguage);
         this.sourceFolder = sourceFolder;
+        this.sourceLayout = detectSourceLayout(sourceFolder);
         if (!Files.isDirectory(sourceFolder)) {
             throw new RuntimeException("Cannot find the specified folder with guidebook sources: " + sourceFolder);
         }
@@ -166,7 +164,7 @@ class GuideSourceWatcher implements AutoCloseable {
             }
 
             try (var in = Files.newInputStream(pageSource.path())) {
-                loadedPages.add(PageCompiler.parse(sourcePackId, pageSource.language(), pageId, in));
+                loadedPages.add(PageCompiler.parse(getSourcePackId(pageId), pageSource.language(), pageId, in));
             } catch (Exception e) {
                 FMLLog.getLogger()
                     .error("[GuideNH] [GuideSourceWatcher] Failed to reload guidebook page {}", pageSource.path(), e);
@@ -270,7 +268,7 @@ class GuideSourceWatcher implements AutoCloseable {
         deletedPages.remove(pageKey);
 
         try (var in = Files.newInputStream(path)) {
-            var page = PageCompiler.parse(sourcePackId, language, pageKey.pageId(), in);
+            var page = PageCompiler.parse(getSourcePackId(pageKey.pageId()), language, pageKey.pageId(), in);
             changedPages.put(pageKey, page);
         } catch (Exception e) {
             FMLLog.getLogger()
@@ -298,17 +296,35 @@ class GuideSourceWatcher implements AutoCloseable {
     }
 
     @Nullable
-    private ResourceLocation getPageId(Path path) {
-        var relativePath = sourceFolder.relativize(path);
-        var relativePathStr = relativePath.toString()
-            .replace('\\', '/');
-        if (!relativePathStr.endsWith(".md")) {
+    public ResourceLocation getPageId(Path path) {
+        String relativePath = getGuideRelativePath(sourceFolder, sourceLayout, namespace, contentRootFolder, path);
+        return parseGuideRelativePageId(relativePath);
+    }
+
+    @Nullable
+    public static ResourceLocation resolvePageIdForSourcePath(Path sourceFolder, String namespace,
+        String contentRootFolder, Path path) {
+        GuideDevelopmentSourceLayout sourceLayout = detectSourceLayout(sourceFolder, contentRootFolder);
+        String relativePath = getGuideRelativePath(sourceFolder, sourceLayout, namespace, contentRootFolder, path);
+        ResourceLocation pageId = parseGuideRelativePageId(relativePath);
+        return pageId != null ? LangUtil.stripLangFromPageId(pageId) : null;
+    }
+
+    @Nullable
+    private static ResourceLocation parseGuideRelativePageId(@Nullable String relativePath) {
+        if (relativePath == null || !relativePath.endsWith(".md")) {
             return null;
         }
-        if (!relativePathStr.matches("[a-z0-9_./-]+")) {
+        int namespaceEnd = relativePath.indexOf('/');
+        if (namespaceEnd <= 0 || namespaceEnd + 1 >= relativePath.length()) {
             return null;
         }
-        return new ResourceLocation(namespace, relativePathStr);
+        String sourceNamespace = relativePath.substring(0, namespaceEnd);
+        String pagePath = relativePath.substring(namespaceEnd + 1);
+        if (!sourceNamespace.matches("[a-z0-9_.-]+") || !pagePath.matches("[a-z0-9_./-]+")) {
+            return null;
+        }
+        return new ResourceLocation(sourceNamespace, pagePath);
     }
 
     @Nullable
@@ -357,7 +373,8 @@ class GuideSourceWatcher implements AutoCloseable {
         }
 
         try (var in = Files.newInputStream(fallbackSource.path())) {
-            return PageCompiler.parse(sourcePackId, fallbackSource.language(), pageKey.pageId(), in);
+            return PageCompiler
+                .parse(getSourcePackId(pageKey.pageId()), fallbackSource.language(), pageKey.pageId(), in);
         } catch (Exception e) {
             FMLLog.getLogger()
                 .error(
@@ -384,10 +401,71 @@ class GuideSourceWatcher implements AutoCloseable {
     }
 
     private Path getLocalizedSourcePath(ResourceLocation pageId, String language) {
-        return sourceFolder.resolve("_" + LangUtil.normalizeLanguage(language) + "/" + pageId.getResourcePath());
+        return getSourcePath(pageId, "_" + LangUtil.normalizeLanguage(language) + "/" + pageId.getResourcePath());
     }
 
     private Path getNeutralSourcePath(ResourceLocation pageId) {
-        return sourceFolder.resolve(pageId.getResourcePath());
+        return getSourcePath(pageId, pageId.getResourcePath());
+    }
+
+    private String getSourcePackId(ResourceLocation pageId) {
+        return "development:" + pageId.getResourceDomain();
+    }
+
+    private Path getSourcePath(ResourceLocation pageId, String contentRelativePath) {
+        return switch (sourceLayout) {
+            case CONTENT_ROOT -> sourceFolder.resolve(contentRelativePath);
+            case RESOURCE_PACK_ROOT -> sourceFolder.resolve("assets")
+                .resolve(pageId.getResourceDomain())
+                .resolve(contentRootFolder)
+                .resolve(contentRelativePath);
+            case ASSETS_ROOT -> sourceFolder.resolve(pageId.getResourceDomain())
+                .resolve(contentRootFolder)
+                .resolve(contentRelativePath);
+        };
+    }
+
+    @Nullable
+    private static String getGuideRelativePath(Path sourceFolder, GuideDevelopmentSourceLayout sourceLayout,
+        String namespace, String contentRootFolder, Path path) {
+        String relativePath = sourceFolder.relativize(path)
+            .toString()
+            .replace('\\', '/');
+        return switch (sourceLayout) {
+            case CONTENT_ROOT -> namespace + "/" + relativePath;
+            case RESOURCE_PACK_ROOT -> stripResourcePackPrefix(relativePath, contentRootFolder);
+            case ASSETS_ROOT -> stripAssetsPrefix(relativePath, contentRootFolder);
+        };
+    }
+
+    @Nullable
+    private static String stripResourcePackPrefix(String relativePath, String contentRootFolder) {
+        String prefix = "assets/";
+        if (!relativePath.startsWith(prefix)) {
+            return null;
+        }
+        return stripAssetsPrefix(relativePath.substring(prefix.length()), contentRootFolder);
+    }
+
+    @Nullable
+    private static String stripAssetsPrefix(String relativePath, String contentRootFolder) {
+        int namespaceEnd = relativePath.indexOf('/');
+        if (namespaceEnd <= 0) {
+            return null;
+        }
+        String afterNamespace = relativePath.substring(namespaceEnd + 1);
+        String guidePrefix = contentRootFolder + "/";
+        if (!afterNamespace.startsWith(guidePrefix)) {
+            return null;
+        }
+        return relativePath.substring(0, namespaceEnd + 1) + afterNamespace.substring(guidePrefix.length());
+    }
+
+    private GuideDevelopmentSourceLayout detectSourceLayout(Path folder) {
+        return detectSourceLayout(folder, contentRootFolder);
+    }
+
+    private static GuideDevelopmentSourceLayout detectSourceLayout(Path folder, String contentRootFolder) {
+        return GuideDevelopmentSourceLayout.detect(folder, contentRootFolder);
     }
 }

@@ -37,6 +37,19 @@ The matching system property is:
 guideme.guidenh.guidenh.sources=<absolute-path-to-repo>/wiki/resourcepack/assets/guidenh/guidenh
 ```
 
+GuideNH also supports broader development source roots:
+
+| Source root | Page id mapping |
+| --- | --- |
+| `wiki/resourcepack/assets/guidenh/guidenh` | content-root mode; files map through `sourcesNamespace`, defaulting to `guidenh` |
+| `wiki/resourcepack/assets` | assets-root mode; `assets/<modid>/guidenh/...` maps to `<modid>:...` |
+| `wiki/resourcepack` | resourcepack-root mode; `assets/<modid>/guidenh/...` maps to `<modid>:...` |
+
+The data-driven guide remains a single merged guide. When multiple namespaces contain the same markdown file name, the
+namespace is preserved in the page id, so `assets/gregtech/guidenh/_zh_cn/index.md` and
+`assets/appliedenergistics2/guidenh/_zh_cn/index.md` become `gregtech:index.md` and
+`appliedenergistics2:index.md` instead of overwriting each other.
+
 ## `showOnStartup` Formats
 
 `guideme.showOnStartup` supports these forms:

@@ -60,6 +60,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
     private final ExtensionCollection extensions;
     private final boolean availableToOpenHotkey;
     private final GuideItemSettings itemSettings;
+    private final GuideDevelopmentSourceLayout developmentSourceLayout;
 
     @Nullable
     private final Path developmentSourceFolder;
@@ -80,6 +81,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
         this.startPage = startPage;
         this.developmentSourceFolder = developmentSourceFolder;
         this.developmentSourceNamespace = developmentSourceNamespace;
+        this.developmentSourceLayout = detectDevelopmentSourceLayout(developmentSourceFolder);
         this.indices = indices;
         this.extensions = extensions;
         this.availableToOpenHotkey = availableToOpenHotkey;
@@ -204,10 +206,9 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
     }
 
     private byte @Nullable [] loadAssetInternal(ResourceLocation id) {
-        // Also load images from the development sources folder, if it exists and contains the asset namespace
-        if (developmentSourceFolder != null && id.getResourceDomain()
-            .equals(developmentSourceNamespace)) {
-            var path = developmentSourceFolder.resolve(id.getResourcePath());
+        // Also load assets from the development sources folder.
+        if (canLoadDevelopmentSource(id)) {
+            var path = resolveDevelopmentSourcePath(id);
             try {
                 return Files.readAllBytes(path);
             } catch (NoSuchFileException ignored) {} catch (IOException e) {
@@ -256,9 +257,8 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
      */
     @Nullable
     public Path getDevelopmentSourcePath(ResourceLocation id) {
-        if (developmentSourceFolder != null && id.getResourceDomain()
-            .equals(developmentSourceNamespace)) {
-            var path = developmentSourceFolder.resolve(id.getResourcePath());
+        if (canLoadDevelopmentSource(id)) {
+            var path = resolveDevelopmentSourcePath(id);
             if (Files.exists(path)) {
                 return path;
             }
@@ -288,7 +288,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
             return;
         }
 
-        watcher = new GuideSourceWatcher(developmentSourceNamespace, defaultLanguage, developmentSourceFolder);
+        watcher = new GuideSourceWatcher(developmentSourceNamespace, folder, defaultLanguage, developmentSourceFolder);
         Runtime.getRuntime()
             .addShutdownHook(new Thread(watcher::close));
     }
@@ -524,6 +524,34 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
 
     public String getDefaultLanguage() {
         return defaultLanguage;
+    }
+
+    private boolean canLoadDevelopmentSource(ResourceLocation id) {
+        if (developmentSourceFolder == null) {
+            return false;
+        }
+        return developmentSourceLayout != GuideDevelopmentSourceLayout.CONTENT_ROOT || id.getResourceDomain()
+            .equals(developmentSourceNamespace);
+    }
+
+    private Path resolveDevelopmentSourcePath(ResourceLocation id) {
+        return switch (developmentSourceLayout) {
+            case CONTENT_ROOT -> developmentSourceFolder.resolve(id.getResourcePath());
+            case RESOURCE_PACK_ROOT -> developmentSourceFolder.resolve("assets")
+                .resolve(id.getResourceDomain())
+                .resolve(folder)
+                .resolve(id.getResourcePath());
+            case ASSETS_ROOT -> developmentSourceFolder.resolve(id.getResourceDomain())
+                .resolve(folder)
+                .resolve(id.getResourcePath());
+        };
+    }
+
+    private GuideDevelopmentSourceLayout detectDevelopmentSourceLayout(@Nullable Path sourceFolder) {
+        if (sourceFolder == null) {
+            return GuideDevelopmentSourceLayout.CONTENT_ROOT;
+        }
+        return GuideDevelopmentSourceLayout.detect(sourceFolder, folder);
     }
 
     private void warmPage(ResourceLocation pageId) {
