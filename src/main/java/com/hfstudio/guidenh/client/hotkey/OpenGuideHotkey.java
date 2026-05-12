@@ -19,7 +19,6 @@ import com.hfstudio.guidenh.guide.PageAnchor;
 import com.hfstudio.guidenh.guide.indices.ItemIndex;
 import com.hfstudio.guidenh.guide.indices.ItemMultiIndex;
 import com.hfstudio.guidenh.guide.indices.OreIndex;
-import com.hfstudio.guidenh.guide.internal.GuideMEProxy;
 import com.hfstudio.guidenh.guide.internal.GuideRegistry;
 import com.hfstudio.guidenh.guide.internal.GuideScreen;
 import com.hfstudio.guidenh.guide.internal.GuidebookText;
@@ -199,8 +198,7 @@ public class OpenGuideHotkey {
                     List<PageAnchor> allPages = found.guide.getIndex(ItemMultiIndex.class)
                         .findAllByStack(stack);
                     PageAnchor target = allPages.size() > 1 ? GuideItemLinksPage.anchorForStack(stack) : found.page;
-                    GuideMEProxy.instance()
-                        .openGuide(mc.thePlayer, found.guide.getId(), target);
+                    GuideScreen.openFromGuideHotkey(found.guide.getId(), target);
                     ticksKeyHeld = 0;
                     holding = false;
                 }
@@ -268,8 +266,7 @@ public class OpenGuideHotkey {
                 if (mc.currentScreen instanceof GuideUiHost) {
                     ((GuideUiHost) mc.currentScreen).navigateTo(found.page);
                 } else {
-                    GuideMEProxy.instance()
-                        .openGuide(mc.thePlayer, found.guide.getId(), found.page);
+                    GuideScreen.openFromGuideHotkey(found.guide.getId(), found.page);
                 }
                 questTicksKeyHeld = 0;
             } else if (questTicksKeyHeld > TICKS_TO_OPEN) {

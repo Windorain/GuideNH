@@ -244,6 +244,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     private int guideEditorEditorTop;
     private boolean guideEditorSuppressUndoRecording;
     private boolean guideEditorSuppressReloadFromEditorApply;
+    private boolean guideEditorSuppressTextFocusUntilGuideHotkeyRelease;
     private GuideScreenEditorLayoutMode guideEditorLayoutMode = GuideScreenEditorLayoutMode.SPLIT;
     private boolean guideEditorAdvancedToolbarVisible;
     private int guideEditorDividerPercent = GuideScreenEditorState.getDividerPercent();
@@ -347,6 +348,14 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     }
 
     public static void open(ResourceLocation guideId, @Nullable PageAnchor anchor) {
+        open(guideId, anchor, false);
+    }
+
+    public static void openFromGuideHotkey(ResourceLocation guideId, @Nullable PageAnchor anchor) {
+        open(guideId, anchor, true);
+    }
+
+    private static void open(ResourceLocation guideId, @Nullable PageAnchor anchor, boolean openedFromGuideHotkey) {
         var guide = GuideRegistry.getById(guideId);
         if (guide == null) {
             FMLLog.warning("GuideScreen.open: no guide registered with id {}", guideId);
@@ -354,6 +363,8 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         }
         var initial = anchor != null ? anchor : PageAnchor.page(guide.getStartPage());
         var screen = new GuideScreen(guide, initial);
+        screen.guideEditorSuppressTextFocusUntilGuideHotkeyRelease = openedFromGuideHotkey
+            && OpenGuideHotkey.isKeyHeld();
         Minecraft.getMinecraft()
             .displayGuiScreen(screen);
     }
@@ -424,6 +435,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     @Override
     public void updateScreen() {
         super.updateScreen();
+        updateGuideEditorHotkeyFocusSuppression();
         for (LytGuidebookScene scene : registeredScenes) {
             scene.ponderTick();
         }
@@ -444,6 +456,19 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             }
             pendingItemLinksStack = null;
         }
+    }
+
+    private void updateGuideEditorHotkeyFocusSuppression() {
+        if (!guideEditorSuppressTextFocusUntilGuideHotkeyRelease) {
+            return;
+        }
+        if (OpenGuideHotkey.isKeyHeld()) {
+            if (guideEditorTextArea != null) {
+                guideEditorTextArea.setFocused(false);
+            }
+            return;
+        }
+        guideEditorSuppressTextFocusUntilGuideHotkeyRelease = false;
     }
 
     @Override
@@ -669,7 +694,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             } finally {
                 guideEditorSuppressUndoRecording = false;
             }
-            guideEditorTextArea.setFocused(true);
+            guideEditorTextArea.setFocused(!guideEditorSuppressTextFocusUntilGuideHotkeyRelease);
         }
         if (!preserveHistory) {
             guideEditorUndoHistory.reset(text, 0, 0);
@@ -2060,6 +2085,13 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     private boolean handleGuideEditorKey(char typedChar, int keyCode) {
         if (!isGuideEditorActive() || guideEditorTextArea == null) {
             return false;
+        }
+        if (guideEditorSuppressTextFocusUntilGuideHotkeyRelease) {
+            if (keyCode == OpenGuideHotkey.OPEN_GUIDE_KEY.getKeyCode() || OpenGuideHotkey.isKeyHeld()) {
+                guideEditorTextArea.setFocused(false);
+                return true;
+            }
+            guideEditorSuppressTextFocusUntilGuideHotkeyRelease = false;
         }
         if (guideEditorContextMenu != null && guideEditorContextMenu.isOpen()) {
             if (keyCode == Keyboard.KEY_ESCAPE) {
@@ -3826,6 +3858,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     @Override
     public void navigateTo(PageAnchor anchor) {
         if (anchor == null || anchor.equals(currentAnchor)) return;
+        suppressGuideEditorTextFocusUntilGuideHotkeyRelease();
         history.push(currentAnchor);
         forwardHistory.clear();
         navigateWithoutHistory(anchor);
@@ -4044,6 +4077,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     }
 
     private void openItemLinksPage(ItemStack stack) {
+        suppressGuideEditorTextFocusUntilGuideHotkeyRelease();
         var pages = guide.getIndex(ItemMultiIndex.class)
             .findAllByStack(stack);
         if (pages.isEmpty()) {
@@ -4053,6 +4087,16 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             navigateTo(pages.get(0));
         } else {
             navigateTo(GuideItemLinksPage.anchorForStack(stack));
+        }
+    }
+
+    private void suppressGuideEditorTextFocusUntilGuideHotkeyRelease() {
+        if (!OpenGuideHotkey.isKeyHeld()) {
+            return;
+        }
+        guideEditorSuppressTextFocusUntilGuideHotkeyRelease = true;
+        if (guideEditorTextArea != null) {
+            guideEditorTextArea.setFocused(false);
         }
     }
 
