@@ -1,11 +1,9 @@
 package com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.AutocompleteContext;
-import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAutocompleteContext;
 
 public final class AutocompleteProviders {
 
@@ -18,13 +16,10 @@ public final class AutocompleteProviders {
     }
 
     public static List<AutocompleteCandidate> query(AutocompleteContext ctx, int limit) {
-        if (!(ctx instanceof MdxAutocompleteContext)) return Collections.emptyList();
-        MdxAutocompleteContext mdx = (MdxAutocompleteContext) ctx;
-
         List<AutocompleteCandidate> results = new ArrayList<>();
         for (AutocompleteProvider provider : providers) {
             for (AutocompleteKey key : provider.getSupportedKeys()) {
-                if (key.matches(mdx.getTagName(), mdx.getAttributeName())) {
+                if (matchesContext(key, ctx)) {
                     results.addAll(provider.provide(ctx, Math.max(0, limit - results.size())));
                     break;
                 }
@@ -32,6 +27,15 @@ public final class AutocompleteProviders {
             if (results.size() >= limit) break;
         }
         return results;
+    }
+
+    private static boolean matchesContext(AutocompleteKey key, AutocompleteContext ctx) {
+        if (ctx instanceof com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAutocompleteContext) {
+            com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAutocompleteContext mdx =
+                (com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAutocompleteContext) ctx;
+            return key.matches(AutocompleteKey.MatchType.ATTR_VALUE, mdx.getTagName(), mdx.getAttributeName());
+        }
+        return false;
     }
 
     public static void clear() {

@@ -21,7 +21,7 @@ public class ItemIdProvider implements AutocompleteProvider {
     private static Set<AutocompleteKey> buildKeys(String... tagNames) {
         Set<AutocompleteKey> keys = new HashSet<>();
         for (String tag : tagNames) {
-            keys.add(new AutocompleteKey(tag, "id"));
+            keys.add(AutocompleteKey.forValue(tag, "id"));
         }
         return Collections.unmodifiableSet(keys);
     }

@@ -25,6 +25,7 @@ import com.hfstudio.guidenh.network.GuideNhClientBridgeMessage;
 import com.hfstudio.guidenh.network.GuideNhNetwork;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.AutocompleteProviders;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.ItemIdProvider;
+import com.hfstudio.guidenh.guide.internal.editor.autocomplete.TagAttributeRegistry;
 import com.hfstudio.structurelibexport.StructureExportBootstrap;
 
 import cpw.mods.fml.common.event.FMLInitializationEvent;
@@ -59,6 +60,7 @@ public class ClientProxy extends CommonProxy {
         OpenGuideHotkey.init();
         OpenSceneEditorHotkey.init();
         AutocompleteProviders.register(new ItemIdProvider());
+        TagAttributeRegistry.initialize();
         MinecraftForge.EVENT_BUS.register(new RegionWandRenderer());
         GuideWarmupPump.init();
         MinecraftForge.EVENT_BUS.register(this);
