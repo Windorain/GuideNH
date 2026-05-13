@@ -190,7 +190,10 @@ public final class AutocompletePopup {
         int maxW = 72;
         int maxItemH = 14;
         for (AutocompleteCandidate c : candidates) {
-            int w = fontRenderer.getStringWidth(c.displayText()) + PADDING_X * 2 + 16;
+            int textW = fontRenderer.getStringWidth(c.displayText()) + PADDING_X * 2;
+            int renderW = c.renderWidth(fontRenderer);
+            int w = Math.max(textW, renderW > 0 ? renderW + PADDING_X * 2 : 0);
+
             if (w > maxW) maxW = w;
             if (c.renderHeight() > maxItemH) maxItemH = c.renderHeight();
         }
