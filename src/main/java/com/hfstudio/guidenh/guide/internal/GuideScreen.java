@@ -41,8 +41,11 @@ import com.hfstudio.guidenh.guide.internal.editor.autocomplete.SyntaxElementType
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.TextSyntaxContext;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.AutocompleteCandidate;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.AutocompleteProviders;
+import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.CompositeResolver;
+import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.FrontmatterResolver;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxSyntaxResolver;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.SelectionStrategies;
+import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.WordBoundaryResolver;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.ui.AutocompletePopup;
 
 import com.hfstudio.guidenh.client.command.GuideNhClientBridgeController;
@@ -452,7 +455,11 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         rebuildToolbar();
         ensureGuideEditorTextArea();
         if (autocompleteResolver == null) {
-            autocompleteResolver = new MdxSyntaxResolver();
+            autocompleteResolver = new CompositeResolver(
+                new FrontmatterResolver(),
+                new MdxSyntaxResolver(),
+                new WordBoundaryResolver()
+            );
             autocompleteSelectionStrategies = SelectionStrategies.defaults();
         }
         refreshGuideEditorDraft(true);

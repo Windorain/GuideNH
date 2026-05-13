@@ -60,11 +60,16 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
 
     @Nullable
     private TextSyntaxContext resolveFromAst(MdAstRoot root, String text, int cursorIndex) {
+        if (cursorIndex > 0 && text.charAt(cursorIndex - 1) == '<') {
+            int tagStart = cursorIndex - 1;
+            return new TextSyntaxContext(SyntaxElementType.TAG_START, tagStart, cursorIndex,
+                new TagStartContext(tagStart, cursorIndex, ""));
+        }
         MdxJsxElementFields element = findEnclosingMdxElement(root, cursorIndex);
         if (element != null) {
             return resolveMdxAttribute(element, text, cursorIndex);
         }
-        return resolvePlainTextWord(text, cursorIndex);
+        return SyntaxUtils.resolveWord(text, cursorIndex);
     }
 
     @Nullable
@@ -144,7 +149,22 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
                 SyntaxElementType.ATTRIBUTE_VALUE,
                 valueStart,
                 valueEnd,
-                new MdxAutocompleteContext(tagName, attr.name, valueStart, valueEnd, partialText));
+                new MdxValueContext(tagName, attr.name, valueStart, valueEnd, partialText));
+        }
+
+        // ATTRIBUTE_NAME detection: cursor inside tag body but not in any attribute.
+        // AST-only — fallback cannot reliably distinguish tag-internal whitespace
+        // from plain-text whitespace without false positives. We fail closed.
+        // TODO: When parser supports error-recovery AST, enable fallback here.
+        com.hfstudio.guidenh.libs.unist.UnistPosition elemPos = element.position();
+        if (elemPos != null && elemPos.start() != null && elemPos.end() != null) {
+            int elemEnd = elemPos.end().offset();
+            if (cursorIndex > elemPos.start().offset() && cursorIndex < elemEnd) {
+                String partial = text.substring(cursorIndex, Math.min(cursorIndex + 1, text.length()));
+                return new TextSyntaxContext(SyntaxElementType.ATTRIBUTE_NAME,
+                    cursorIndex, cursorIndex,
+                    new MdxAttrNameContext(tagName, cursorIndex, cursorIndex, partial));
+            }
         }
 
         return resolvePlainTextWord(text, cursorIndex);
@@ -156,6 +176,11 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
 
     @Nullable
     private TextSyntaxContext resolveFromFallback(String text, int cursorIndex) {
+        if (cursorIndex > 0 && text.charAt(cursorIndex - 1) == '<') {
+            int tagStart = cursorIndex - 1;
+            return new TextSyntaxContext(SyntaxElementType.TAG_START, tagStart, cursorIndex,
+                new TagStartContext(tagStart, cursorIndex, ""));
+        }
         String prefix = text.substring(0, Math.min(cursorIndex, text.length()));
         Matcher m = FALLBACK_TAG.matcher(prefix);
 
@@ -182,7 +207,7 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
                 SyntaxElementType.ATTRIBUTE_VALUE,
                 valueStart,
                 valueEnd,
-                new MdxAutocompleteContext(tagName, attrName, valueStart, valueEnd, partialText));
+                new MdxValueContext(tagName, attrName, valueStart, valueEnd, partialText));
         }
 
         return resolvePlainTextWord(text, cursorIndex);

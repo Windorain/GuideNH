@@ -30,10 +30,23 @@ public final class AutocompleteProviders {
     }
 
     private static boolean matchesContext(AutocompleteKey key, AutocompleteContext ctx) {
-        if (ctx instanceof com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAutocompleteContext) {
-            com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAutocompleteContext mdx =
-                (com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAutocompleteContext) ctx;
-            return key.matches(AutocompleteKey.MatchType.ATTR_VALUE, mdx.getTagName(), mdx.getAttributeName());
+        if (ctx instanceof com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxValueContext) {
+            com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxValueContext mdx =
+                (com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxValueContext) ctx;
+            return key.matches(AutocompleteKey.MatchType.ATTR_VALUE, mdx.getTagName(), mdx.getAttrName());
+        }
+        if (ctx instanceof com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAttrNameContext) {
+            com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAttrNameContext mdx =
+                (com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAttrNameContext) ctx;
+            return key.matches(AutocompleteKey.MatchType.ATTR_NAME, mdx.getTagName(), null);
+        }
+        if (ctx instanceof com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.TagStartContext) {
+            return key.matches(AutocompleteKey.MatchType.TAG_NAME, null, null);
+        }
+        if (ctx instanceof com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.FrontmatterContext) {
+            com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.FrontmatterContext fmc =
+                (com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.FrontmatterContext) ctx;
+            return key.matches(AutocompleteKey.MatchType.ATTR_VALUE, "*", fmc.getKey());
         }
         return false;
     }
