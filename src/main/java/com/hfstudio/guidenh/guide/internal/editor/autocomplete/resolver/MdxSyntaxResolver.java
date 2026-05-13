@@ -35,10 +35,16 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
 
         try {
             MdAstRoot root = MdAst.fromMarkdown(text, PARSE_OPTIONS);
-            return resolveFromAst(root, text, cursorIndex);
+            TextSyntaxContext result = resolveFromAst(root, text, cursorIndex);
+            System.out.println("[AC-271afa] R:AST " + (result != null ? result.getElementType() : "null")
+                + " auto=" + (result != null ? result.shouldAutocomplete() : false));
+            return result;
         } catch (ParseException e) {
-            // TODO: Remove after rewriting micromark parser with error recovery
-            return resolveFromFallback(text, cursorIndex);
+            TextSyntaxContext result = resolveFromFallback(text, cursorIndex);
+            System.out.println("[AC-271afa] R:FB " + (result != null ? result.getElementType() : "null")
+                + " auto=" + (result != null ? result.shouldAutocomplete() : false)
+                + " err=" + e.getMessage().substring(0, Math.min(40, e.getMessage().length())));
+            return result;
         }
     }
 
@@ -163,15 +169,28 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
         }
 
         if (tagName != null && attrName != null && valueStart >= 0) {
+            // Scan forward for the closing quote to determine replaceEnd
+            int valueEnd = findCloseQuote(text, cursorIndex);
             String partialText = text.substring(valueStart, cursorIndex);
             return new TextSyntaxContext(
                 SyntaxElementType.ATTRIBUTE_VALUE,
                 valueStart,
-                cursorIndex,
-                new MdxAutocompleteContext(tagName, attrName, valueStart, cursorIndex, partialText));
+                valueEnd,
+                new MdxAutocompleteContext(tagName, attrName, valueStart, valueEnd, partialText));
         }
 
         return resolvePlainTextWord(text, cursorIndex);
+    }
+
+    /** Scan forward from pos for a closing double-quote, or fall back to next '>' or newline. */
+    private static int findCloseQuote(String text, int pos) {
+        int len = text.length();
+        for (int i = pos; i < len; i++) {
+            char c = text.charAt(i);
+            if (c == '"') return i;
+            if (c == '>' || c == '\n') return i;
+        }
+        return len;
     }
 
     private static boolean isWordChar(char c) {

@@ -866,6 +866,23 @@ public class SceneEditorMultilineTextArea {
         return getCursorIndexAt(mouseX, mouseY);
     }
 
+    /** Returns the pixel X position of the cursor relative to this text area. */
+    public int getCursorPixelX() {
+        List<SceneEditorMultilineTextLayoutCache.VisualLine> lines = layoutCache.getVisualLines();
+        if (lines.isEmpty()) return PADDING;
+        int lineIdx = getVisualLineIndex(selectionModel.getCursorIndex());
+        return PADDING + getCursorPixelOnLine(selectionModel.getCursorIndex(), lines.get(lineIdx))
+            - horizontalOffsetPixels;
+    }
+
+    /** Returns the pixel Y position of the cursor relative to this text area. */
+    public int getCursorPixelY() {
+        List<SceneEditorMultilineTextLayoutCache.VisualLine> lines = layoutCache.getVisualLines();
+        if (lines.isEmpty()) return PADDING;
+        int lineIdx = getVisualLineIndex(selectionModel.getCursorIndex());
+        return PADDING + lineIdx * getLineHeight() - scrollState.getOffsetPixels();
+    }
+
     private int getCursorIndexAt(int mouseX, int mouseY) {
         List<SceneEditorMultilineTextLayoutCache.VisualLine> lines = layoutCache.getVisualLines();
         if (lines.isEmpty()) {

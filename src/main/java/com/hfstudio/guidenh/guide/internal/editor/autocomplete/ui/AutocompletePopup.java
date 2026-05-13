@@ -50,10 +50,7 @@ public final class AutocompletePopup {
         }
 
         computeSize(fontRenderer);
-        LytRect rect = SceneEditorPopupLayout.clampToViewport(
-            anchorX, anchorY, width, height, viewportWidth, viewportHeight, 2);
-        this.x = rect.x();
-        this.y = rect.y();
+        placePopup(anchorX, anchorY, viewportWidth, viewportHeight);
         this.open = true;
     }
 
@@ -82,6 +79,33 @@ public final class AutocompletePopup {
         if (!open) return;
         int maxH = computeMaxItemHeight();
         scrollY = clampScroll(scrollY - delta * maxH * 2);
+    }
+
+    /** Recompute popup position without changing candidates or selection. */
+    public void reposition(int anchorX, int anchorY, int viewportWidth, int viewportHeight,
+                           FontRenderer fontRenderer) {
+        if (!open) return;
+        computeSize(fontRenderer);
+        placePopup(anchorX, anchorY, viewportWidth, viewportHeight);
+        this.scrollY = clampScroll(scrollY);
+    }
+
+    /** Place popup below the anchor; flip above if it doesn't fit. */
+    private void placePopup(int anchorX, int anchorY, int viewportWidth, int viewportHeight) {
+        // Try below cursor first
+        LytRect below = SceneEditorPopupLayout.clampToViewport(
+            anchorX, anchorY, width, height, viewportWidth, viewportHeight, 2);
+        if (below.y() >= anchorY - 2) {
+            this.x = below.x();
+            this.y = below.y();
+            return;
+        }
+        // Not enough room below — flip above cursor
+        int aboveY = anchorY - height - 18;
+        LytRect above = SceneEditorPopupLayout.clampToViewport(
+            anchorX, aboveY, width, height, viewportWidth, viewportHeight, 2);
+        this.x = above.x();
+        this.y = above.y();
     }
 
     public boolean mouseClicked(int mouseX, int mouseY) {

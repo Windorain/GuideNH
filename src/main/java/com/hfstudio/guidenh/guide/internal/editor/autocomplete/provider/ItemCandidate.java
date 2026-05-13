@@ -12,8 +12,8 @@ import org.lwjgl.opengl.GL12;
 public class ItemCandidate implements AutocompleteCandidate {
     private final String id;
     private final ItemStack stack;
-    private static final int ICON_SIZE = 12;
-    private static final int TEXT_X = ICON_SIZE + 4;
+    private static final int ICON_SIZE = 16;
+    private static final int TEXT_X = ICON_SIZE + 2;
     private static final int TEXT_COLOR = 0xFFF0F0F0;
     private static final RenderItem renderItem = new RenderItem();
 
@@ -34,13 +34,14 @@ public class ItemCandidate implements AutocompleteCandidate {
         RenderHelper.enableGUIStandardItemLighting();
         GL11.glEnable(GL12.GL_RESCALE_NORMAL);
         renderItem.zLevel = 0;
+        // renderItemAndEffectIntoGUI draws in a 16x16 box; center it vertically in our 16px row
         renderItem.renderItemAndEffectIntoGUI(
             Minecraft.getMinecraft().fontRenderer,
             Minecraft.getMinecraft().getTextureManager(),
-            stack, x + 2, y + 2);
+            stack, x, y - 1);
         RenderHelper.disableStandardItemLighting();
         GL11.glDisable(GL11.GL_BLEND);
         GL11.glPopMatrix();
-        fontRenderer.drawString(id, x + TEXT_X, y + 3, TEXT_COLOR);
+        fontRenderer.drawString(id, x + TEXT_X, y + 4, TEXT_COLOR);
     }
 }
