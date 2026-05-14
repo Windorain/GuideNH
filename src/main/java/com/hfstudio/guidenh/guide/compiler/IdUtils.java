@@ -228,6 +228,13 @@ public class IdUtils {
             uri = uri.resolve(idText);
             return new ResourceLocation(anchor.getResourceDomain(), uri.toString());
         }
+        int namespaceSeparator = idText.indexOf(':');
+        if (namespaceSeparator >= 0 && namespaceSeparator < idText.length() - 1
+            && idText.charAt(namespaceSeparator + 1) == '/') {
+            return new ResourceLocation(
+                idText.substring(0, namespaceSeparator),
+                idText.substring(namespaceSeparator + 2));
+        }
         return new ResourceLocation(idText);
     }
 }

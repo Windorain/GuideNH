@@ -19,8 +19,9 @@ navigation:
 | Field | Description |
 | --- | --- |
 | `title` | Required display title |
-| `parent` | Optional parent page id |
+| `parent` | Optional parent page id, resolved like a guide page link |
 | `position` | Optional sibling ordering hint |
+| `priority` | Optional load priority for same-path page overrides; default `0` |
 | `icon` | Optional item icon |
 | `icon_texture` | Optional texture icon resolved from guide assets |
 | `icon_components` | Parsed but not currently used by built-in rendering |
@@ -49,6 +50,29 @@ navigation:
 
 Both keys may be combined; the page is only shown when every listed mod is present.
 
+## Load Priority
+
+When several loaded resource packs provide the same guide page path, GuideNH reads the page
+frontmatter first and chooses the candidate with the highest `navigation.priority`.
+
+```yaml
+navigation:
+  title: Pack Override
+  parent: index.md
+  priority: 100
+```
+
+Rules:
+
+- missing `priority` is `0`
+- values are signed Java integers up to `2147483647`
+- higher priority wins
+- if priorities are equal, the later processed resource pack entry wins, matching Minecraft resource-pack override order
+- priority only decides between candidates for the same page path and language/fallback layer
+
+This is useful when a mod ships a baseline guide page and a pack wants to replace it without relying only on
+resource-pack ordering.
+
 ## Icon Sources
 
 GuideNH chooses navigation/search icons in this order:
@@ -64,6 +88,16 @@ Texture icons are read from runtime assets, so relative page-local files such as
 - Omit `parent` to create a root node.
 - Set `parent: index.md` or any other page id to create a child node.
 - The parent page must exist in the same guide navigation tree.
+
+`navigation.parent` uses the same namespace rules as Markdown page links:
+
+- `parent: index.md` and `parent: ./index.md` resolve inside the current page namespace.
+- `parent: /index.md` resolves from the current page namespace root.
+- `parent: gregtech:index.md` or `parent: gregtech:/index.md` explicitly targets another namespace.
+
+Data-driven guides are isolated by namespace. Pages under `assets/guidenh/guidenh/_en_us/...` belong to
+`guidenh:guidenh`; pages under `assets/gregtech/guidenh/_en_us/...` belong to `gregtech:guidenh`.
+Relative parents and links never fall through to another mod's same-named page.
 
 ## Category Pages
 

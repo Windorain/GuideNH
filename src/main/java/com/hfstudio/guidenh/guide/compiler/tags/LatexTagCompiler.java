@@ -6,12 +6,17 @@ import java.util.Set;
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.compiler.TagCompiler;
 import com.hfstudio.guidenh.guide.document.LytErrorSink;
+import com.hfstudio.guidenh.guide.document.block.LatexRenderOptions;
 import com.hfstudio.guidenh.guide.document.block.LatexVerticalAlign;
 import com.hfstudio.guidenh.guide.document.block.LytBlockContainer;
 import com.hfstudio.guidenh.guide.document.block.LytLatexBlock;
 import com.hfstudio.guidenh.guide.document.block.LytLatexDisplayBlock;
+import com.hfstudio.guidenh.guide.document.block.LytVBox;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowParent;
+import com.hfstudio.guidenh.guide.document.interaction.ContentTooltip;
+import com.hfstudio.guidenh.guide.document.interaction.GuideTooltip;
+import com.hfstudio.guidenh.guide.document.interaction.TextTooltip;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxFlowElement;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxTextElement;
@@ -30,6 +35,8 @@ import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxTextElement;
  * higher values produce crisper output at the cost of more memory</li>
  * <li>{@code showTooltip} (boolean, optional, default {@code false}) — when {@code true}, hovering over
  * the formula shows the raw LaTeX source in a tooltip</li>
+ * <li>{@code tooltip} (String, optional) — plain tooltip text. Child Markdown content takes precedence
+ * and is compiled as a rich tooltip.</li>
  * <li>{@code valign} (String, optional, default {@code "baseline"}) — inline-only; vertical alignment of
  * the formula within the text line: {@code baseline}, {@code top}, {@code center}, or {@code bottom}</li>
  * <li>{@code offsetX} (int, optional, default {@code 0}) — horizontal pixel offset applied after alignment</li>
@@ -44,10 +51,6 @@ import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxTextElement;
 public class LatexTagCompiler implements TagCompiler {
 
     private static final String TAG_NAME = "Latex";
-
-    private static final int DEFAULT_FILL_COLOR_ARGB = 0xFFFFFFFF;
-    private static final float DEFAULT_USER_SCALE = 1.0f;
-    private static final float DEFAULT_SOURCE_SCALE = 100.0f;
 
     @Override
     public Set<String> getTagNames() {
@@ -79,22 +82,24 @@ public class LatexTagCompiler implements TagCompiler {
         }
 
         int fillColor = parseColor(compiler, parent, el);
-        float userScale = MdxAttrs.getFloat(compiler, parent, el, "scale", DEFAULT_USER_SCALE);
-        float sourceScale = MdxAttrs.getFloat(compiler, parent, el, "sourceScale", DEFAULT_SOURCE_SCALE);
-        boolean showTooltip = MdxAttrs.getBoolean(compiler, parent, el, "showTooltip", false);
+        float userScale = MdxAttrs.getFloat(compiler, parent, el, "scale", LatexRenderOptions.DEFAULT_USER_SCALE);
+        float sourceScale = MdxAttrs
+            .getFloat(compiler, parent, el, "sourceScale", LatexRenderOptions.DEFAULT_SOURCE_SCALE);
+        GuideTooltip tooltip = buildInlineTooltip(compiler, parent, el, formula);
         LatexVerticalAlign valign = LatexVerticalAlign.parse(MdxAttrs.getString(compiler, parent, el, "valign", null));
         int offsetX = MdxAttrs.getInt(compiler, parent, el, "offsetX", 0);
         int offsetY = MdxAttrs.getInt(compiler, parent, el, "offsetY", 0);
 
         return new LytLatexBlock(
             formula,
-            fillColor,
-            Math.max(16f, sourceScale),
-            Math.max(0.1f, userScale),
-            showTooltip,
-            valign,
-            offsetX,
-            offsetY);
+            LatexRenderOptions.builder()
+                .fillColorArgb(fillColor)
+                .sourceScale(sourceScale)
+                .userScale(userScale)
+                .tooltip(tooltip)
+                .valign(valign)
+                .offset(offsetX, offsetY)
+                .build());
     }
 
     private LytLatexDisplayBlock buildDisplayBlock(PageCompiler compiler, LytBlockContainer parent,
@@ -107,26 +112,67 @@ public class LatexTagCompiler implements TagCompiler {
         }
 
         int fillColor = parseColor(compiler, parent, el);
-        float userScale = MdxAttrs.getFloat(compiler, parent, el, "scale", DEFAULT_USER_SCALE);
-        float sourceScale = MdxAttrs.getFloat(compiler, parent, el, "sourceScale", DEFAULT_SOURCE_SCALE);
-        boolean showTooltip = MdxAttrs.getBoolean(compiler, parent, el, "showTooltip", false);
+        float userScale = MdxAttrs.getFloat(compiler, parent, el, "scale", LatexRenderOptions.DEFAULT_USER_SCALE);
+        float sourceScale = MdxAttrs
+            .getFloat(compiler, parent, el, "sourceScale", LatexRenderOptions.DEFAULT_SOURCE_SCALE);
+        GuideTooltip tooltip = buildBlockTooltip(compiler, parent, el, formula);
         int offsetX = MdxAttrs.getInt(compiler, parent, el, "offsetX", 0);
         int offsetY = MdxAttrs.getInt(compiler, parent, el, "offsetY", 0);
 
         return new LytLatexDisplayBlock(
             formula,
-            fillColor,
-            Math.max(16f, sourceScale),
-            Math.max(0.1f, userScale),
-            showTooltip,
-            offsetX,
-            offsetY);
+            LatexRenderOptions.builder()
+                .fillColorArgb(fillColor)
+                .sourceScale(sourceScale)
+                .userScale(userScale)
+                .tooltip(tooltip)
+                .offset(offsetX, offsetY)
+                .build());
+    }
+
+    private static GuideTooltip buildInlineTooltip(PageCompiler compiler, LytErrorSink errorSink,
+        MdxJsxElementFields el, String formula) {
+        if (el.children() != null && !el.children()
+            .isEmpty()) {
+            var contentBox = new LytVBox();
+            compiler.compileBlockContextInSourceContext(el.children(), contentBox);
+            if (!contentBox.getChildren()
+                .isEmpty()) {
+                return new ContentTooltip(contentBox);
+            }
+        }
+        return buildAttributeTooltip(compiler, errorSink, el, formula);
+    }
+
+    private static GuideTooltip buildBlockTooltip(PageCompiler compiler, LytBlockContainer parent,
+        MdxJsxElementFields el, String formula) {
+        if (el.children() != null && !el.children()
+            .isEmpty()) {
+            var contentBox = new LytVBox();
+            compiler.compileBlockTagChildren(el, contentBox);
+            if (!contentBox.getChildren()
+                .isEmpty()) {
+                return new ContentTooltip(contentBox);
+            }
+        }
+        return buildAttributeTooltip(compiler, parent, el, formula);
+    }
+
+    private static GuideTooltip buildAttributeTooltip(PageCompiler compiler, LytErrorSink errorSink,
+        MdxJsxElementFields el, String formula) {
+        String tooltip = MdxAttrs.getString(compiler, errorSink, el, "tooltip", null);
+        if (tooltip != null && !tooltip.trim()
+            .isEmpty()) {
+            return new TextTooltip(tooltip);
+        }
+        boolean showTooltip = MdxAttrs.getBoolean(compiler, errorSink, el, "showTooltip", false);
+        return showTooltip ? new TextTooltip(formula) : null;
     }
 
     private static int parseColor(PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields el) {
         String colorStr = MdxAttrs.getString(compiler, errorSink, el, "color", null);
         if (colorStr == null) {
-            return DEFAULT_FILL_COLOR_ARGB;
+            return LatexRenderOptions.DEFAULT_FILL_COLOR_ARGB;
         }
         colorStr = colorStr.trim();
         if (colorStr.startsWith("#")) {
@@ -145,6 +191,6 @@ public class LatexTagCompiler implements TagCompiler {
             compiler,
             "Invalid color format '" + colorStr + "' for Latex tag; expected #RRGGBB or #AARRGGBB.",
             el);
-        return DEFAULT_FILL_COLOR_ARGB;
+        return LatexRenderOptions.DEFAULT_FILL_COLOR_ARGB;
     }
 }

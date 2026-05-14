@@ -279,6 +279,7 @@ GuideNH reads the first YAML frontmatter block and parses these known keys:
 | `title` | yes | string | Display name in navigation and search title fallback |
 | `parent` | no | page id | Parent page id; omitted means top-level node |
 | `position` | no | integer | Sibling sort order; default `0` |
+| `priority` | no | integer | Load priority for same-path page overrides; default `0`, higher wins, equal priority lets the later resource pack entry win |
 | `icon` | no | item id | Item icon shown in navigation/search. Accepts `modid:name`, `modid:name:meta` (colon-separated damage/subtype), `<modid:name:meta>` (strict form; meta `32767` matches all subtypes), or `modid:name meta` (space-separated, filter-expression style). |
 | `icons` | no | list of item ids | List of item icons for animated cycling (one per second). Each entry uses the same syntax as `icon`. When present takes priority over `icon`. |
 | `icon_texture` | no | asset path | Texture icon path resolved like any other asset link |
@@ -294,6 +295,7 @@ navigation:
   title: Root
   parent: index.md
   position: 10
+  priority: 0
   icon: minecraft:book
   # Use meta/damage to select a specific subtype:
   # icon: minecraft:wool:1       (orange wool, colon form)
@@ -381,13 +383,23 @@ GuideNH resolves ids and paths using these rules:
 
 | Input | Meaning |
 | --- | --- |
-| `subpage.md` | relative to the current page |
-| `./subpage.md` | relative to the current page |
-| `/assets/example.png` | rooted to the current guide namespace |
-| `guidenh:index.md` | explicit `modid:path` resource location |
+| `subpage.md` | relative to the current page, in the current page namespace |
+| `./subpage.md` | relative to the current page, in the current page namespace |
+| `/guide.md` | rooted to the current page namespace, equivalent to `currentmod:guide.md` |
+| `gregtech:guide.md` | explicit namespace; opens `gregtech:guidenh` when the current guide path is `guidenh` |
+| `gregtech:/guide.md` | explicit namespace plus rooted path, normalized to `gregtech:guide.md` |
 | `subpage.md#anchor` | page plus anchor fragment |
-| `guidenh:other.md#anchor` | absolute `modid:path#anchor` |
+| `guidenh:other.md#anchor` | explicit `modid:path#anchor` |
 | `https://example.com` | external HTTP/HTTPS link |
+
+Page links are isolated by namespace. A link written from `assets/guidenh/guidenh/_en_us/index.md` as
+`[Guide](guide.md)` resolves to `guidenh:guide.md`; the same text in
+`assets/gregtech/guidenh/_en_us/index.md` resolves to `gregtech:guide.md`. If that page is missing in the
+current namespace, GuideNH reports it as a broken link instead of falling back to another mod's page.
+
+Explicit `modid:path` links can cross from one mod's data-driven guide to another. The guide id is derived from
+the target page namespace and the current guide path, so a link from `guidenh:guidenh` to `gregtech:guide.md`
+opens page `gregtech:guide.md` in guide `gregtech:guidenh`.
 
 Anchor fragments scroll the guide to a heading whose text lowercased and spaces replaced with hyphens
 matches the fragment (e.g. `#crafting-recipe` scrolls to `## Crafting Recipe`), or to a `<a name="...">` anchor.

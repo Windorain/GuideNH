@@ -30,6 +30,17 @@ categories:
 
 悬停显示原式（showTooltip）：<Latex formula="\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}" showTooltip={true} />
 
+自定义普通 tooltip：<Latex formula="E=mc^2" tooltip="能量等于质量乘以光速平方。" />
+
+富文本 tooltip：
+<Latex formula="\Delta G = \Delta H - T\Delta S">
+  **吉布斯自由能** 结合了焓与熵。
+
+  - <Latex formula="\Delta H" /> 表示焓变。
+  - <Latex formula="T\Delta S" /> 表示熵项。
+  - 悬停 tooltip 可以使用 **普通 Markdown** 和行内指南标签。
+</Latex>
+
 底部对齐（valign=bottom）：<Latex formula="\frac{a}{b}" valign="bottom" /> 与正常文字底部对齐。
 
 顶部对齐（valign=top）：<Latex formula="x^2" valign="top" /> 与行顶对齐。
@@ -64,7 +75,8 @@ $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
 | `color` | `#RRGGBB` 或 `#AARRGGBB` | `#FFFFFF` | 字形颜色 |
 | `scale` | float | `1.0` | 显示大小倍率 |
 | `sourceScale` | float | `100.0` | jlatexmath 渲染分辨率 |
-| `showTooltip` | boolean | `false` | 悬停时显示原式内容 |
+| `tooltip` | 字符串 | — | 自定义普通 tooltip 文本 |
+| `showTooltip` | boolean | `false` | 没有自定义 tooltip 时，悬停显示原式内容 |
 | `valign` | `baseline`/`top`/`center`/`bottom` | `baseline` | 行内公式垂直对齐方式 |
 | `offsetX` | int | `0` | 对齐后的水平像素偏移 |
 | `offsetY` | int | `0` | 对齐后的垂直像素偏移 |
@@ -83,6 +95,7 @@ $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
 | `[Link](http://a.com)`              |                   | [Link](http://a.com)              |
 | `[Relative Link](./index.md)`       |                   | [Relative Link](./index.md)       |
 | `[Absolute Link](guidenh:index.md)` |                   | [Absolute Link](guidenh:index.md) |
+| `[其他命名空间](gregtech:guide.md)` |                   | [其他命名空间](gregtech:guide.md) |
 | `[锚点链接](#Headings)`             |                   | [锚点链接](#标题)                   |
 | `[跨页锚点](./index.md#navigation)` |                | [跨页锚点](./index.md#navigation)               |
 | `[绝对路径锚点](guidenh:index.md#navigation)` |      | [绝对路径锚点](guidenh:index.md#navigation)     |

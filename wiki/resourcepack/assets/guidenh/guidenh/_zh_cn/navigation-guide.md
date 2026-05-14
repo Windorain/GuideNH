@@ -45,7 +45,16 @@ navigation:
 navigation:
   title: 高级 IO 总线
   parent: aae_intro/aae_intro-index.md
+
+# 显式命名空间，根路径
+navigation:
+  title: GregTech 集成
+  parent: gregtech:/index.md
 ```
+
+Markdown 页面链接也使用同一套规则。`guide.md`、`./guide.md` 和 `/guide.md` 都留在当前页面命名空间内；
+`gregtech:guide.md` 和 `gregtech:/guide.md` 会显式打开 `gregtech` 命名空间，也就是在当前指南文件夹为
+`guidenh` 时加载 `gregtech:guidenh` 数据驱动指南里的页面。
 
 ### `navigation.position`
 
@@ -56,6 +65,18 @@ navigation:
   title: Markdown 基础
   parent: index.md
   position: 10
+```
+
+### `navigation.priority`
+
+用于控制同一路径页面在多个模组/资源包中同时存在时的加载优先级。未写时为 `0`；数值更高者胜出。
+如果两个候选页面优先级相同，则后处理的资源包条目覆盖先处理的，保持 Minecraft 常规资源包顺序。
+
+```yaml
+navigation:
+  title: 整合包覆盖页面
+  parent: index.md
+  priority: 100
 ```
 
 ### `navigation.icon`

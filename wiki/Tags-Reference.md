@@ -23,14 +23,22 @@ This page lists the built-in runtime tags registered by `DefaultExtensions`.
 | `<sup>` | smaller inline superscript-style text | none |
 | `<Color>` | colored inline text | `id` or `color` |
 | `<Tooltip>` | rich hover tooltip with markdown/tag children | `label` |
+| `<SoundLink>` | clickable rich-text sound trigger | `sound` or `src`, `volume`, `pitch`, `cooldown` |
 | `<mark>` | inline highlighted text; equivalent to `==text==` with optional color control | `color` |
 | `<PlayerName>` | inserts current player username | none |
 | `<KeyBind>` | inserts keybinding display name | `id` or `action` |
 | `<ItemImage>` | inline item icon | `id` or `ore`, `scale`, `noTooltip`, `showTooltip`, `showIcon`, `label`, `format`, `yOffset`, `labelYOffset` |
 | `<ItemLink>` | item tooltip + optional navigation link | `id` or `ore`, `linksTo`, `showTooltip`, `noTooltip`, `showIcon` |
 | `<CommandLink>` | clickable chat command link | `command`, `title`, `close` |
-| `<Latex>` | LaTeX math formula; inline in flow context, centered display block in block context | `formula`, `color`, `scale`, `sourceScale`, `showTooltip` |
+| `<Latex>` | LaTeX math formula; inline in flow context, centered display block in block context | `formula`, `color`, `scale`, `sourceScale`, `tooltip`, `showTooltip` |
 | `<QuestLink>` | BetterQuesting quest link with state-aware styling (compat tag, only registered when BetterQuesting is loaded) | `id`, `text` |
+
+Inline markdown also supports action links for sound playback:
+
+````md
+&[Start machine](sound:guidenh:machine.start)
+&[Play file-backed sound](sound-src:guidenh:sounds/machine/start.ogg?volume=0.8&pitch=1.1)
+````
 
 ## Block Tags
 
@@ -200,6 +208,29 @@ Creates underlined text that opens a rich content tooltip on hover.
 ````
 
 If `label` is omitted, the trigger text defaults to `tooltip`.
+
+### `<SoundLink>` And Sound Action Links
+
+`<SoundLink>` renders rich inline content that plays a sound when clicked. It does not navigate,
+and its custom click sound replaces the normal guide click sound for that click.
+
+````md
+<SoundLink sound="guidenh:machine.start" volume="0.8" pitch="1.0">
+  **Start machine**
+</SoundLink>
+
+&[Start machine](sound:guidenh:machine.start)
+&[Use a sound file](sound-src:guidenh:sounds/machine/start.ogg)
+````
+
+Sound attributes:
+
+- `sound` is a sound event id such as `modid:event.name`
+- `src` points at an `.ogg` file; `modid:sounds/machine/start.ogg` becomes `modid:machine.start`
+- `volume` defaults to `1.0`
+- `pitch` defaults to `1.0`
+- `cooldown` is milliseconds between repeated plays, default `250`
+- `radius` and `minVolume` control screen-space attenuation when used in scenes
 
 ### `<PlayerName>`
 
@@ -457,6 +488,7 @@ Renders a LaTeX math formula using jlatexmath. When used inline (inside a paragr
 | `color` | `#RRGGBB` or `#AARRGGBB` | `#FFFFFF` | Glyph fill colour |
 | `scale` | float | `1.0` | Display size multiplier applied on top of the automatic line-height scaling |
 | `sourceScale` | float | `100.0` | jlatexmath internal render resolution; higher values improve quality at large sizes |
+| `tooltip` | string | *(none)* | Plain tooltip text shown on hover |
 | `showTooltip` | boolean | `false` | Show the raw LaTeX source as a tooltip on hover |
 | `valign` | `baseline` / `top` / `center` / `bottom` | `baseline` | Inline-only. Vertical alignment within the text line: `baseline` (default) aligns the formula's math baseline with the text baseline; `top` aligns the formula top with the line top; `center` centers it on the text; `bottom` aligns the formula bottom with the text bottom |
 | `offsetX` | int | `0` | Horizontal pixel offset applied after alignment (positive = right) |
@@ -474,6 +506,16 @@ Gold colour: <Latex formula="\sqrt{x^2+y^2}" color="#FFD700" />
 Scaled up: <Latex formula="\pi" scale="1.5" />
 
 With hover tooltip: <Latex formula="\sum_{n=1}^{\infty} \frac{1}{n^2}" showTooltip={true} />
+
+Plain custom tooltip: <Latex formula="E=mc^2" tooltip="Energy equals mass times the speed of light squared." />
+
+Rich tooltip:
+<Latex formula="\Delta G = \Delta H - T\Delta S">
+  **Gibbs free energy**
+
+  - <Latex formula="\Delta H" />: enthalpy change
+  - <Latex formula="T\Delta S" />: entropy term
+</Latex>
 
 Bottom-aligned (formula bottom matches text bottom): <Latex formula="\frac{a}{b}" valign="bottom" />
 
@@ -510,7 +552,8 @@ Notes:
 - `valign` only applies to inline formulas. Display-mode (block-level) formulas are always centered horizontally; use `offsetY` to shift them vertically within the block.
 - `color` defaults to white (`#FFFFFF`). Use `#AARRGGBB` format for a semi-transparent fill.
 - `sourceScale` only affects render sharpness, not the displayed size. Values below `16` are clamped to `16`.
-- `showTooltip` displays the raw LaTeX string in the standard guide tooltip when the cursor hovers over the formula.
+- Tooltip priority is: rich child Markdown content, then `tooltip="..."`, then `showTooltip={true}` raw source fallback.
+- Child tooltip content is compiled as regular guide Markdown, so it can include bold text, lists, links, item tags, and nested `<Latex>` formulas.
 - The `$$formula$$` shorthand always uses default parameters. Use the `<Latex>` tag for custom colour, scale, alignment or tooltip.
 
 ### Scene Runtime Tags

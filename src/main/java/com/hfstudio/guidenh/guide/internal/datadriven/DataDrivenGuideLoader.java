@@ -31,6 +31,8 @@ public class DataDrivenGuideLoader {
 
     public static final String AUTO_GUIDE_FOLDER = "guidenh";
     public static final String LANGUAGE_FOLDER_PREFIX = "_";
+    /** @deprecated Data-driven guides are now isolated per namespace. */
+    @Deprecated
     public static final ResourceLocation MERGED_GUIDE_ID = new ResourceLocation("guidenh", AUTO_GUIDE_FOLDER);
 
     private DataDrivenGuideLoader() {}
@@ -42,15 +44,15 @@ public class DataDrivenGuideLoader {
             scanResourcePack(resourcePack, discoveredLanguages);
         }
 
-        var mergedLanguages = mergeLanguages(discoveredLanguages);
-        var builder = Guide.builder(MERGED_GUIDE_ID)
-            .register(false)
-            .folder(AUTO_GUIDE_FOLDER)
-            .defaultLanguage(selectDefaultLanguage(mergedLanguages));
-        var guide = (MutableGuide) builder.build();
-
         var guides = new LinkedHashMap<ResourceLocation, MutableGuide>();
-        guides.put(MERGED_GUIDE_ID, guide);
+        for (var entry : discoveredLanguages.entrySet()) {
+            ResourceLocation guideId = entry.getKey();
+            var builder = Guide.builder(guideId)
+                .register(false)
+                .folder(AUTO_GUIDE_FOLDER)
+                .defaultLanguage(selectDefaultLanguage(entry.getValue()));
+            guides.put(guideId, (MutableGuide) builder.build());
+        }
         return guides;
     }
 
@@ -161,24 +163,32 @@ public class DataDrivenGuideLoader {
         }
     }
 
-    private static LinkedHashSet<String> mergeLanguages(
-        LinkedHashMap<ResourceLocation, LinkedHashSet<String>> discoveredLanguages) {
-        var merged = new LinkedHashSet<String>();
-        for (var languages : discoveredLanguages.values()) {
-            merged.addAll(languages);
-        }
-        return merged;
-    }
-
     /** @deprecated Use {@link #discoverPagePaths(String)} instead. */
     @Deprecated
     public static Set<String> discoverPagePaths(ResourceLocation guideId, String folder) {
         var result = new LinkedHashSet<String>();
-        var allPaths = discoverPagePaths(folder);
-        for (var paths : allPaths.values()) {
-            result.addAll(paths);
+        for (var resourcePack : getActiveResourcePacks()) {
+            scanPagePathsForNamespace(resourcePack, guideId.getResourceDomain(), folder, result);
         }
         return result;
+    }
+
+    public static void scanPagePathsForNamespace(IResourcePack resourcePack, String namespace, String folder,
+        Set<String> pagePaths) {
+        var resourcePackFile = getResourcePackFile(resourcePack);
+        if (resourcePackFile == null || !resourcePackFile.exists()) {
+            return;
+        }
+        scanPagePathsForNamespace(resourcePackFile, namespace, folder, pagePaths);
+    }
+
+    public static void scanPagePathsForNamespace(File resourcePackRoot, String namespace, String folder,
+        Set<String> pagePaths) {
+        if (resourcePackRoot.isDirectory()) {
+            scanFolderPagePaths(resourcePackRoot, toFolderPrefix(namespace, folder), pagePaths);
+        } else {
+            scanZipPagePaths(resourcePackRoot, toFolderPrefix(namespace, folder), pagePaths);
+        }
     }
 
     public static List<IResourcePack> getActiveResourcePacks() {
@@ -255,6 +265,23 @@ public class DataDrivenGuideLoader {
             FMLLog.getLogger()
                 .warn(
                     "[GuideNH] [DataDrivenGuideLoader] Failed to resolve the backing file for resource pack {}",
+                    resourcePack.getPackName(),
+                    e);
+            return null;
+        }
+    }
+
+    public static byte[] readBytes(IResourcePack resourcePack, ResourceLocation resourceLocation) {
+        if (!resourcePack.resourceExists(resourceLocation)) {
+            return null;
+        }
+        try (var input = resourcePack.getInputStream(resourceLocation)) {
+            return com.hfstudio.guidenh.guide.internal.resource.GuideResourceAccess.readFully(input);
+        } catch (IOException e) {
+            FMLLog.getLogger()
+                .warn(
+                    "[GuideNH] [DataDrivenGuideLoader] Failed to read resource {} from resource pack {}",
+                    resourceLocation,
                     resourcePack.getPackName(),
                     e);
             return null;

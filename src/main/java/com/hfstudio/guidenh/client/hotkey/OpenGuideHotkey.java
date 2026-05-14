@@ -129,6 +129,35 @@ public class OpenGuideHotkey {
         }
     }
 
+    public static boolean appendQuestTooltip(UUID questId, List<String> lines) {
+        if (questId == null || lines == null) {
+            return false;
+        }
+        List<FoundPage> pages = findQuestPages(questId);
+        if (pages.isEmpty()) {
+            return false;
+        }
+
+        var found = pages.get(0);
+        var current = GuideScreen.current();
+        if (current != null && current.getCurrentPageId()
+            .equals(found.page.pageId())) {
+            return false;
+        }
+
+        float progress = questTicksKeyHeld / (float) TICKS_TO_OPEN;
+        if (progress < 0f) progress = 0f;
+        if (progress > 1f) progress = 1f;
+
+        String hint = renderHint(progress);
+        if (lines.isEmpty()) {
+            lines.add(hint);
+        } else if (!lines.contains(hint)) {
+            lines.add(1, hint);
+        }
+        return true;
+    }
+
     public static String renderHint(float progress) {
         var fr = Minecraft.getMinecraft().fontRenderer;
         String keyName = Keyboard.getKeyName(OPEN_GUIDE_KEY.getKeyCode());
@@ -228,6 +257,25 @@ public class OpenGuideHotkey {
         return meta == 0 ? name.toString() : name + ":" + meta;
     }
 
+    private static List<FoundPage> findQuestPages(UUID questId) {
+        var pages = new ArrayList<FoundPage>();
+        if (questId == null) {
+            return pages;
+        }
+        GuideNhClientIntegrationRegistry registry = GuideNhClientIntegrationRegistry.global();
+        for (var guide : GuideRegistry.getAll()) {
+            if (!guide.isAvailableToOpenHotkey()) {
+                continue;
+            }
+            PageAnchor anchor = registry.findQuestHoverPage(guide, questId);
+            if (anchor == null) {
+                continue;
+            }
+            pages.add(new FoundPage(guide, anchor));
+        }
+        return pages;
+    }
+
     /**
      * Tick handler for the BetterQuesting quest-hover hotkey path. Reads the currently hovered
      * quest UUID published by a registered provider and, when held long enough, opens the guide
@@ -241,17 +289,7 @@ public class OpenGuideHotkey {
             questGuidebookPages.clear();
             questTicksKeyHeld = 0;
             if (hovered != null) {
-                for (var guide : GuideRegistry.getAll()) {
-                    if (!guide.isAvailableToOpenHotkey()) {
-                        continue;
-                    }
-                    PageAnchor anchor;
-                    anchor = registry.findQuestHoverPage(guide, hovered);
-                    if (anchor == null) {
-                        continue;
-                    }
-                    questGuidebookPages.add(new FoundPage(guide, anchor));
-                }
+                questGuidebookPages.addAll(findQuestPages(hovered));
             }
         }
         if (questGuidebookPages.isEmpty()) {

@@ -268,6 +268,7 @@ GuideNH 会读取第一个 YAML frontmatter 块，并解析这些已知键：
 | `title` | 是 | string | 导航显示名称，也可作为搜索标题后备值 |
 | `parent` | 否 | page id | 父页面 id；省略时为顶级节点 |
 | `position` | 否 | integer | 同级排序顺序，默认 `0` |
+| `priority` | 否 | integer | 同路径页面覆盖时的加载优先级；默认 `0`，数值更高者胜出，相同优先级时后处理的资源包条目覆盖先处理的 |
 | `icon` | 否 | item id | 导航和搜索中显示的物品图标。支持 `modid:name`、`modid:name:meta`（冒号分隔的损伤值/子类型）、`<modid:name:meta>`（严格形式；meta `32767` 匹配所有子类型）以及 `modid:name meta`（空格分隔，过滤表达式风格）。 |
 | `icons` | 否 | item id 列表 | 循环轮播的物品图标列表（每秒切换一次）。每项语法同 `icon`。存在时优先于 `icon` 使用。 |
 | `icon_texture` | 否 | asset path | 纹理图标路径，按普通资源路径解析 |
@@ -283,6 +284,7 @@ navigation:
   title: Root
   parent: index.md
   position: 10
+  priority: 0
   icon: minecraft:book
   # 使用 meta/损伤値选择特定子类型：
   # icon: minecraft:wool:1       （橙色羊毛，冒号写法）
@@ -367,13 +369,23 @@ GuideNH 按以下规则解析 id 和路径：
 
 | 输入 | 含义 |
 | --- | --- |
-| `subpage.md` | 相对当前页面 |
-| `./subpage.md` | 相对当前页面 |
-| `/assets/example.png` | 相对当前指南命名空间根路径 |
-| `guidenh:index.md` | 显式 `modid:path` 资源定位符 |
+| `subpage.md` | 相对当前页面，并使用当前页面命名空间 |
+| `./subpage.md` | 相对当前页面，并使用当前页面命名空间 |
+| `/guide.md` | 相对当前页面命名空间根路径，等价于 `currentmod:guide.md` |
+| `gregtech:guide.md` | 显式命名空间；当前指南路径为 `guidenh` 时会打开 `gregtech:guidenh` |
+| `gregtech:/guide.md` | 显式命名空间加根路径，会规范化为 `gregtech:guide.md` |
 | `subpage.md#anchor` | 页面加锚点片段 |
-| `guidenh:other.md#anchor` | 绝对 `modid:path#anchor` |
+| `guidenh:other.md#anchor` | 显式 `modid:path#anchor` |
 | `https://example.com` | 外部 HTTP/HTTPS 链接 |
+
+页面链接按命名空间隔离。例如在 `assets/guidenh/guidenh/_zh_cn/index.md` 中写
+`[Guide](guide.md)` 会解析为 `guidenh:guide.md`；同样的文本放在
+`assets/gregtech/guidenh/_zh_cn/index.md` 中会解析为 `gregtech:guide.md`。如果当前命名空间下找不到目标页面，
+GuideNH 会报告坏链，而不会回退到其他模组的同名页面。
+
+显式 `modid:path` 链接可以跨到另一个模组的数据驱动指南。目标 guide id 会由目标页面命名空间和当前指南路径推导，
+所以从 `guidenh:guidenh` 链接到 `gregtech:guide.md` 时，会打开 `gregtech:guidenh` 中的
+`gregtech:guide.md` 页面。
 
 锚点片段会使指南滚动到对应标题（标题文本全部小写、空格替换为连字符，例如 `#crafting-recipe` 对应 `## Crafting Recipe`），或滚动到 `<a name="...">` 命名锚点处。
 

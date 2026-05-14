@@ -29,6 +29,12 @@ GuideNH 现在会直接从资源树中发现页面。凡是位于
 `assets/<modid>/guidenh/_<lang>/...` 下的 Markdown 文件，都会被视为 `<modid>:guidenh` 这本指南的一部分。
 `index.md` 仍然是约定俗成的起始页，也是推荐的开始位置。
 
+每个 `<modid>` 都拥有彼此隔离的指南命名空间。例如 `assets/guidenh/guidenh/_zh_cn/index.md`
+和 `assets/gregtech/guidenh/_zh_cn/index.md` 是两份不同指南里的两个不同页面，分别属于
+`guidenh:guidenh` 和 `gregtech:guidenh`。`[Next](guide.md)` 这样的相对链接会留在当前页面自己的
+命名空间；需要跳到其他模组指南时，请显式写成 `[GT 页面](gregtech:guide.md)`。也支持
+`gregtech:/guide.md` 这样的显式根路径。
+
 ## 本地快速迭代
 
 如果你正在编辑本仓库的内置示例指南，推荐使用 [实时预览](Live-Preview-zh-CN) 中说明的工作流。

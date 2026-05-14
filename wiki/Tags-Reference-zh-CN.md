@@ -25,14 +25,22 @@
 | `<sup>` | 较小的上标风格行内文本 | 无 |
 | `<Color>` | 彩色行内文本 | `id` 或 `color` |
 | `<Tooltip>` | 带 Markdown/标签子内容的富悬浮提示 | `label` |
+| `<SoundLink>` | 可点击的富文本音效触发器 | `sound` 或 `src`，`volume`，`pitch`，`cooldown` |
 | `<mark>` | 行内高亮文本；等价于 `==text==`，并可自定义颜色 | `color` |
 | `<PlayerName>` | 插入当前玩家用户名 | 无 |
 | `<KeyBind>` | 插入按键绑定显示名 | `id` 或 `action` |
 | `<ItemImage>` | 行内物品图标 | `id` 或 `ore`，`scale`，`noTooltip`，`showTooltip`，`showIcon`，`label`，`format`，`yOffset`，`labelYOffset` |
 | `<ItemLink>` | 物品 tooltip + 可选导航链接 | `id` 或 `ore`，`linksTo`，`showTooltip`，`noTooltip`，`showIcon` |
 | `<CommandLink>` | 可点击的聊天命令链接 | `command`, `title`, `close` |
-| `<Latex>` | LaTeX 数学公式；在流式上下文中行内渲染，在块级上下文中居中显示为独立公式块 | `formula`, `color`, `scale`, `sourceScale`, `showTooltip` |
+| `<Latex>` | LaTeX 数学公式；在流式上下文中行内渲染，在块级上下文中居中显示为独立公式块 | `formula`, `color`, `scale`, `sourceScale`, `tooltip`, `showTooltip` |
 | `<QuestLink>` | BetterQuesting 任务链接，按任务状态自动调整样式（兼容标签，仅当 BetterQuesting 已加载时注册） | `id`, `text` |
+
+行内 Markdown 也支持音效动作链接：
+
+````md
+&[启动机器](sound:guidenh:machine.start)
+&[播放文件音效](sound-src:guidenh:sounds/machine/start.ogg?volume=0.8&pitch=1.1)
+````
 
 ## 块级标签
 
@@ -176,6 +184,29 @@ world
 ````
 
 若省略 `label`，默认触发文字为 `tooltip`。
+
+### `<SoundLink>` 与音效动作链接
+
+`<SoundLink>` 会渲染一段可点击的富文本内容，点击后播放音效。它不会进行页面导航，
+并且本次点击会使用自定义音效替代指南默认点击音效。
+
+````md
+<SoundLink sound="guidenh:machine.start" volume="0.8" pitch="1.0">
+  **启动机器**
+</SoundLink>
+
+&[启动机器](sound:guidenh:machine.start)
+&[使用音效文件](sound-src:guidenh:sounds/machine/start.ogg)
+````
+
+音效属性：
+
+- `sound` 是音效事件 id，例如 `modid:event.name`
+- `src` 指向 `.ogg` 文件；`modid:sounds/machine/start.ogg` 会转换为 `modid:machine.start`
+- `volume` 默认 `1.0`
+- `pitch` 默认 `1.0`
+- `cooldown` 是重复播放的间隔毫秒数，默认 `250`
+- `radius` 和 `minVolume` 用于场景中的屏幕空间衰减
 
 ### `<PlayerName>`
 
@@ -422,6 +453,7 @@ gold,17
 | `color` | `#RRGGBB` 或 `#AARRGGBB` | `#FFFFFF` | 字形填充颜色 |
 | `scale` | float | `1.0` | 在自动行高缩放的基础上额外叠加的显示大小倍率 |
 | `sourceScale` | float | `100.0` | jlatexmath 内部渲染分辨率；数值越高，在较大尺寸下渲染越清晰 |
+| `tooltip` | 字符串 | *无* | 鼠标悬停时显示的普通文本 tooltip |
 | `showTooltip` | boolean | `false` | 鼠标悬停时以 tooltip 展示原始 LaTeX 源文本 |
 | `valign` | `baseline` / `top` / `center` / `bottom` | `baseline` | 仅限行内公式。行内垂直对齐方式：`baseline`（默认）使公式数学基线与文字基线对齐；`top` 使公式顶部与行顶对齐；`center` 将公式垂直居中于文字行高；`bottom` 使公式底部与文字底部对齐 |
 | `offsetX` | int | `0` | 对齐后额外施加的水平像素偏移（正值为向右） |
@@ -439,6 +471,16 @@ gold,17
 放大：<Latex formula="\pi" scale="1.5" />
 
 悬停显示源码：<Latex formula="\sum_{n=1}^{\infty} \frac{1}{n^2}" showTooltip={true} />
+
+自定义普通 tooltip：<Latex formula="E=mc^2" tooltip="能量等于质量乘以光速平方。" />
+
+富文本 tooltip：
+<Latex formula="\Delta G = \Delta H - T\Delta S">
+  **吉布斯自由能**
+
+  - <Latex formula="\Delta H" />：焓变
+  - <Latex formula="T\Delta S" />：熵项
+</Latex>
 
 底部对齐（公式底部与文字底部对齐）：<Latex formula="\frac{a}{b}" valign="bottom" />
 
@@ -475,7 +517,8 @@ $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
 - `valign` 仅对行内公式生效。块级（展示式）公式始终水平居中；如需垂直方向调整，请使用 `offsetY`。
 - `color` 默认为白色（`#FFFFFF`）。如需半透明填充，使用 `#AARRGGBB` 格式。
 - `sourceScale` 仅影响渲染清晰度，不改变显示大小。低于 `16` 的值会被截断为 `16`。
-- `showTooltip` 设为 `true` 时，鼠标悬停公式区域会在标准指南 tooltip 中显示原始 LaTeX 字符串。
+- tooltip 优先级为：标签体富文本 Markdown、`tooltip="..."`、最后才是 `showTooltip={true}` 的原始源码回退。
+- 标签体 tooltip 会按普通指南 Markdown 编译，因此可以包含粗体、列表、链接、物品标签和嵌套 `<Latex>` 公式。
 - `$$公式$$` 简写语法始终使用默认参数。如需自定义颜色、比例、对齐或悬停提示，请使用 `<Latex>` 标签。
 
 ### 场景运行时标签

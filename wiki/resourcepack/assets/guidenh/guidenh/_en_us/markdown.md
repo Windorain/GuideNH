@@ -31,6 +31,17 @@ Scaled up (scale=1.5): <Latex formula="\pi" scale="1.5" />
 
 Tooltip on hover (showTooltip): <Latex formula="\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}" showTooltip={true} />
 
+Plain custom tooltip: <Latex formula="E=mc^2" tooltip="Energy equals mass times the speed of light squared." />
+
+Rich tooltip:
+<Latex formula="\Delta G = \Delta H - T\Delta S">
+  **Gibbs free energy** combines enthalpy and entropy.
+
+  - <Latex formula="\Delta H" /> is the enthalpy change.
+  - <Latex formula="T\Delta S" /> is the entropy term.
+  - Hovered tooltips can use **regular Markdown** and inline guide tags.
+</Latex>
+
 Bottom-aligned (valign=bottom): <Latex formula="\frac{a}{b}" valign="bottom" /> sits below a regular line.
 
 Top-aligned (valign=top): <Latex formula="x^2" valign="top" /> is flush with the line top.
@@ -65,7 +76,8 @@ $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
 | `color` | `#RRGGBB` or `#AARRGGBB` | `#FFFFFF` | Glyph colour |
 | `scale` | float | `1.0` | Display size multiplier |
 | `sourceScale` | float | `100.0` | jlatexmath render quality |
-| `showTooltip` | boolean | `false` | Show formula source on hover |
+| `tooltip` | String | — | Plain custom tooltip text |
+| `showTooltip` | boolean | `false` | Show formula source on hover when no custom tooltip is provided |
 | `valign` | `baseline`/`top`/`center`/`bottom` | `baseline` | Inline vertical alignment |
 | `offsetX` | int | `0` | Horizontal pixel offset after alignment |
 | `offsetY` | int | `0` | Vertical pixel offset after alignment |
@@ -84,6 +96,7 @@ $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
 | `[Link](http://a.com)`              |                   | [Link](http://a.com)              |
 | `[Relative Link](./index.md)`       |                   | [Relative Link](./index.md)       |
 | `[Absolute Link](guidenh:index.md)` |                   | [Absolute Link](guidenh:index.md) |
+| `[Other Namespace](gregtech:guide.md)` |                | [Other Namespace](gregtech:guide.md) |
 | `[Anchor Link](#Headings)`          |                   | [Anchor Link](#Headings)          |
 | `[Cross-Page Anchor](./index.md#navigation)` |      | [Cross-Page Anchor](./index.md#navigation)      |
 | `[Absolute Anchor](guidenh:index.md#navigation)` |   | [Absolute Anchor](guidenh:index.md#navigation)  |

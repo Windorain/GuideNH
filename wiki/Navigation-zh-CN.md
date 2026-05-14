@@ -21,8 +21,9 @@ navigation:
 | 字段 | 说明 |
 | --- | --- |
 | `title` | 必填，显示标题 |
-| `parent` | 可选，父页面 id |
+| `parent` | 可选，父页面 id；解析规则与指南页面链接相同 |
 | `position` | 可选，同级排序提示 |
+| `priority` | 可选，同路径页面覆盖时的加载优先级；默认 `0` |
 | `icon` | 可选，物品图标 |
 | `icon_texture` | 可选，从指南资源中解析的纹理图标 |
 | `icon_components` | 会被解析，但当前内置渲染尚未使用 |
@@ -51,6 +52,28 @@ navigation:
 
 两个键可以同时使用；只有列出的所有模组都已加载，页面才会显示。
 
+## 加载优先级
+
+当多个已加载资源包提供同一条 guide 页面路径时，GuideNH 会先读取页面 frontmatter，
+然后选择 `navigation.priority` 最高的候选页面。
+
+```yaml
+navigation:
+  title: 整合包覆盖页面
+  parent: index.md
+  priority: 100
+```
+
+规则：
+
+- 未写 `priority` 时按 `0` 处理
+- 取值为 Java int，最大 `2147483647`
+- 数值更高者胜出
+- 优先级相同时，后处理的资源包条目覆盖先处理的，保持 Minecraft 资源包覆盖顺序
+- priority 只在同一页面路径、同一语言/回退层级的候选之间生效
+
+这适合模组自带基础指南页面、整合包又希望稳定覆盖它的场景，不必只依赖资源包排序。
+
 ## 图标来源
 
 GuideNH 会按以下顺序选择导航/搜索图标：
@@ -66,6 +89,16 @@ GuideNH 会按以下顺序选择导航/搜索图标：
 - 省略 `parent` 会创建一个根节点。
 - 设置 `parent: index.md` 或任意其他页面 id 会创建子节点。
 - 父页面必须存在于同一份指南导航树中。
+
+`navigation.parent` 使用与 Markdown 页面链接相同的命名空间规则：
+
+- `parent: index.md` 和 `parent: ./index.md` 会在当前页面命名空间内解析。
+- `parent: /index.md` 会从当前页面命名空间根路径解析。
+- `parent: gregtech:index.md` 或 `parent: gregtech:/index.md` 会显式指向另一个命名空间。
+
+数据驱动指南按命名空间隔离。`assets/guidenh/guidenh/_zh_cn/...` 下的页面属于
+`guidenh:guidenh`；`assets/gregtech/guidenh/_zh_cn/...` 下的页面属于 `gregtech:guidenh`。
+相对 parent 和相对链接都不会回退到其他模组的同名页面。
 
 ## 分类页面
 

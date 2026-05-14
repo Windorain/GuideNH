@@ -45,7 +45,16 @@ navigation:
 navigation:
   title: Advanced IO Bus
   parent: aae_intro/aae_intro-index.md
+
+# Explicit namespace, rooted path
+navigation:
+  title: GregTech Integration
+  parent: gregtech:/index.md
 ```
+
+The same rules are used by Markdown page links. `guide.md`, `./guide.md`, and `/guide.md` stay inside the current
+page namespace. `gregtech:guide.md` and `gregtech:/guide.md` explicitly open the `gregtech` namespace, which means
+the page is loaded from the `gregtech:guidenh` data-driven guide when this guide folder is `guidenh`.
 
 ### `navigation.position`
 
@@ -56,6 +65,19 @@ navigation:
   title: Markdown Basics
   parent: index.md
   position: 10
+```
+
+### `navigation.priority`
+
+Load priority for same-path page overrides across mods and resource packs. Missing priority is `0`; higher values
+win. If two candidates have the same priority, the later resource pack entry wins, matching normal Minecraft
+resource-pack order.
+
+```yaml
+navigation:
+  title: Pack Override Page
+  parent: index.md
+  priority: 100
 ```
 
 ### `navigation.icon`
