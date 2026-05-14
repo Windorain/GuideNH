@@ -12,6 +12,7 @@ import com.hfstudio.guidenh.config.ModConfig;
 import com.hfstudio.guidenh.guide.internal.item.RegionWandItem;
 import com.hfstudio.guidenh.guide.internal.item.RegionWandItem.SelectionAction;
 import com.hfstudio.guidenh.guide.internal.item.RegionWandSelection;
+import com.hfstudio.guidenh.guide.internal.structure.GuideNhStructureExportAccess;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 
@@ -23,7 +24,7 @@ public class RegionWandRenderer {
         EntityClientPlayerMP player = mc.thePlayer;
         if (player == null) return;
         ItemStack heldWand = getHeldRegionWand(player);
-        boolean holdingWand = heldWand != null;
+        boolean holdingWand = heldWand != null && GuideNhStructureExportAccess.canUseSceneExport();
         int[] p1 = RegionWandSelection.getPos(1);
         int[] p2 = RegionWandSelection.getPos(2);
         boolean renderSelection = (p1 != null || p2 != null)
@@ -87,6 +88,9 @@ public class RegionWandRenderer {
         EntityClientPlayerMP player = mc.thePlayer;
         ItemStack heldWand = getHeldRegionWand(player);
         if (heldWand == null) {
+            return;
+        }
+        if (!GuideNhStructureExportAccess.canUseSceneExport()) {
             return;
         }
 

@@ -77,6 +77,7 @@ import com.hfstudio.guidenh.guide.internal.editor.preview.SceneEditorPreviewCame
 import com.hfstudio.guidenh.guide.internal.editor.preview.SceneEditorSnapModes;
 import com.hfstudio.guidenh.guide.internal.editor.preview.SceneEditorSnapService;
 import com.hfstudio.guidenh.guide.internal.screen.GuideIconButton;
+import com.hfstudio.guidenh.guide.internal.structure.GuideNhStructureExportAccess;
 import com.hfstudio.guidenh.guide.internal.tooltip.GuideItemTooltipLines;
 import com.hfstudio.guidenh.guide.internal.tooltip.GuideItemTooltipRenderSupport;
 import com.hfstudio.guidenh.guide.internal.ui.GuideSliderRenderer;
@@ -377,6 +378,13 @@ public class SceneEditorScreen extends GuiScreen {
     public static void open() {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc == null) {
+            return;
+        }
+        if (!GuideNhStructureExportAccess.canUseSceneExport()) {
+            if (mc.thePlayer != null) {
+                mc.thePlayer.addChatMessage(
+                    new ChatComponentTranslation(GuidebookText.SceneExportDisabled.getTranslationKey()));
+            }
             return;
         }
         SceneEditorOpenService openService = new SceneEditorOpenService();

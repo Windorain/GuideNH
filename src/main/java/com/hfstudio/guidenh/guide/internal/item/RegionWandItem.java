@@ -36,6 +36,7 @@ import org.jetbrains.annotations.Nullable;
 import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.GuideNH;
 import com.hfstudio.guidenh.guide.internal.GuidebookText;
+import com.hfstudio.guidenh.guide.internal.structure.GuideNhStructureExportAccess;
 import com.hfstudio.guidenh.guide.internal.structure.GuideStructureFileStore;
 import com.hfstudio.guidenh.guide.internal.structure.GuideStructureVolume;
 import com.hfstudio.guidenh.guide.internal.structure.GuideTextNbtCodec;
@@ -101,6 +102,9 @@ public class RegionWandItem extends Item {
 
     @Override
     public boolean onBlockStartBreak(ItemStack stack, int x, int y, int z, EntityPlayer player) {
+        if (!GuideNhStructureExportAccess.canUseSceneExport()) {
+            return false;
+        }
         if (player.worldObj.isRemote) {
             applySelectionAction(stack, player, SelectionAction.POS1, x, y, z);
         }
@@ -108,6 +112,9 @@ public class RegionWandItem extends Item {
     }
 
     public static void handleRightClickBlock(ItemStack stack, EntityPlayer player, World world, int x, int y, int z) {
+        if (!GuideNhStructureExportAccess.canUseSceneExport()) {
+            return;
+        }
         if (player.isSneaking()) {
             exportToClipboard(stack, player, world);
             return;
@@ -117,6 +124,12 @@ public class RegionWandItem extends Item {
 
     @Override
     public ItemStack onItemRightClick(ItemStack stack, World world, EntityPlayer player) {
+        if (!GuideNhStructureExportAccess.canUseSceneExport()) {
+            if (world.isRemote) {
+                send(player, GuidebookText.SceneExportDisabled);
+            }
+            return stack;
+        }
         if (player.isSneaking()) {
             if (!world.isRemote || beginClientExportAction()) {
                 exportToClipboard(stack, player, world);
@@ -136,6 +149,9 @@ public class RegionWandItem extends Item {
     }
 
     public static void onLeftClickBlock(ItemStack stack, EntityPlayer player, int x, int y, int z) {
+        if (!GuideNhStructureExportAccess.canUseSceneExport()) {
+            return;
+        }
         applySelectionAction(stack, player, SelectionAction.POS1, x, y, z);
     }
 
@@ -303,6 +319,12 @@ public class RegionWandItem extends Item {
     }
 
     public static void exportToClipboard(ItemStack stack, EntityPlayer player, World world) {
+        if (!GuideNhStructureExportAccess.canUseSceneExport()) {
+            if (world != null && world.isRemote) {
+                send(player, GuidebookText.SceneExportDisabled);
+            }
+            return;
+        }
         RegionWandSelection.Bounds bounds = RegionWandSelection.getBounds();
         if (bounds == null) {
             if (world.isRemote) {
@@ -788,6 +810,7 @@ public class RegionWandItem extends Item {
         if (event.world == null || !event.world.isRemote) return;
         ItemStack held = player.getHeldItem();
         if (held == null || !(held.getItem() instanceof RegionWandItem)) return;
+        if (!GuideNhStructureExportAccess.canUseSceneExport()) return;
 
         if (event.action == PlayerInteractEvent.Action.LEFT_CLICK_BLOCK) {
             handleLeftClickBlock(event, held, player);

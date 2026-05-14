@@ -27,6 +27,7 @@ import com.hfstudio.guidenh.guide.internal.GuidebookText;
 import com.hfstudio.guidenh.guide.internal.editor.SceneEditorScreen;
 import com.hfstudio.guidenh.guide.internal.item.RegionWandItem;
 import com.hfstudio.guidenh.guide.internal.item.RegionWandSelection;
+import com.hfstudio.guidenh.guide.internal.structure.GuideNhStructureExportAccess;
 import com.hfstudio.guidenh.guide.internal.structure.GuideStructureCoordinateParser;
 import com.hfstudio.guidenh.guide.internal.structure.GuideStructureVolume;
 import com.hfstudio.guidenh.guide.siteexport.ExportTask;
@@ -59,7 +60,10 @@ public class GuideNhClientCommand extends CommandBase {
         }
 
         switch (args[0].toLowerCase()) {
-            case "editor" -> SceneEditorScreen.open();
+            case "editor" -> {
+                if (!requireSceneExportEnabled(sender)) return;
+                SceneEditorScreen.open();
+            }
             case "guideeditor", "guideedit" -> toggleGuideEditor(sender);
             case "list" -> listGuides(sender);
             case "open" -> openGuide(sender, args);
@@ -67,10 +71,22 @@ public class GuideNhClientCommand extends CommandBase {
             case "search" -> searchGuides(sender, args);
             case "export" -> exportGuide(sender, args);
             case "exportsite" -> exportSite(sender, args);
-            case "exportstructure" -> exportStructure(sender, args);
-            case "pos1" -> setSelectionPos(sender, args, 1);
-            case "pos2" -> setSelectionPos(sender, args, 2);
-            case "clearselection" -> clearSelection(sender);
+            case "exportstructure" -> {
+                if (!requireSceneExportEnabled(sender)) return;
+                exportStructure(sender, args);
+            }
+            case "pos1" -> {
+                if (!requireSceneExportEnabled(sender)) return;
+                setSelectionPos(sender, args, 1);
+            }
+            case "pos2" -> {
+                if (!requireSceneExportEnabled(sender)) return;
+                setSelectionPos(sender, args, 2);
+            }
+            case "clearselection" -> {
+                if (!requireSceneExportEnabled(sender)) return;
+                clearSelection(sender);
+            }
             default -> send(sender, GuidebookText.CommandClientUsage);
         }
     }
@@ -139,6 +155,10 @@ public class GuideNhClientCommand extends CommandBase {
     }
 
     private void toggleGuideEditor(ICommandSender sender) {
+        if (!GuideNhStructureExportAccess.canUseSceneExport()) {
+            send(sender, GuidebookText.SceneExportDisabled);
+            return;
+        }
         boolean enabled = GuideScreen.toggleEditorModeFromCommand();
         send(sender, enabled ? GuidebookText.GuideEditorCommandEnabled : GuidebookText.GuideEditorCommandDisabled);
     }
@@ -384,6 +404,14 @@ public class GuideNhClientCommand extends CommandBase {
     private void clearSelection(ICommandSender sender) {
         RegionWandSelection.clear();
         send(sender, GuidebookText.RegionWandSelectionCleared);
+    }
+
+    private boolean requireSceneExportEnabled(ICommandSender sender) {
+        if (GuideNhStructureExportAccess.canUseSceneExport()) {
+            return true;
+        }
+        send(sender, GuidebookText.SceneExportDisabled);
+        return false;
     }
 
     public static void send(ICommandSender sender, GuidebookText key, Object... args) {

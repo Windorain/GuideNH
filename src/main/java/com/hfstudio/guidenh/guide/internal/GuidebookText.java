@@ -37,6 +37,7 @@ public enum GuidebookText implements LocalizationEnum {
     SceneEditorBlankSession,
     SceneEditorImportedSession,
     SceneEditorImportUnavailable,
+    SceneExportDisabled,
     SceneEditorMarkdownPanel,
     SceneEditorPreviewPanel,
     SceneEditorSettingsPanel,
