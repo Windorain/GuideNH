@@ -37,6 +37,7 @@ import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.FencedBl
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.FormatPatternProvider;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.FrontmatterKeyProvider;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.FrontmatterValueProvider;
+import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.ImagePathProvider;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.ItemIdProvider;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.KeyBindProvider;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.NumericValueProvider;
@@ -97,6 +98,7 @@ public class ClientProxy extends CommonProxy {
         AutocompleteProviders.register(new FrontmatterKeyProvider());
         AutocompleteProviders.register(new FrontmatterValueProvider());
         AutocompleteProviders.register(new FencedBlockLanguageProvider());
+        AutocompleteProviders.register(new ImagePathProvider());
         MinecraftForge.EVENT_BUS.register(new RegionWandRenderer());
         GuideWarmupPump.init();
         MinecraftForge.EVENT_BUS.register(this);
