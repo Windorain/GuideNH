@@ -2,13 +2,16 @@ package com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider;
 
 import java.util.*;
 
+import org.jetbrains.annotations.Nullable;
+
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.AutocompleteContext;
 
-/** Suggests guide page paths for href, linksTo, and SubPages id attributes.
- *  Requires a PageCollection reference — for now returns empty; enable after wiring. */
+/** Suggests guide page paths. Call {@link #setPages} before use. */
 public class PageReferenceProvider implements AutocompleteProvider {
 
     private static final Set<AutocompleteKey> KEYS = buildKeys();
+    @Nullable
+    private static volatile List<String> pagePaths;
 
     private static Set<AutocompleteKey> buildKeys() {
         Set<AutocompleteKey> keys = new HashSet<>();
@@ -18,12 +21,25 @@ public class PageReferenceProvider implements AutocompleteProvider {
         return Collections.unmodifiableSet(keys);
     }
 
+    /** Set the available page paths from the guide's page collection. */
+    public static void setPages(@Nullable Collection<String> paths) {
+        pagePaths = paths != null ? Collections.unmodifiableList(new ArrayList<>(paths)) : null;
+    }
+
     @Override
     public Set<AutocompleteKey> getSupportedKeys() { return KEYS; }
 
     @Override
     public List<AutocompleteCandidate> provide(AutocompleteContext ctx, int limit) {
-        // TODO: wire PageCollection reference to enumerate page paths
-        return Collections.emptyList();
+        if (pagePaths == null) return Collections.emptyList();
+        String partial = ctx.getPartialText().toLowerCase();
+        List<AutocompleteCandidate> results = new ArrayList<>();
+        for (String path : pagePaths) {
+            if (results.size() >= limit) break;
+            if (partial.isEmpty() || path.toLowerCase().contains(partial)) {
+                results.add(new TextCandidate(path));
+            }
+        }
+        return results;
     }
 }

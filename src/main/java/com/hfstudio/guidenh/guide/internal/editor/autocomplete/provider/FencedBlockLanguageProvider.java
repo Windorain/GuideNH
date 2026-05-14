@@ -20,6 +20,14 @@ public class FencedBlockLanguageProvider implements AutocompleteProvider {
 
     @Override
     public List<AutocompleteCandidate> provide(AutocompleteContext ctx, int limit) {
-        return Collections.emptyList(); // TODO: activate when ``` context is detected
+        String partial = ctx.getPartialText().toLowerCase();
+        List<AutocompleteCandidate> results = new ArrayList<>();
+        for (String lang : LANGUAGES) {
+            if (results.size() >= limit) break;
+            if (partial.isEmpty() || lang.toLowerCase().startsWith(partial)) {
+                results.add(new TextCandidate(lang));
+            }
+        }
+        return results;
     }
 }

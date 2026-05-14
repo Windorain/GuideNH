@@ -46,6 +46,8 @@ import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.Frontmat
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxSyntaxResolver;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.SelectionStrategies;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.WordBoundaryResolver;
+import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.AnchorProvider;
+import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.PageReferenceProvider;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.ui.AutocompletePopup;
 
 import com.hfstudio.guidenh.client.command.GuideNhClientBridgeController;
@@ -493,6 +495,17 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             pendingItemLinksStack = null;
         }
         if (isGuideEditorActive()) {
+            // Update autocomplete data sources
+            if (guide != null) {
+                List<String> pagePaths = new ArrayList<>();
+                for (ParsedGuidePage page : guide.getPages()) {
+                    pagePaths.add(page.getId().toString());
+                }
+                PageReferenceProvider.setPages(pagePaths);
+            }
+            if (guideEditorTextArea != null) {
+                AnchorProvider.setDocumentText(guideEditorTextArea.getText());
+            }
             performAutocompleteCheck();
         }
     }
