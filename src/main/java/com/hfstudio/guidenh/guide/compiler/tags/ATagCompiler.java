@@ -4,6 +4,8 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.Set;
 
+import net.minecraft.util.ResourceLocation;
+
 import com.hfstudio.guidenh.guide.PageAnchor;
 import com.hfstudio.guidenh.guide.compiler.IndexingContext;
 import com.hfstudio.guidenh.guide.compiler.IndexingSink;
@@ -41,8 +43,8 @@ public class ATagCompiler extends FlowTagCompiler {
                 LinkParser.parseLink(compiler, href, new LinkParser.Visitor() {
 
                     @Override
-                    public void handlePage(PageAnchor page) {
-                        link.setPageLink(page);
+                    public void handlePage(ResourceLocation guideId, PageAnchor page) {
+                        link.setGuideLink(guideId, page);
                     }
 
                     @Override

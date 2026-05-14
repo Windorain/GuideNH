@@ -64,6 +64,7 @@ import com.hfstudio.guidenh.guide.extensions.Extension;
 import com.hfstudio.guidenh.guide.extensions.ExtensionCollection;
 import com.hfstudio.guidenh.guide.extensions.ExtensionPoint;
 import com.hfstudio.guidenh.guide.indices.PageIndex;
+import com.hfstudio.guidenh.guide.internal.GuideRegistry;
 import com.hfstudio.guidenh.guide.internal.csv.CsvTableParser;
 import com.hfstudio.guidenh.guide.internal.markdown.CodeBlockLanguage;
 import com.hfstudio.guidenh.guide.internal.markdown.CodeBlockLanguageDetector;
@@ -140,6 +141,7 @@ public class PageCompiler {
     private static final Pattern TABLE_ATTRIBUTE_LINE = Pattern.compile("^\\{:\\s*(.+?)\\s*}$");
     private static final Pattern CODEBLOCK_META_HEIGHT = Pattern
         .compile("(^|\\s)height=(\"([^\"]+)\"|'([^']+)'|(\\S+))");
+    private static PageLinkResolver pageLinkResolver = PageCompiler::defaultPageExistsForLink;
     private static final State<List<SourceSlice>> SOURCE_SLICE_STACK = new State<>(
         "source_slice_stack",
         castClass(List.class),
@@ -753,7 +755,7 @@ public class PageCompiler {
         if (children.size() == 1 && children.get(0) instanceof MdAstText soleText) {
             String formula = MarkdownLatexShorthand.extractSoleDisplayFormula(soleText.value);
             if (formula != null) {
-                var displayBlock = new LytLatexDisplayBlock(formula, 0xFFFFFFFF, 100f, 1.0f, false, 0, 0);
+                var displayBlock = new LytLatexDisplayBlock(formula, 0xFFFFFFFF, 100f, 1.0f, null, 0, 0);
                 displayBlock.setMarginTop(DEFAULT_ELEMENT_SPACING);
                 displayBlock.setMarginBottom(DEFAULT_ELEMENT_SPACING);
                 parent.append(displayBlock);
@@ -973,7 +975,7 @@ public class PageCompiler {
                     0xFFFFFFFF,
                     100f,
                     1.0f,
-                    false,
+                    null,
                     LatexVerticalAlign.BASELINE,
                     0,
                     0);
@@ -995,8 +997,8 @@ public class PageCompiler {
             LinkParser.parseLink(this, astLink.url, new LinkParser.Visitor() {
 
                 @Override
-                public void handlePage(PageAnchor page) {
-                    link.setPageLink(page);
+                public void handlePage(ResourceLocation guideId, PageAnchor page) {
+                    link.setGuideLink(guideId, page);
                 }
 
                 @Override
@@ -1576,8 +1578,39 @@ public class PageCompiler {
         return pageId;
     }
 
+    public ResourceLocation getGuideId() {
+        return pages.getId();
+    }
+
     public PageCollection getPageCollection() {
         return pages;
+    }
+
+    public boolean pageExistsForLink(ResourceLocation guideId, ResourceLocation pageId) {
+        return pageLinkResolver.pageExists(this, guideId, pageId);
+    }
+
+    public static void setPageLinkResolver(PageLinkResolver resolver) {
+        pageLinkResolver = Objects.requireNonNull(resolver, "resolver");
+    }
+
+    public static void resetPageLinkResolver() {
+        pageLinkResolver = PageCompiler::defaultPageExistsForLink;
+    }
+
+    private static boolean defaultPageExistsForLink(PageCompiler compiler, ResourceLocation guideId,
+        ResourceLocation pageId) {
+        PageCollection pages = compiler.getPageCollection();
+        if (guideId.equals(pages.getId())) {
+            return pages.pageExists(pageId);
+        }
+        var guide = GuideRegistry.getById(guideId);
+        return guide != null && guide.pageExists(pageId);
+    }
+
+    public interface PageLinkResolver {
+
+        boolean pageExists(PageCompiler compiler, ResourceLocation guideId, ResourceLocation pageId);
     }
 
     public byte @Nullable [] loadAsset(ResourceLocation imageId) {

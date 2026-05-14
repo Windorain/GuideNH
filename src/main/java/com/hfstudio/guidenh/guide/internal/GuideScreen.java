@@ -25,6 +25,7 @@ import net.minecraft.client.gui.GuiConfirmOpenLink;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.gui.GuiYesNoCallback;
+import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
@@ -43,6 +44,7 @@ import com.hfstudio.guidenh.guide.PageAnchor;
 import com.hfstudio.guidenh.guide.color.LightDarkMode;
 import com.hfstudio.guidenh.guide.color.SymbolicColor;
 import com.hfstudio.guidenh.guide.compiler.AnchorIndexer;
+import com.hfstudio.guidenh.guide.compiler.Frontmatter;
 import com.hfstudio.guidenh.guide.compiler.FrontmatterPageMeta;
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
@@ -117,6 +119,8 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     private MutableGuide guide;
     private PageAnchor currentAnchor;
     @Nullable
+    private final GuiScreen parentScreen;
+    @Nullable
     private GuidePage currentPage;
     @Nullable
     private LytDocument document;
@@ -154,6 +158,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     private static final int SCROLLBAR_W = SceneEditorMultilineTextArea.SCROLLBAR_SIZE;
     private static final int GUIDE_EDITOR_DIVIDER_HOVER_DELAY_MILLIS = 1000;
     private static final long GUIDE_EDITOR_SAFETY_AUTOSAVE_INTERVAL_MILLIS = 5L * 60L * 1000L;
+    private static final long GUIDE_EDITOR_NAVIGATION_REFRESH_DELAY_MILLIS = 1500L;
     private boolean fullWidth;
 
     private final GuideNavBar navBar = new GuideNavBar();
@@ -240,6 +245,8 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
     private long guideEditorNextSafetySaveAtMillis;
     private long guideEditorNextPreviewCompileAtMillis;
     private long guideEditorNextExternalCheckAtMillis;
+    private long guideEditorNextNavigationRefreshAtMillis;
+    private boolean guideEditorNavigationRefreshPending;
     private boolean guideEditorDraggingDivider;
     private int guideEditorDividerGrabOffset;
     private boolean guideEditorDraggingPreviewScrollbar;
@@ -340,9 +347,10 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         }
     }
 
-    private GuideScreen(MutableGuide guide, PageAnchor anchor) {
+    private GuideScreen(MutableGuide guide, PageAnchor anchor, @Nullable GuiScreen parentScreen) {
         this.guide = guide;
         this.currentAnchor = anchor;
+        this.parentScreen = parentScreen;
         this.pendingAnchorScroll = anchor != null && anchor.anchor() != null;
         pageTitle = new LytParagraph();
         pageTitle.setStyle(DefaultStyles.HEADING1);
@@ -368,11 +376,23 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             return;
         }
         var initial = anchor != null ? anchor : PageAnchor.page(guide.getStartPage());
-        var screen = new GuideScreen(guide, initial);
+        Minecraft mc = Minecraft.getMinecraft();
+        GuiScreen parent = captureParentScreen(mc.currentScreen);
+        var screen = new GuideScreen(guide, initial, parent);
         screen.guideEditorSuppressTextFocusUntilGuideHotkeyRelease = openedFromGuideHotkey
             && OpenGuideHotkey.isKeyHeld();
-        Minecraft.getMinecraft()
-            .displayGuiScreen(screen);
+        mc.displayGuiScreen(screen);
+    }
+
+    @Nullable
+    private static GuiScreen captureParentScreen(@Nullable GuiScreen currentScreen) {
+        if (currentScreen instanceof GuideScreen guideScreen) {
+            return guideScreen.parentScreen;
+        }
+        if (currentScreen instanceof GuiContainer) {
+            return null;
+        }
+        return currentScreen;
     }
 
     @Nullable
@@ -446,6 +466,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             scene.ponderTick();
         }
         tickGuideEditorPreviewScenes();
+        updateGuideEditorNavigationRefresh();
         updateGuideEditorAutosave();
         int guideHotkey = OpenGuideHotkey.OPEN_GUIDE_KEY.getKeyCode();
         if (guideHotkey > 0 && OpenGuideHotkey.isKeyHeld() && hoveredItemStack != null) {
@@ -606,7 +627,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             ParsedGuidePage parsedNewPage = PageCompiler
                 .parse(currentParsedPage.getSourcePack(), language, newPageId, pageText);
             applyGuideEditorPageWithoutReload(parsedNewPage);
-            guide.rebuildEditorNavigationState();
+            guide.rebuildEditorNavigationStateWithoutValidation();
             navigateTo(PageAnchor.page(newPageId));
             refreshGuideEditorDraft(true);
             rebuildToolbar();
@@ -754,6 +775,8 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         guideEditorNextSafetySaveAtMillis = 0L;
         guideEditorNextPreviewCompileAtMillis = 0L;
         guideEditorNextExternalCheckAtMillis = 0L;
+        guideEditorNavigationRefreshPending = false;
+        guideEditorNextNavigationRefreshAtMillis = 0L;
         if (guideEditorTextArea != null && !preserveHistory) {
             guideEditorSuppressUndoRecording = true;
             try {
@@ -880,7 +903,9 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
                 guideEditorPreviewPage.prepareForDisplay();
             }
             guideEditorPreviewDirty = false;
-            guideEditorDraftPage = parsedDraft;
+            if (canApplyGuideEditorParsedPage(parsedDraft)) {
+                guideEditorDraftPage = parsedDraft;
+            }
             cachedGuideEditorPreviewInteractionState = null;
         } catch (Throwable t) {
             FMLLog.warning("Failed to compile guide editor preview for {}", currentAnchor.pageId(), t);
@@ -967,30 +992,27 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         }
         updateGuideEditorTextFromArea();
         try {
-            guideEditorFileStore.savePage(
-                guide,
-                currentAnchor.pageId(),
-                guideEditorDraftPage.getLanguage(),
-                guideEditorDraftSource,
-                currentAnchor.pageId());
-            ParsedGuidePage parsedDraft = PageCompiler.parse(
-                guideEditorDraftPage.getSourcePack(),
-                guideEditorDraftPage.getLanguage(),
-                currentAnchor.pageId(),
-                guideEditorDraftSource);
-            applyGuideEditorPageWithoutReload(parsedDraft);
+            String language = guideEditorDraftPage.getLanguage();
+            String sourcePack = guideEditorDraftPage.getSourcePack();
+            guideEditorFileStore
+                .savePage(guide, currentAnchor.pageId(), language, guideEditorDraftSource, currentAnchor.pageId());
+            ParsedGuidePage parsedDraft = PageCompiler
+                .parse(sourcePack, language, currentAnchor.pageId(), guideEditorDraftSource);
             guideEditorSavedSource = guideEditorDraftSource;
             guideEditorDirty = false;
-            guideEditorPreviewDirty = true;
-            guideEditorDraftPage = parsedDraft;
             guideEditorExternalFileCheckEnabled = guideEditorFileStore
-                .hasWritablePage(guide, currentAnchor.pageId(), parsedDraft.getLanguage());
+                .hasWritablePage(guide, currentAnchor.pageId(), language);
             guideEditorNextSaveAtMillis = 0L;
             guideEditorNextSafetySaveAtMillis = 0L;
             guideEditorNextPreviewCompileAtMillis = 0L;
             guideEditorNextExternalCheckAtMillis = System.currentTimeMillis() + 250L;
+            if (canApplyGuideEditorParsedPage(parsedDraft)) {
+                applyGuideEditorPageWithoutReload(parsedDraft);
+                guideEditorDraftPage = parsedDraft;
+                guideEditorPreviewDirty = true;
+                scheduleGuideEditorNavigationRefresh();
+            }
             updateToolbarButtonState();
-            startBackgroundIndexRefresh();
         } catch (Throwable t) {
             FMLLog.warning("Failed to autosave guide editor page {}", currentAnchor.pageId(), t);
         }
@@ -1072,13 +1094,16 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
             return;
         }
         try {
-            guideEditorDraftPage = PageCompiler.parse(
+            ParsedGuidePage parsedDraft = PageCompiler.parse(
                 guideEditorDraftPage.getSourcePack(),
                 guideEditorDraftPage.getLanguage(),
                 currentAnchor.pageId(),
                 guideEditorDraftSource);
-            applyGuideEditorPageWithoutReload(guideEditorDraftPage);
-            startBackgroundIndexRefresh();
+            if (canApplyGuideEditorParsedPage(parsedDraft)) {
+                guideEditorDraftPage = parsedDraft;
+                applyGuideEditorPageWithoutReload(parsedDraft);
+                scheduleGuideEditorNavigationRefresh();
+            }
         } catch (Throwable t) {
             FMLLog.warning("Failed to refresh guide editor draft state for {}", currentAnchor.pageId(), t);
         }
@@ -1104,20 +1129,42 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
                 }));
     }
 
-    private void startBackgroundIndexRefresh() {
-        Thread refreshThread = new Thread(new Runnable() {
+    private boolean canApplyGuideEditorParsedPage(ParsedGuidePage parsedPage) {
+        return parsedPage != null && !parsedPage.hasParseFailure() && hasValidGuideEditorFrontmatter(parsedPage);
+    }
 
-            @Override
-            public void run() {
-                try {
-                    guide.rebuildEditorNavigationState();
-                } catch (Throwable t) {
-                    FMLLog.warning("Guide editor index refresh failed", t);
-                }
-            }
-        }, "GuideNH-GuideEditor-IndexRefresh");
-        refreshThread.setDaemon(true);
-        refreshThread.start();
+    private boolean hasValidGuideEditorFrontmatter(ParsedGuidePage parsedPage) {
+        String yamlText = PageCompiler.extractFrontmatterText(parsedPage.getSource());
+        if (yamlText == null) {
+            return true;
+        }
+        try {
+            Frontmatter.parse(parsedPage.getId(), yamlText);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private void scheduleGuideEditorNavigationRefresh() {
+        guideEditorNavigationRefreshPending = true;
+        guideEditorNextNavigationRefreshAtMillis = System.currentTimeMillis()
+            + GUIDE_EDITOR_NAVIGATION_REFRESH_DELAY_MILLIS;
+    }
+
+    private void updateGuideEditorNavigationRefresh() {
+        if (!guideEditorNavigationRefreshPending
+            || System.currentTimeMillis() < guideEditorNextNavigationRefreshAtMillis) {
+            return;
+        }
+        guideEditorNavigationRefreshPending = false;
+        try {
+            guide.rebuildEditorNavigationStateWithoutValidation();
+            GuideME.getSearch()
+                .index(guide);
+        } catch (Throwable t) {
+            FMLLog.warning("Guide editor navigation refresh failed", t);
+        }
     }
 
     private void applyGuideEditorPageWithoutReload(ParsedGuidePage parsedPage) {
@@ -3973,6 +4020,15 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
         rebuildToolbar();
     }
 
+    @Override
+    public void navigateTo(ResourceLocation guideId, PageAnchor anchor) {
+        if (guideId == null || guideId.equals(guide.getId())) {
+            navigateTo(anchor);
+            return;
+        }
+        open(guideId, anchor, false);
+    }
+
     private void navigateWithoutHistory(PageAnchor anchor) {
         clearInteractionState();
         currentAnchor = anchor;
@@ -3993,7 +4049,7 @@ public class GuideScreen extends GuiScreen implements GuideUiHost, GuiYesNoCallb
 
     @Override
     public void close() {
-        mc.displayGuiScreen(null);
+        mc.displayGuiScreen(parentScreen);
         if (mc.currentScreen == null) {
             mc.setIngameFocus();
         }

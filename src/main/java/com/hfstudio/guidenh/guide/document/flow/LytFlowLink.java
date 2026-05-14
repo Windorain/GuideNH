@@ -3,8 +3,11 @@ package com.hfstudio.guidenh.guide.document.flow;
 import java.net.URI;
 import java.util.function.Consumer;
 
+import net.minecraft.util.ResourceLocation;
+
 import org.jetbrains.annotations.Nullable;
 
+import com.hfstudio.guidenh.guide.GuideAnchor;
 import com.hfstudio.guidenh.guide.PageAnchor;
 import com.hfstudio.guidenh.guide.color.SymbolicColor;
 import com.hfstudio.guidenh.guide.ui.GuideUiHost;
@@ -15,6 +18,8 @@ public class LytFlowLink extends LytTooltipSpan {
     private Consumer<GuideUiHost> clickCallback;
     @Nullable
     private URI externalUrl;
+    @Nullable
+    private GuideAnchor guideAnchor;
     @Nullable
     private PageAnchor pageAnchor;
 
@@ -57,14 +62,26 @@ public class LytFlowLink extends LytTooltipSpan {
             throw new IllegalArgumentException("External URLs must be absolute: " + uri);
         }
         this.externalUrl = uri;
+        this.guideAnchor = null;
         this.pageAnchor = null;
         setClickCallback(screen -> screen.openExternalUrl(uri));
     }
 
     public void setPageLink(PageAnchor anchor) {
+        setGuideLink(null, anchor);
+    }
+
+    public void setGuideLink(@Nullable ResourceLocation guideId, PageAnchor anchor) {
+        this.guideAnchor = guideId == null ? null : new GuideAnchor(guideId, anchor);
         this.pageAnchor = anchor;
         this.externalUrl = null;
-        setClickCallback(screen -> screen.navigateTo(anchor));
+        setClickCallback(screen -> {
+            if (guideId == null) {
+                screen.navigateTo(anchor);
+            } else {
+                screen.navigateTo(guideId, anchor);
+            }
+        });
     }
 
     @Nullable
@@ -75,5 +92,10 @@ public class LytFlowLink extends LytTooltipSpan {
     @Nullable
     public PageAnchor getPageAnchor() {
         return pageAnchor;
+    }
+
+    @Nullable
+    public GuideAnchor getGuideAnchor() {
+        return guideAnchor;
     }
 }

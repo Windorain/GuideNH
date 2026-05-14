@@ -9,7 +9,6 @@ import org.jetbrains.annotations.Nullable;
 import com.hfstudio.guidenh.guide.document.LytRect;
 import com.hfstudio.guidenh.guide.document.interaction.GuideTooltip;
 import com.hfstudio.guidenh.guide.document.interaction.InteractiveElement;
-import com.hfstudio.guidenh.guide.document.interaction.TextTooltip;
 import com.hfstudio.guidenh.guide.latex.GuideLatexRenderer;
 import com.hfstudio.guidenh.guide.layout.LayoutContext;
 import com.hfstudio.guidenh.guide.render.RenderContext;
@@ -38,7 +37,8 @@ public class LytLatexBlock extends LytBlock implements InteractiveElement {
     private final int fillColorArgb;
     private final float sourceScale;
     private final float userScale;
-    private final boolean showTooltip;
+    @Nullable
+    private final GuideTooltip tooltip;
     private final LatexVerticalAlign valign;
     private final int offsetX;
     private final int offsetY;
@@ -46,13 +46,13 @@ public class LytLatexBlock extends LytBlock implements InteractiveElement {
     /** Vertical pixel offset from aligned position, recomputed each layout pass. */
     private int renderYOffset;
 
-    public LytLatexBlock(String formula, int fillColorArgb, float sourceScale, float userScale, boolean showTooltip,
-        LatexVerticalAlign valign, int offsetX, int offsetY) {
+    public LytLatexBlock(String formula, int fillColorArgb, float sourceScale, float userScale,
+        @Nullable GuideTooltip tooltip, LatexVerticalAlign valign, int offsetX, int offsetY) {
         this.formula = formula;
         this.fillColorArgb = fillColorArgb;
         this.sourceScale = sourceScale;
         this.userScale = Math.max(0.1f, userScale);
-        this.showTooltip = showTooltip;
+        this.tooltip = tooltip;
         this.valign = valign;
         this.offsetX = offsetX;
         this.offsetY = offsetY;
@@ -118,10 +118,7 @@ public class LytLatexBlock extends LytBlock implements InteractiveElement {
 
     @Override
     public Optional<GuideTooltip> getTooltip(float x, float y) {
-        if (showTooltip) {
-            return Optional.of(new TextTooltip(formula));
-        }
-        return Optional.empty();
+        return Optional.ofNullable(tooltip);
     }
 
     @Override
@@ -151,7 +148,12 @@ public class LytLatexBlock extends LytBlock implements InteractiveElement {
     }
 
     public boolean isShowTooltip() {
-        return showTooltip;
+        return tooltip != null;
+    }
+
+    @Nullable
+    public GuideTooltip getLatexTooltip() {
+        return tooltip;
     }
 
     public LatexVerticalAlign getValign() {

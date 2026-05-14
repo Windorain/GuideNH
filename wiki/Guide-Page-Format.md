@@ -381,13 +381,23 @@ GuideNH resolves ids and paths using these rules:
 
 | Input | Meaning |
 | --- | --- |
-| `subpage.md` | relative to the current page |
-| `./subpage.md` | relative to the current page |
-| `/assets/example.png` | rooted to the current guide namespace |
-| `guidenh:index.md` | explicit `modid:path` resource location |
+| `subpage.md` | relative to the current page, in the current page namespace |
+| `./subpage.md` | relative to the current page, in the current page namespace |
+| `/guide.md` | rooted to the current page namespace, equivalent to `currentmod:guide.md` |
+| `gregtech:guide.md` | explicit namespace; opens `gregtech:guidenh` when the current guide path is `guidenh` |
+| `gregtech:/guide.md` | explicit namespace plus rooted path, normalized to `gregtech:guide.md` |
 | `subpage.md#anchor` | page plus anchor fragment |
-| `guidenh:other.md#anchor` | absolute `modid:path#anchor` |
+| `guidenh:other.md#anchor` | explicit `modid:path#anchor` |
 | `https://example.com` | external HTTP/HTTPS link |
+
+Page links are isolated by namespace. A link written from `assets/guidenh/guidenh/_en_us/index.md` as
+`[Guide](guide.md)` resolves to `guidenh:guide.md`; the same text in
+`assets/gregtech/guidenh/_en_us/index.md` resolves to `gregtech:guide.md`. If that page is missing in the
+current namespace, GuideNH reports it as a broken link instead of falling back to another mod's page.
+
+Explicit `modid:path` links can cross from one mod's data-driven guide to another. The guide id is derived from
+the target page namespace and the current guide path, so a link from `guidenh:guidenh` to `gregtech:guide.md`
+opens page `gregtech:guide.md` in guide `gregtech:guidenh`.
 
 Anchor fragments scroll the guide to a heading whose text lowercased and spaces replaced with hyphens
 matches the fragment (e.g. `#crafting-recipe` scrolls to `## Crafting Recipe`), or to a `<a name="...">` anchor.

@@ -12,6 +12,10 @@ import com.hfstudio.guidenh.guide.navigation.NavigationTree;
 
 public interface PageCollection {
 
+    default ResourceLocation getId() {
+        return new ResourceLocation("guidenh", "guidenh");
+    }
+
     <T extends PageIndex> T getIndex(Class<T> indexClass);
 
     Collection<ParsedGuidePage> getPages();

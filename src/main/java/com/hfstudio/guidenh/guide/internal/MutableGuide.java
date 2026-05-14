@@ -524,6 +524,11 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
         refreshPageFailures();
     }
 
+    public void rebuildEditorNavigationStateWithoutValidation() {
+        rebuildIndices();
+        navigationTree = buildNavigation();
+    }
+
     public GuideItemSettings getItemSettings() {
         return itemSettings;
     }

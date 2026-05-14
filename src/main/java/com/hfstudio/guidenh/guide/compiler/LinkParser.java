@@ -4,6 +4,7 @@ import java.net.URI;
 
 import net.minecraft.util.ResourceLocation;
 
+import com.hfstudio.guidenh.guide.GuideAnchor;
 import com.hfstudio.guidenh.guide.PageAnchor;
 
 public class LinkParser {
@@ -52,16 +53,35 @@ public class LinkParser {
             }
         }
 
-        if (!compiler.getPageCollection()
-            .pageExists(pageId)) {
+        var guideId = resolveGuideId(compiler, pageId);
+        if (!compiler.pageExistsForLink(guideId, pageId)) {
             visitor.handleError("Page does not exist");
             return;
         }
 
-        visitor.handlePage(new PageAnchor(pageId, fragment));
+        visitor.handlePage(new GuideAnchor(guideId, new PageAnchor(pageId, fragment)));
+    }
+
+    public static ResourceLocation resolveGuideId(PageCompiler compiler, ResourceLocation pageId) {
+        ResourceLocation currentGuideId = compiler.getGuideId();
+        if (pageId.getResourceDomain()
+            .equals(
+                compiler.getPageId()
+                    .getResourceDomain())) {
+            return currentGuideId;
+        }
+        return new ResourceLocation(pageId.getResourceDomain(), currentGuideId.getResourcePath());
     }
 
     public interface Visitor {
+
+        default void handlePage(GuideAnchor anchor) {
+            handlePage(anchor.guideId(), anchor.page());
+        }
+
+        default void handlePage(ResourceLocation guideId, PageAnchor page) {
+            handlePage(page);
+        }
 
         default void handlePage(PageAnchor page) {}
 

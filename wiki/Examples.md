@@ -9,9 +9,10 @@ GuideNH already ships a runtime example guide in `wiki/resourcepack/`. This page
 | `.../_en_us/index.md` | frontmatter, item ids, recipes, item/block images, command links, tooltips, scenes, annotations, `ImportStructureLib`, `RemoveBlocks`, `BlockAnnotationTemplate` |
 | `.../_en_us/markdown.md` | plain markdown features and tables |
 | `.../_en_us/rendering.md` | block-level rendering and layout behavior |
-| `.../_en_us/structure.md` | `<Structure>` usage and coordinate format |
+| `.../_en_us/scene-blocks.md` | static and interactive block scene examples |
 | `.../_en_us/japanese.md` | navigation child example |
-| `.../_en_us/subpage.md` | navigation / linking example |
+| `.../_en_us/navigation-guide.md` | navigation / linking example |
+| `wiki/resourcepack/assets/gregtech/guidenh/_en_us/index.md` | second namespace example for cross-guide links and isolated same-name pages |
 
 ## Asset Examples
 
@@ -36,6 +37,15 @@ navigation:
 
 ````md
 ![Test Image](test1.png)
+````
+
+### Namespaced Guide Links
+
+````md
+[Same namespace](guide.md)
+[Same namespace from root](/guide.md)
+[Other namespace](gregtech:guide.md)
+[Other namespace from root](gregtech:/guide.md)
 ````
 
 ### Rooted Structure Asset
@@ -80,7 +90,7 @@ navigation:
 
 - start with `markdown.md` if you are validating parser basics
 - use `index.md` when testing mixed runtime features together, including StructureLib tooltip, hatch-highlight, and cleanup behavior
-- use `structure.md` when you only need static block layout previews
+- use `scene-blocks.md` when you only need static block layout previews
 - use `example_structure.snbt` when you need a reusable imported structure asset
 
 ## Recommended Learning Order

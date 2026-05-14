@@ -27,6 +27,12 @@ GuideNH now discovers pages directly from the resource tree. Any markdown file u
 `assets/<modid>/guidenh/_<lang>/...` is part of the guide for `<modid>:guidenh`.
 `index.md` is still the conventional start page and the recommended place to begin.
 
+Each `<modid>` gets its own isolated guide namespace. For example, `assets/guidenh/guidenh/_en_us/index.md`
+and `assets/gregtech/guidenh/_en_us/index.md` are two different pages in two different guides:
+`guidenh:guidenh` and `gregtech:guidenh`. Relative links such as `[Next](guide.md)` stay inside the
+page's own namespace; write an explicit id such as `[GT Page](gregtech:guide.md)` when you want to cross
+to another mod's guide. Rooted explicit paths like `gregtech:/guide.md` are also accepted.
+
 ## Fast Local Iteration
 
 If you are editing the built-in example guide in this repository, prefer the live preview workflow documented in

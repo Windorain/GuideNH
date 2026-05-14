@@ -21,7 +21,7 @@ navigation:
 | 字段 | 说明 |
 | --- | --- |
 | `title` | 必填，显示标题 |
-| `parent` | 可选，父页面 id |
+| `parent` | 可选，父页面 id；解析规则与指南页面链接相同 |
 | `position` | 可选，同级排序提示 |
 | `icon` | 可选，物品图标 |
 | `icon_texture` | 可选，从指南资源中解析的纹理图标 |
@@ -66,6 +66,16 @@ GuideNH 会按以下顺序选择导航/搜索图标：
 - 省略 `parent` 会创建一个根节点。
 - 设置 `parent: index.md` 或任意其他页面 id 会创建子节点。
 - 父页面必须存在于同一份指南导航树中。
+
+`navigation.parent` 使用与 Markdown 页面链接相同的命名空间规则：
+
+- `parent: index.md` 和 `parent: ./index.md` 会在当前页面命名空间内解析。
+- `parent: /index.md` 会从当前页面命名空间根路径解析。
+- `parent: gregtech:index.md` 或 `parent: gregtech:/index.md` 会显式指向另一个命名空间。
+
+数据驱动指南按命名空间隔离。`assets/guidenh/guidenh/_zh_cn/...` 下的页面属于
+`guidenh:guidenh`；`assets/gregtech/guidenh/_zh_cn/...` 下的页面属于 `gregtech:guidenh`。
+相对 parent 和相对链接都不会回退到其他模组的同名页面。
 
 ## 分类页面
 

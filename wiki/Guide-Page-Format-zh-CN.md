@@ -367,13 +367,23 @@ GuideNH 按以下规则解析 id 和路径：
 
 | 输入 | 含义 |
 | --- | --- |
-| `subpage.md` | 相对当前页面 |
-| `./subpage.md` | 相对当前页面 |
-| `/assets/example.png` | 相对当前指南命名空间根路径 |
-| `guidenh:index.md` | 显式 `modid:path` 资源定位符 |
+| `subpage.md` | 相对当前页面，并使用当前页面命名空间 |
+| `./subpage.md` | 相对当前页面，并使用当前页面命名空间 |
+| `/guide.md` | 相对当前页面命名空间根路径，等价于 `currentmod:guide.md` |
+| `gregtech:guide.md` | 显式命名空间；当前指南路径为 `guidenh` 时会打开 `gregtech:guidenh` |
+| `gregtech:/guide.md` | 显式命名空间加根路径，会规范化为 `gregtech:guide.md` |
 | `subpage.md#anchor` | 页面加锚点片段 |
-| `guidenh:other.md#anchor` | 绝对 `modid:path#anchor` |
+| `guidenh:other.md#anchor` | 显式 `modid:path#anchor` |
 | `https://example.com` | 外部 HTTP/HTTPS 链接 |
+
+页面链接按命名空间隔离。例如在 `assets/guidenh/guidenh/_zh_cn/index.md` 中写
+`[Guide](guide.md)` 会解析为 `guidenh:guide.md`；同样的文本放在
+`assets/gregtech/guidenh/_zh_cn/index.md` 中会解析为 `gregtech:guide.md`。如果当前命名空间下找不到目标页面，
+GuideNH 会报告坏链，而不会回退到其他模组的同名页面。
+
+显式 `modid:path` 链接可以跨到另一个模组的数据驱动指南。目标 guide id 会由目标页面命名空间和当前指南路径推导，
+所以从 `guidenh:guidenh` 链接到 `gregtech:guide.md` 时，会打开 `gregtech:guidenh` 中的
+`gregtech:guide.md` 页面。
 
 锚点片段会使指南滚动到对应标题（标题文本全部小写、空格替换为连字符，例如 `#crafting-recipe` 对应 `## Crafting Recipe`），或滚动到 `<a name="...">` 命名锚点处。
 

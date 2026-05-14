@@ -1,7 +1,10 @@
 package com.hfstudio.guidenh.guide.internal;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.function.Function;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.IResourceManager;
@@ -40,6 +43,7 @@ public final class GuideLightweightReloadService {
         GuidePageTexture.clear();
         GuideRegistry.setDataDriven(DataDrivenGuideLoader.load());
         var guidePages = new HashMap<ResourceLocation, Map<ResourceLocation, ParsedGuidePage>>();
+        var pagePathCache = new LinkedHashMap<String, LinkedHashMap<String, LinkedHashSet<String>>>();
 
         String language = LangUtil.getCurrentLanguage();
 
@@ -49,7 +53,8 @@ public final class GuideLightweightReloadService {
                 guide.getId(),
                 guide.getContentRootFolder(),
                 guide.getDefaultLanguage(),
-                language);
+                language,
+                pagePathCache);
             guidePages.put(guide.getId(), pages);
         }
 
@@ -76,55 +81,66 @@ public final class GuideLightweightReloadService {
      */
     static Map<ResourceLocation, ParsedGuidePage> loadPages(IResourceManager resourceManager, ResourceLocation guideId,
         String folder, String defaultLanguage, @Nullable String currentLanguage) {
+        return loadPages(resourceManager, guideId, folder, defaultLanguage, currentLanguage, new LinkedHashMap<>());
+    }
+
+    static Map<ResourceLocation, ParsedGuidePage> loadPages(IResourceManager resourceManager, ResourceLocation guideId,
+        String folder, String defaultLanguage, @Nullable String currentLanguage,
+        Map<String, LinkedHashMap<String, LinkedHashSet<String>>> pagePathCache) {
         var pages = new HashMap<ResourceLocation, ParsedGuidePage>();
-        var pagePathsByNamespace = DataDrivenGuideLoader.discoverPagePaths(folder);
+        var pagePaths = pagePathsForGuide(guideId, folder, pagePathCache, DataDrivenGuideLoader::discoverPagePaths);
         String lang = currentLanguage != null ? currentLanguage : defaultLanguage;
+        String sourceNamespace = guideId.getResourceDomain();
+        String sourcePack = "resources:" + sourceNamespace;
 
-        for (var nsEntry : pagePathsByNamespace.entrySet()) {
-            String sourceNamespace = nsEntry.getKey();
-            String sourcePack = "resources:" + sourceNamespace;
+        for (var pagePath : pagePaths) {
+            ResourceLocation pageId = new ResourceLocation(sourceNamespace, pagePath);
 
-            for (var pagePath : nsEntry.getValue()) {
-                ResourceLocation pageId = new ResourceLocation(sourceNamespace, pagePath);
-
-                ParsedGuidePage parsed = tryLoadPage(
+            ParsedGuidePage parsed = tryLoadPage(
+                resourceManager,
+                sourcePack,
+                lang,
+                sourceNamespace,
+                folder,
+                pagePath,
+                pageId);
+            if (parsed == null && !lang.equals(defaultLanguage)) {
+                parsed = tryLoadPage(
                     resourceManager,
                     sourcePack,
-                    lang,
+                    defaultLanguage,
                     sourceNamespace,
                     folder,
                     pagePath,
                     pageId);
-                if (parsed == null && !lang.equals(defaultLanguage)) {
-                    parsed = tryLoadPage(
-                        resourceManager,
-                        sourcePack,
-                        defaultLanguage,
-                        sourceNamespace,
-                        folder,
-                        pagePath,
-                        pageId);
-                }
-                if (parsed == null) {
-                    parsed = tryParsePage(
-                        resourceManager,
-                        sourcePack,
-                        defaultLanguage,
-                        pageId,
-                        new ResourceLocation(sourceNamespace, folder + "/" + pagePath));
-                }
-                if (parsed != null) {
-                    pages.put(pageId, parsed);
-                } else {
-                    FMLLog.getLogger()
-                        .warn("[GuideNH] [GuideLightweightReloadService] Failed to load guide page {}", pageId);
-                }
+            }
+            if (parsed == null) {
+                parsed = tryParsePage(
+                    resourceManager,
+                    sourcePack,
+                    defaultLanguage,
+                    pageId,
+                    new ResourceLocation(sourceNamespace, folder + "/" + pagePath));
+            }
+            if (parsed != null) {
+                pages.put(pageId, parsed);
+            } else {
+                FMLLog.getLogger()
+                    .warn("[GuideNH] [GuideLightweightReloadService] Failed to load guide page {}", pageId);
             }
         }
 
         FMLLog.getLogger()
             .info("[GuideNH] [GuideLightweightReloadService] Loaded {} pages for folder {}", pages.size(), folder);
         return pages;
+    }
+
+    static LinkedHashSet<String> pagePathsForGuide(ResourceLocation guideId, String folder,
+        Map<String, LinkedHashMap<String, LinkedHashSet<String>>> pagePathCache,
+        Function<String, LinkedHashMap<String, LinkedHashSet<String>>> discoverPagePaths) {
+        var pathsByNamespace = pagePathCache.computeIfAbsent(folder, discoverPagePaths);
+        var pagePaths = pathsByNamespace.get(guideId.getResourceDomain());
+        return pagePaths != null ? pagePaths : new LinkedHashSet<>();
     }
 
     @Nullable

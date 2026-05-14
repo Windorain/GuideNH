@@ -50,7 +50,7 @@ public record Frontmatter(@Nullable FrontmatterNavigation navigationEntry, Map<S
 
             ResourceLocation parentId = null;
             if (parentIdStr != null) {
-                parentId = IdUtils.resolveId(parentIdStr, pageId.getResourceDomain());
+                parentId = IdUtils.resolveLink(parentIdStr, pageId);
             }
 
             // Parse icon item id, supporting:

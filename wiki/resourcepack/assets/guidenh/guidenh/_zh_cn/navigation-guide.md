@@ -45,7 +45,16 @@ navigation:
 navigation:
   title: 高级 IO 总线
   parent: aae_intro/aae_intro-index.md
+
+# 显式命名空间，根路径
+navigation:
+  title: GregTech 集成
+  parent: gregtech:/index.md
 ```
+
+Markdown 页面链接也使用同一套规则。`guide.md`、`./guide.md` 和 `/guide.md` 都留在当前页面命名空间内；
+`gregtech:guide.md` 和 `gregtech:/guide.md` 会显式打开 `gregtech` 命名空间，也就是在当前指南文件夹为
+`guidenh` 时加载 `gregtech:guidenh` 数据驱动指南里的页面。
 
 ### `navigation.position`
 
