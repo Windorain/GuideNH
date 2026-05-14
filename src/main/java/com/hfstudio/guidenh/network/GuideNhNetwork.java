@@ -20,6 +20,11 @@ public class GuideNhNetwork {
             GuideNhStructureRequestMessage.class,
             1,
             Side.SERVER);
+        CHANNEL.registerMessage(
+            GuideNhRegionExportServerHandler.class,
+            GuideNhRegionExportRequestMessage.class,
+            7,
+            Side.SERVER);
         Ae2NetworkRegistration.registerCommonMessages();
     }
 

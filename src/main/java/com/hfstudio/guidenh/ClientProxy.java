@@ -11,6 +11,7 @@ import com.hfstudio.guidenh.client.command.GuideNhClientCommand;
 import com.hfstudio.guidenh.client.hotkey.OpenGuideHotkey;
 import com.hfstudio.guidenh.client.hotkey.OpenSceneEditorHotkey;
 import com.hfstudio.guidenh.guide.internal.GuideDevWatcherPump;
+import com.hfstudio.guidenh.guide.internal.GuideDevelopmentResourcePackWatcher;
 import com.hfstudio.guidenh.guide.internal.GuideME;
 import com.hfstudio.guidenh.guide.internal.GuideOnStartup;
 import com.hfstudio.guidenh.guide.internal.GuideRegistry;
@@ -43,6 +44,8 @@ import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.OreDictP
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.PageReferenceProvider;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.TagNameProvider;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.TagAttributeRegistry;
+import com.hfstudio.guidenh.network.GuideNhRegionExportClientHandler;
+import com.hfstudio.guidenh.network.GuideNhRegionExportReplyMessage;
 import com.hfstudio.structurelibexport.StructureExportBootstrap;
 
 import cpw.mods.fml.common.event.FMLInitializationEvent;
@@ -63,6 +66,12 @@ public class ClientProxy extends CommonProxy {
         GuideME.initClientProxy();
         GuideNhNetwork.channel()
             .registerMessage(GuideNhClientBridgeHandler.class, GuideNhClientBridgeMessage.class, 2, Side.CLIENT);
+        GuideNhNetwork.channel()
+            .registerMessage(
+                GuideNhRegionExportClientHandler.class,
+                GuideNhRegionExportReplyMessage.class,
+                8,
+                Side.CLIENT);
         Ae2NetworkRegistration.registerClientMessages();
     }
 
@@ -110,6 +119,7 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void completeInit(FMLLoadCompleteEvent event) {
         super.completeInit(event);
+        GuideDevelopmentResourcePackWatcher.init();
         GuideDevWatcherPump.init();
         GuideOnStartup.init();
     }
