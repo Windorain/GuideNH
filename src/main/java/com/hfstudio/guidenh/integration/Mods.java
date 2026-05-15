@@ -27,6 +27,7 @@ public enum Mods implements IMod, ITargetMod {
     Railcraft("Railcraft"),
     BuildCraftTransport("BuildCraft|Transport"),
     LogisticsPipes("LogisticsPipes"),
+    WirelessRedstoneCore("WR-CBE|Core"),
     DistantHorizons("distanthorizons"),
     EtFuturum("etfuturum"),
     SimpleSkinBackport("simpleskinbackport"),

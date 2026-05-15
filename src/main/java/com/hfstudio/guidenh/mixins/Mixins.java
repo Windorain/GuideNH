@@ -28,6 +28,9 @@ public enum Mixins implements IMixins {
     LP_TILE_GENERIC_PIPE(Side.CLIENT, Phase.LATE, Mods.LogisticsPipes,
         "compat.logisticspipes.AccessorLogisticsTileGenericPipe"),
 
+    WR_CBE_UNLOADED_JAM_STATE(Side.CLIENT, Phase.LATE, Mods.WirelessRedstoneCore,
+        "compat.wirelessredstone.MixinRedstoneEther"),
+
     ;
 
     @Getter
