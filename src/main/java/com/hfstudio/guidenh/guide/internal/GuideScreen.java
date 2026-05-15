@@ -1372,8 +1372,9 @@ public class GuideScreen extends GuiContainer
                     guideEditorTextArea.getText(),
                     guideEditorTextArea.getSelectionStart(),
                     guideEditorTextArea.getSelectionEnd());
-                runGuideEditorTextMutation(() -> guideEditorTextArea
-                    .applyEdit(result.getText(), result.getSelectionStart(), result.getSelectionEnd()));
+                runGuideEditorTextMutation(
+                    () -> guideEditorTextArea
+                        .applyEdit(result.getText(), result.getSelectionStart(), result.getSelectionEnd()));
                 return;
         }
     }
