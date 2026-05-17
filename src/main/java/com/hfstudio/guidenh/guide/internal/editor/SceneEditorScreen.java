@@ -23,6 +23,7 @@ import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.ResourceLocation;
 
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3f;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
@@ -87,6 +88,7 @@ import com.hfstudio.guidenh.guide.layout.MinecraftFontMetrics;
 import com.hfstudio.guidenh.guide.render.VanillaRenderContext;
 import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
 import com.hfstudio.guidenh.guide.scene.SavedCameraSettings;
+import com.hfstudio.guidenh.guide.scene.annotation.LineAnnotationPointParser;
 import com.hfstudio.guidenh.guide.scene.support.GuideBlockDisplayResolver;
 import com.hfstudio.guidenh.guide.scene.support.GuideEntityDisplayResolver;
 import com.hfstudio.guidenh.guide.sound.GuideSoundPlayback;
@@ -1285,7 +1287,7 @@ public class SceneEditorScreen extends GuiScreen {
             }
             previewRenderContext.pushScissor(previewViewport);
             try {
-                cameraMarkerOverlay.render(session.getSceneModel(), previewScene.getCamera(), previewViewport);
+                cameraMarkerOverlay.render(previewScene.getCamera(), previewViewport);
             } finally {
                 previewRenderContext.popScissor();
             }
@@ -2139,7 +2141,7 @@ public class SceneEditorScreen extends GuiScreen {
         }
 
         numericParameterRows.add(
-            createDecimalParameterRow(
+            createOptionalDecimalParameterRow(
                 GuidebookText.SceneEditorCameraX,
                 session.getSceneModel()
                     .getCenterX(),
@@ -2149,7 +2151,7 @@ public class SceneEditorScreen extends GuiScreen {
                 () -> session.getSceneModel()
                     .getCenterX()));
         numericParameterRows.add(
-            createDecimalParameterRow(
+            createOptionalDecimalParameterRow(
                 GuidebookText.SceneEditorCameraY,
                 session.getSceneModel()
                     .getCenterY(),
@@ -2159,7 +2161,7 @@ public class SceneEditorScreen extends GuiScreen {
                 () -> session.getSceneModel()
                     .getCenterY()));
         numericParameterRows.add(
-            createDecimalParameterRow(
+            createOptionalDecimalParameterRow(
                 GuidebookText.SceneEditorCameraZ,
                 session.getSceneModel()
                     .getCenterZ(),
@@ -2229,7 +2231,7 @@ public class SceneEditorScreen extends GuiScreen {
                 () -> session.getSceneModel()
                     .getRotationZ()));
         numericParameterRows.add(
-            createDecimalParameterRow(
+            createOptionalDecimalParameterRow(
                 GuidebookText.SceneEditorZoom,
                 session.getSceneModel()
                     .getZoom(),
@@ -2264,6 +2266,20 @@ public class SceneEditorScreen extends GuiScreen {
         float maxValue, FloatValueSetter valueSetter, FloatModelValueProvider modelValueProvider) {
         SceneEditorNumericFieldController controller = SceneEditorNumericFieldController
             .decimal(initialValue, minValue, maxValue, value -> {
+                valueSetter.setValue(value);
+                onParameterValueApplied();
+            });
+        return new NumericParameterRow(label, controller, minValue, maxValue, modelValueProvider);
+    }
+
+    private NumericParameterRow createOptionalDecimalParameterRow(GuidebookText label, float initialValue,
+        float minValue, float maxValue, NullableFloatValueSetter valueSetter,
+        FloatModelValueProvider modelValueProvider) {
+        SceneEditorNumericFieldController controller = SceneEditorNumericFieldController
+            .optionalDecimal(initialValue, minValue, maxValue, value -> {
+                valueSetter.setValue(value);
+                onParameterValueApplied();
+            }, value -> {
                 valueSetter.setValue(value);
                 onParameterValueApplied();
             });
@@ -2337,7 +2353,7 @@ public class SceneEditorScreen extends GuiScreen {
         textSyncController
             .recordAppliedSnapshot(mergeKey, captureCurrentUiUndoState(), resolveAppliedUndoKeepOpen(mergeKey != null));
         if (previewScene != null && !previewDirty) {
-            previewCameraController.applyModelCamera(previewScene, session.getSceneModel());
+            previewCameraController.applyResolvedPreviewCamera(previewScene, session.getSceneModel());
         } else {
             previewDirty = true;
         }
@@ -3220,7 +3236,8 @@ public class SceneEditorScreen extends GuiScreen {
             + (type.supportsMaxWidth() ? 1 : 0)
             + (type.supportsBackgroundAlpha() ? 1 : 0)
             + (type.supportsAlwaysOnTop() ? 1 : 0);
-        int areaCount = (type.supportsText() ? 1 : 0) + (type.supportsTooltip() ? 1 : 0);
+        int areaCount = (type.supportsText() ? 1 : 0) + (type.supportsTooltip() ? 1 : 0)
+            + (type == SceneEditorElementType.LINE ? 1 : 0);
         return 6 + rowCount * ELEMENT_FIELD_ROW_HEIGHT + areaCount * (14 + ELEMENT_TOOLTIP_HEIGHT);
     }
 
@@ -4037,6 +4054,10 @@ public class SceneEditorScreen extends GuiScreen {
         @Nullable
         private final ElementInputField backgroundAlphaField;
         @Nullable
+        private final SceneEditorDraftTextController linePointsController;
+        @Nullable
+        private final SceneEditorMultilineTextArea linePointsArea;
+        @Nullable
         private final SceneEditorDraftTextController textController;
         @Nullable
         private final SceneEditorMultilineTextArea textArea;
@@ -4049,6 +4070,7 @@ public class SceneEditorScreen extends GuiScreen {
         private ElementInputField focusedField;
         private boolean textFocused;
         private boolean tooltipFocused;
+        private boolean linePointsFocused;
         private int x;
         private int y;
         private int width;
@@ -4056,6 +4078,7 @@ public class SceneEditorScreen extends GuiScreen {
         private int alwaysOnTopX;
         private int alwaysOnTopY;
         private int alwaysOnTopLabelX;
+        private int linePointsLabelY;
         private int textLabelY;
         private int tooltipLabelY;
 
@@ -4100,6 +4123,12 @@ public class SceneEditorScreen extends GuiScreen {
                         true,
                         this::applyBackgroundAlphaDraft))
                 : null;
+            this.linePointsController = type == SceneEditorElementType.LINE
+                ? new SceneEditorDraftTextController(this::formatCurrentLinePoints, false, this::applyLinePointsDraft)
+                : null;
+            this.linePointsArea = type == SceneEditorElementType.LINE
+                ? new SceneEditorMultilineTextArea(SceneEditorScreen.this.fontRendererObj)
+                : null;
             this.textController = type.supportsText()
                 ? new SceneEditorDraftTextController(() -> readCurrentElement().getTextMarkdown(), false, draft -> {
                     boolean applied = elementPropertyController.setText(elementId, draft);
@@ -4127,6 +4156,7 @@ public class SceneEditorScreen extends GuiScreen {
             this.focusedField = null;
             this.textFocused = false;
             this.tooltipFocused = false;
+            this.linePointsFocused = false;
             syncFromModel(element);
         }
 
@@ -4176,6 +4206,12 @@ public class SceneEditorScreen extends GuiScreen {
                 rowY += ELEMENT_FIELD_ROW_HEIGHT;
             }
 
+            if (linePointsArea != null) {
+                linePointsLabelY = rowY + 2;
+                linePointsArea.setBounds(contentX, rowY + 12, width - 12, ELEMENT_TOOLTIP_HEIGHT);
+                rowY += 14 + ELEMENT_TOOLTIP_HEIGHT;
+            }
+
             if (textArea != null) {
                 textLabelY = rowY + 2;
                 textArea.setBounds(contentX, rowY + 12, width - 12, ELEMENT_TOOLTIP_HEIGHT);
@@ -4211,6 +4247,15 @@ public class SceneEditorScreen extends GuiScreen {
             }
             if (type.supportsAlwaysOnTop()) {
                 drawAlwaysOnTop();
+            }
+            if (linePointsArea != null && linePointsController != null) {
+                SceneEditorScreen.this.drawString(
+                    SceneEditorScreen.this.fontRendererObj,
+                    GuidebookText.SceneEditorElementPoints.text(),
+                    x + 6,
+                    linePointsLabelY,
+                    PANEL_MUTED_TEXT);
+                linePointsArea.draw(linePointsController.hasValidationError());
             }
             if (textArea != null && textController != null) {
                 SceneEditorScreen.this.drawString(
@@ -4257,6 +4302,13 @@ public class SceneEditorScreen extends GuiScreen {
         }
 
         private boolean keyTyped(char typedChar, int keyCode) {
+            if (linePointsFocused && linePointsArea != null
+                && linePointsController != null
+                && linePointsArea.keyTyped(typedChar, keyCode)) {
+                linePointsController.setDraftText(linePointsArea.getText());
+                recordCurrentUiDraftSnapshot(linePointsUndoFieldKey());
+                return true;
+            }
             if (textFocused && textArea != null && textController != null && textArea.keyTyped(typedChar, keyCode)) {
                 textController.setDraftText(textArea.getText());
                 recordCurrentUiDraftSnapshot(textUndoFieldKey());
@@ -4299,6 +4351,10 @@ public class SceneEditorScreen extends GuiScreen {
         }
 
         private boolean handleScrollWheel(int mouseX, int mouseY, int wheelDelta) {
+            if (linePointsArea != null && linePointsArea.contains(mouseX, mouseY)) {
+                linePointsArea.scrollWheel(wheelDelta);
+                return true;
+            }
             if (textArea != null && textArea.contains(mouseX, mouseY)) {
                 textArea.scrollWheel(wheelDelta);
                 return true;
@@ -4317,6 +4373,21 @@ public class SceneEditorScreen extends GuiScreen {
                 }
                 focusedField.setFocused(false);
                 focusedField = null;
+            }
+            if (linePointsFocused && linePointsArea != null
+                && linePointsController != null
+                && !linePointsArea.contains(mouseX, mouseY)) {
+                linePointsController.setDraftText(linePointsArea.getText());
+                if (!commitWithAppliedUndoContext(
+                    linePointsUndoFieldKey(),
+                    false,
+                    linePointsController::commitDraftText)) {
+                    recordCurrentUiDraftSnapshot(linePointsUndoFieldKey(), false);
+                    return false;
+                }
+                linePointsArea.setText(linePointsController.getDraftText());
+                linePointsArea.setFocused(false);
+                linePointsFocused = false;
             }
             if (textFocused && textArea != null && textController != null && !textArea.contains(mouseX, mouseY)) {
                 textController.setDraftText(textArea.getText());
@@ -4344,7 +4415,7 @@ public class SceneEditorScreen extends GuiScreen {
         }
 
         private boolean hasFocusedInput() {
-            return focusedField != null || textFocused || tooltipFocused;
+            return focusedField != null || linePointsFocused || textFocused || tooltipFocused;
         }
 
         private boolean mouseClicked(int mouseX, int mouseY, int button) {
@@ -4387,9 +4458,38 @@ public class SceneEditorScreen extends GuiScreen {
                 }
                 return true;
             }
+            if (linePointsArea != null && linePointsController != null && linePointsArea.contains(mouseX, mouseY)) {
+                clearFocusedField();
+                textFocused = false;
+                tooltipFocused = false;
+                if (textArea != null) {
+                    textArea.setFocused(false);
+                }
+                if (tooltipArea != null) {
+                    tooltipArea.setFocused(false);
+                }
+                linePointsFocused = true;
+                linePointsArea.setFocused(true);
+                if (button == 1) {
+                    linePointsArea.setText("");
+                    linePointsController.setDraftText("");
+                    recordCurrentUiDraftSnapshot(linePointsUndoFieldKey());
+                    return true;
+                }
+                if (button == 0) {
+                    linePointsArea.mouseClicked(mouseX, mouseY, button);
+                    linePointsController.setDraftText(linePointsArea.getText());
+                    return true;
+                }
+                return true;
+            }
             if (textArea != null && textController != null && textArea.contains(mouseX, mouseY)) {
                 clearFocusedField();
+                linePointsFocused = false;
                 tooltipFocused = false;
+                if (linePointsArea != null) {
+                    linePointsArea.setFocused(false);
+                }
                 if (tooltipArea != null) {
                     tooltipArea.setFocused(false);
                 }
@@ -4410,7 +4510,11 @@ public class SceneEditorScreen extends GuiScreen {
             }
             if (tooltipArea != null && tooltipController != null && tooltipArea.contains(mouseX, mouseY)) {
                 clearFocusedField();
+                linePointsFocused = false;
                 textFocused = false;
+                if (linePointsArea != null) {
+                    linePointsArea.setFocused(false);
+                }
                 if (textArea != null) {
                     textArea.setFocused(false);
                 }
@@ -4453,6 +4557,10 @@ public class SceneEditorScreen extends GuiScreen {
             if (backgroundAlphaField != null) {
                 backgroundAlphaField.syncFromController();
             }
+            if (linePointsController != null && linePointsArea != null) {
+                linePointsController.syncFromAppliedValue();
+                linePointsArea.setText(linePointsController.getDraftText());
+            }
             if (textController != null && textArea != null) {
                 textController.syncFromAppliedValue();
                 textArea.setText(textController.getDraftText());
@@ -4483,6 +4591,13 @@ public class SceneEditorScreen extends GuiScreen {
             }
             if (backgroundAlphaField != null) {
                 backgroundAlphaField.captureUndoState(builder);
+            }
+            if (linePointsController != null) {
+                builder.put(
+                    linePointsUndoFieldKey(),
+                    new SceneEditorUndoFieldState(
+                        linePointsController.getDraftText(),
+                        linePointsController.hasValidationError()));
             }
             if (textController != null) {
                 builder.put(
@@ -4518,6 +4633,13 @@ public class SceneEditorScreen extends GuiScreen {
             }
             if (backgroundAlphaField != null) {
                 backgroundAlphaField.restoreUndoState(uiState);
+            }
+            if (linePointsController != null && linePointsArea != null) {
+                uiState.getField(linePointsUndoFieldKey())
+                    .ifPresent(state -> {
+                        linePointsController.restoreDraftState(state.getDraftText(), state.hasValidationError());
+                        linePointsArea.setText(linePointsController.getDraftText());
+                    });
             }
             if (textController != null && textArea != null) {
                 uiState.getField(textUndoFieldKey())
@@ -4654,8 +4776,69 @@ public class SceneEditorScreen extends GuiScreen {
             return applied;
         }
 
+        private String formatCurrentLinePoints() {
+            SceneEditorElementModel element = readCurrentElement();
+            List<Vector3f> points = element.getLinePoints();
+            if (points.isEmpty()) {
+                points = new ArrayList<>(2);
+                points.add(new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()));
+                points.add(new Vector3f(element.getSecondaryX(), element.getSecondaryY(), element.getSecondaryZ()));
+            }
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < points.size(); i++) {
+                if (i > 0) {
+                    builder.append('\n');
+                }
+                Vector3f point = points.get(i);
+                builder.append(formatFloat(point.x))
+                    .append(' ')
+                    .append(formatFloat(point.y))
+                    .append(' ')
+                    .append(formatFloat(point.z));
+            }
+            return builder.toString();
+        }
+
+        private boolean applyLinePointsDraft(String draft) {
+            List<Vector3f> points = parseLinePointsDraft(draft);
+            if (points == null) {
+                return false;
+            }
+            boolean applied = elementPropertyController.setLinePoints(elementId, points);
+            if (applied) {
+                onElementModelApplied();
+            }
+            return applied;
+        }
+
+        @Nullable
+        private List<Vector3f> parseLinePointsDraft(String draft) {
+            String trimmed = draft == null ? "" : draft.trim();
+            if (trimmed.isEmpty()) {
+                return null;
+            }
+            String[] rawLines = trimmed.split("\\r?\\n");
+            List<Vector3f> points = new ArrayList<>(rawLines.length);
+            for (String rawLine : rawLines) {
+                String line = rawLine.trim();
+                if (line.isEmpty()) {
+                    continue;
+                }
+                try {
+                    points.add(LineAnnotationPointParser.parsePoint(line));
+                } catch (IllegalArgumentException e) {
+                    return null;
+                }
+            }
+            return points.size() >= 2 ? points : null;
+        }
+
         private String elementFieldKey(String fieldName) {
             return "element:" + elementId + ":" + fieldName;
+        }
+
+        private String linePointsUndoFieldKey() {
+            return elementFieldKey("line-points");
         }
 
         private String textUndoFieldKey() {
@@ -4667,8 +4850,12 @@ public class SceneEditorScreen extends GuiScreen {
         }
 
         private void focusField(ElementInputField field, int mouseX, int mouseY, int button) {
+            linePointsFocused = false;
             textFocused = false;
             tooltipFocused = false;
+            if (linePointsArea != null) {
+                linePointsArea.setFocused(false);
+            }
             if (textArea != null) {
                 textArea.setFocused(false);
             }
@@ -4843,6 +5030,12 @@ public class SceneEditorScreen extends GuiScreen {
     private interface FloatValueSetter {
 
         void setValue(float value);
+    }
+
+    @FunctionalInterface
+    private interface NullableFloatValueSetter {
+
+        void setValue(@Nullable Float value);
     }
 
     @FunctionalInterface

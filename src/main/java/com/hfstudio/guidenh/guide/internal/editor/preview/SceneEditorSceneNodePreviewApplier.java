@@ -380,8 +380,7 @@ public class SceneEditorSceneNodePreviewApplier {
         }
         if (element.getType() == SceneEditorElementType.LINE) {
             InWorldLineAnnotation annotation = new InWorldLineAnnotation(
-                new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()),
-                new Vector3f(element.getSecondaryX(), element.getSecondaryY(), element.getSecondaryZ()),
+                resolveLinePoints(element),
                 color,
                 element.getThickness());
             annotation.setAlwaysOnTop(element.isAlwaysOnTop());
@@ -408,6 +407,17 @@ public class SceneEditorSceneNodePreviewApplier {
         annotation.setAlwaysOnTop(element.isAlwaysOnTop());
         applyTooltip(annotation, element.getTooltipMarkdown());
         return annotation;
+    }
+
+    private List<Vector3f> resolveLinePoints(SceneEditorElementModel element) {
+        List<Vector3f> points = element.getLinePoints();
+        if (points.size() >= 2) {
+            return points;
+        }
+        List<Vector3f> fallback = new ArrayList<>(2);
+        fallback.add(new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()));
+        fallback.add(new Vector3f(element.getSecondaryX(), element.getSecondaryY(), element.getSecondaryZ()));
+        return fallback;
     }
 
     private void applyTooltip(SceneAnnotation annotation, @Nullable String tooltipMarkdown) {

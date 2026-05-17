@@ -7,7 +7,6 @@ import org.jetbrains.annotations.Nullable;
 import com.hfstudio.guidenh.config.ModConfig;
 import com.hfstudio.guidenh.guide.internal.editor.SceneEditorSession;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneModel;
-import com.hfstudio.guidenh.guide.scene.CameraSettings;
 import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibPreviewSelection;
@@ -41,9 +40,8 @@ public class SceneEditorPreviewBridge {
         scene.setReserveBottomControlArea(false);
         scene.setVisibleLayerSliderEnabled(model.isAllowLayerSlider() || ModConfig.ui.sceneLayerSliderEnabled);
         scene.setSceneSize(model.getPreviewWidth(), model.getPreviewHeight());
-        applyExportCamera(scene.getCamera(), model);
         sceneNodePreviewApplier.apply(session, scene, structureLibSelectionOverride);
-        scene.snapshotInitialCamera();
+        previewCameraController.applyResolvedPreviewCamera(scene, model);
         return scene;
     }
 
@@ -70,11 +68,8 @@ public class SceneEditorPreviewBridge {
             session.getSceneModel()
                 .isAllowLayerSlider() || ModConfig.ui.sceneLayerSliderEnabled);
         sceneNodePreviewApplier.apply(session, scene, structureLibSelectionOverride);
+        previewCameraController.applyResolvedPreviewCamera(scene, session.getSceneModel());
         scene.initializePonderTimelineBaseline();
         scene.restorePonderPreviewState(ponderTick, ponderPaused, ponderFinished);
-    }
-
-    private void applyExportCamera(CameraSettings camera, SceneEditorSceneModel model) {
-        previewCameraController.applyModelCamera(camera, model);
     }
 }

@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3f;
 
 import com.hfstudio.guidenh.guide.compiler.GuideMarkdownOptions;
 import com.hfstudio.guidenh.guide.compiler.tags.MdxAttrs;
@@ -160,15 +161,15 @@ public class SceneEditorMarkdownCodec {
         model.setPreviewWidth(parseIntAttribute(sceneElement, "width", model.getPreviewWidth()));
         model.setPreviewHeight(parseIntAttribute(sceneElement, "height", model.getPreviewHeight()));
         model.setPerspectivePreset(parseOptionalStringAttribute(sceneElement, "perspective"));
-        model.setZoom(parseFloatAttribute(sceneElement, "zoom", model.getZoom()));
+        model.setZoom(parseOptionalFloatAttribute(sceneElement, "zoom"));
         model.setRotationX(parseFloatAttribute(sceneElement, "rotateX", model.getRotationX()));
         model.setRotationY(parseFloatAttribute(sceneElement, "rotateY", model.getRotationY()));
         model.setRotationZ(parseFloatAttribute(sceneElement, "rotateZ", model.getRotationZ()));
-        model.setOffsetX(parseFloatAttribute(sceneElement, "offsetX", model.getOffsetX()));
-        model.setOffsetY(parseFloatAttribute(sceneElement, "offsetY", model.getOffsetY()));
-        model.setCenterX(parseFloatAttribute(sceneElement, "centerX", model.getCenterX()));
-        model.setCenterY(parseFloatAttribute(sceneElement, "centerY", model.getCenterY()));
-        model.setCenterZ(parseFloatAttribute(sceneElement, "centerZ", model.getCenterZ()));
+        model.setOffsetX(parseOptionalFloatAttribute(sceneElement, "offsetX"));
+        model.setOffsetY(parseOptionalFloatAttribute(sceneElement, "offsetY"));
+        model.setCenterX(parseOptionalFloatAttribute(sceneElement, "centerX"));
+        model.setCenterY(parseOptionalFloatAttribute(sceneElement, "centerY"));
+        model.setCenterZ(parseOptionalFloatAttribute(sceneElement, "centerZ"));
         model.setInteractive(parseBooleanAttribute(sceneElement, "interactive", model.isInteractive()));
         model.setAllowLayerSlider(parseBooleanAttribute(sceneElement, "allowLayerSlider", model.isAllowLayerSlider()));
 
@@ -258,9 +259,11 @@ public class SceneEditorMarkdownCodec {
             if (points != null) {
                 applyPrimary(model, points[0]);
                 applySecondary(model, points[points.length - 1]);
+                model.setLinePoints(toLinePoints(points));
             } else {
                 applyPrimary(model, parseVectorAttribute(element, "from", new float[] { 0f, 0f, 0f }));
                 applySecondary(model, parseVectorAttribute(element, "to", new float[] { 0f, 0f, 0f }));
+                model.setLinePoints(createEndpointLinePoints(model));
             }
             model.setColorLiteral(parseColorAttribute(element, model.getColorLiteral()));
             model.setThickness(parseFloatAttribute(element, "thickness", model.getThickness()));
@@ -436,15 +439,15 @@ public class SceneEditorMarkdownCodec {
                 .append(escapeAttribute(model.getPerspectivePreset()))
                 .append('"');
         }
-        appendFloatAttribute(builder, "zoom", model.getZoom(), 1f);
+        appendOptionalFloatAttribute(builder, "zoom", model.getZoom(), 1f);
         appendFloatAttribute(builder, "rotateX", model.getRotationX(), 35f);
         appendFloatAttribute(builder, "rotateY", model.getRotationY(), 45f);
         appendFloatAttribute(builder, "rotateZ", model.getRotationZ(), 0f);
-        appendFloatAttribute(builder, "offsetX", model.getOffsetX(), 0f);
-        appendFloatAttribute(builder, "offsetY", model.getOffsetY(), 0f);
-        appendFloatAttribute(builder, "centerX", model.getCenterX(), 0f);
-        appendFloatAttribute(builder, "centerY", model.getCenterY(), 0f);
-        appendFloatAttribute(builder, "centerZ", model.getCenterZ(), 0f);
+        appendOptionalFloatAttribute(builder, "offsetX", model.getOffsetX(), 0f);
+        appendOptionalFloatAttribute(builder, "offsetY", model.getOffsetY(), 0f);
+        appendOptionalFloatAttribute(builder, "centerX", model.getCenterX(), 0f);
+        appendOptionalFloatAttribute(builder, "centerY", model.getCenterY(), 0f);
+        appendOptionalFloatAttribute(builder, "centerZ", model.getCenterZ(), 0f);
         if (!model.isInteractive()) {
             builder.append(" interactive={false}");
         }
@@ -642,11 +645,18 @@ public class SceneEditorMarkdownCodec {
 
     private void appendLineElement(StringBuilder builder, SceneEditorElementModel element, String indent) {
         StringBuilder tagBuilder = new StringBuilder();
-        tagBuilder.append("<LineAnnotation from=\"")
-            .append(formatVector(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()))
-            .append("\" to=\"")
-            .append(formatVector(element.getSecondaryX(), element.getSecondaryY(), element.getSecondaryZ()))
-            .append('"');
+        List<Vector3f> linePoints = normalizeLinePoints(element);
+        if (linePoints.size() > 2) {
+            tagBuilder.append("<LineAnnotation points=\"")
+                .append(formatLinePoints(linePoints))
+                .append('"');
+        } else {
+            tagBuilder.append("<LineAnnotation from=\"")
+                .append(formatVector(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()))
+                .append("\" to=\"")
+                .append(formatVector(element.getSecondaryX(), element.getSecondaryY(), element.getSecondaryZ()))
+                .append('"');
+        }
         appendElementStyleAttributes(tagBuilder, element, "#FFFFFFFF", true);
         appendElementTooltip(builder, indent, "LineAnnotation", tagBuilder, element.getTooltipMarkdown());
     }
@@ -882,6 +892,18 @@ public class SceneEditorMarkdownCodec {
         String rawValue = getOptionalAttributeValue(element, name);
         if (rawValue == null) {
             return defaultValue;
+        }
+        try {
+            return Float.parseFloat(rawValue.trim());
+        } catch (NumberFormatException e) {
+            throw new InvalidSceneSyntaxException("Attribute '" + name + "' must be a number");
+        }
+    }
+
+    private float parseOptionalFloatAttribute(MdxJsxElementFields element, String name) {
+        String rawValue = getOptionalAttributeValue(element, name);
+        if (rawValue == null) {
+            return Float.NaN;
         }
         try {
             return Float.parseFloat(rawValue.trim());
@@ -1175,8 +1197,27 @@ public class SceneEditorMarkdownCodec {
         }
     }
 
+    private void appendOptionalFloatAttribute(StringBuilder builder, String name, float value, float defaultValue) {
+        if (Float.isNaN(value)) {
+            return;
+        }
+        appendFloatAttribute(builder, name, value, defaultValue);
+    }
+
     private String formatVector(float x, float y, float z) {
         return formatNumber(x) + ' ' + formatNumber(y) + ' ' + formatNumber(z);
+    }
+
+    private String formatLinePoints(List<Vector3f> points) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < points.size(); i++) {
+            if (i > 0) {
+                builder.append("; ");
+            }
+            Vector3f point = points.get(i);
+            builder.append(formatVector(point.x, point.y, point.z));
+        }
+        return builder.toString();
     }
 
     private String formatNumber(float value) {
@@ -1202,6 +1243,29 @@ public class SceneEditorMarkdownCodec {
                 max[i] = swap;
             }
         }
+    }
+
+    private List<Vector3f> toLinePoints(float[][] points) {
+        List<Vector3f> result = new ArrayList<>(points.length);
+        for (float[] point : points) {
+            result.add(new Vector3f(point[0], point[1], point[2]));
+        }
+        return result;
+    }
+
+    private List<Vector3f> createEndpointLinePoints(SceneEditorElementModel model) {
+        List<Vector3f> result = new ArrayList<>(2);
+        result.add(new Vector3f(model.getPrimaryX(), model.getPrimaryY(), model.getPrimaryZ()));
+        result.add(new Vector3f(model.getSecondaryX(), model.getSecondaryY(), model.getSecondaryZ()));
+        return result;
+    }
+
+    private List<Vector3f> normalizeLinePoints(SceneEditorElementModel element) {
+        List<Vector3f> linePoints = element.getLinePoints();
+        if (linePoints.size() >= 2) {
+            return linePoints;
+        }
+        return createEndpointLinePoints(element);
     }
 
     private void applyPrimary(SceneEditorElementModel model, float[] values) {

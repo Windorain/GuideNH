@@ -8,6 +8,7 @@ import net.minecraftforge.common.MinecraftForge;
 import com.hfstudio.guidenh.client.RegionWandRenderer;
 import com.hfstudio.guidenh.client.command.GuideNhClientBridgeController;
 import com.hfstudio.guidenh.client.command.GuideNhClientCommand;
+import com.hfstudio.guidenh.client.hotkey.CycleRegionWandModeHotkey;
 import com.hfstudio.guidenh.client.hotkey.OpenGuideHotkey;
 import com.hfstudio.guidenh.client.hotkey.OpenSceneEditorHotkey;
 import com.hfstudio.guidenh.guide.internal.GuideDevWatcherPump;
@@ -70,6 +71,7 @@ public class ClientProxy extends CommonProxy {
         }
         OpenGuideHotkey.init();
         OpenSceneEditorHotkey.init();
+        CycleRegionWandModeHotkey.init();
         MinecraftForge.EVENT_BUS.register(new RegionWandRenderer());
         GuideWarmupPump.init();
         MinecraftForge.EVENT_BUS.register(this);

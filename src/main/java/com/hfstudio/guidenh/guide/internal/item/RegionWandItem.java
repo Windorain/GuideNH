@@ -35,6 +35,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.GuideNH;
+import com.hfstudio.guidenh.config.ModConfig;
 import com.hfstudio.guidenh.guide.internal.GuidebookText;
 import com.hfstudio.guidenh.guide.internal.structure.GuideNhStructureExportAccess;
 import com.hfstudio.guidenh.guide.internal.structure.GuideStructureFileStore;
@@ -69,15 +70,6 @@ public class RegionWandItem extends Item {
     private static int lastClientSelectionY;
     private static int lastClientSelectionZ;
     private static long lastClientExportActionMillis;
-
-    /** New default: SNBT structure compatible with {@code <ImportStructure>}. */
-    public static final String MODE_SNBT = "snbt";
-    /** SNBT mode with entities included. */
-    public static final String MODE_SNBT_ENTITIES = "snbt_e";
-    /** Legacy: inline {@code <GameScene>} with {@code <Block>} children. */
-    public static final String MODE_BLOCKS = "blocks";
-    /** Legacy blocks mode with entities included. */
-    public static final String MODE_BLOCKS_ENTITIES = "blocks_e";
 
     public RegionWandItem() {
         super();
@@ -138,11 +130,6 @@ public class RegionWandItem extends Item {
             int[] target = world.isRemote ? resolveLookingAtSelection(player, world, true) : null;
             if (target != null) {
                 applySelectionAction(stack, player, SelectionAction.POS2, target[0], target[1], target[2]);
-            } else if (world.isRemote) {
-                // Fallback only; normal air use should resolve to the reach endpoint.
-                String next = nextMode(getExportMode(stack));
-                setExportMode(stack, next);
-                send(player, GuidebookText.RegionWandModeSwitched, modeDisplay(next));
             }
         }
         return stack;
@@ -164,47 +151,17 @@ public class RegionWandItem extends Item {
         return RegionWandSelection.getPos(which);
     }
 
-    public static String getExportMode(ItemStack stack) {
-        if (stack == null || !stack.hasTagCompound()) return MODE_SNBT;
-        var nbt = stack.getTagCompound();
-        if (!nbt.hasKey("ExportMode")) return MODE_SNBT;
-        String v = nbt.getString("ExportMode");
-        if (MODE_BLOCKS.equals(v)) return MODE_BLOCKS;
-        if (MODE_SNBT_ENTITIES.equals(v)) return MODE_SNBT_ENTITIES;
-        if (MODE_BLOCKS_ENTITIES.equals(v)) return MODE_BLOCKS_ENTITIES;
-        return MODE_SNBT;
+    public static RegionWandExportMode getExportMode() {
+        RegionWandExportMode mode = ModConfig.ui.regionWandExportMode;
+        return mode != null ? mode : RegionWandExportMode.SNBT;
     }
 
     public static boolean hasCompleteSelection(ItemStack stack) {
         return RegionWandSelection.hasCompleteSelection();
     }
 
-    public static void setExportMode(ItemStack stack, String mode) {
-        if (!stack.hasTagCompound()) stack.setTagCompound(new NBTTagCompound());
-        stack.getTagCompound()
-            .setString("ExportMode", mode);
-    }
-
     public static void clearSelection(ItemStack stack) {
         RegionWandSelection.clear();
-    }
-
-    public static String nextMode(String current) {
-        if (MODE_SNBT.equals(current)) return MODE_SNBT_ENTITIES;
-        if (MODE_SNBT_ENTITIES.equals(current)) return MODE_BLOCKS;
-        if (MODE_BLOCKS.equals(current)) return MODE_BLOCKS_ENTITIES;
-        return MODE_SNBT; // MODE_BLOCKS_ENTITIES or unknown -> snbt
-    }
-
-    public static boolean includeEntities(String mode) {
-        return MODE_SNBT_ENTITIES.equals(mode) || MODE_BLOCKS_ENTITIES.equals(mode);
-    }
-
-    public static String modeDisplay(String mode) {
-        if (MODE_BLOCKS.equals(mode)) return "blocks";
-        if (MODE_SNBT_ENTITIES.equals(mode)) return "snbt+entities";
-        if (MODE_BLOCKS_ENTITIES.equals(mode)) return "blocks+entities";
-        return "snbt";
     }
 
     @Nullable
@@ -350,9 +307,9 @@ public class RegionWandItem extends Item {
             return;
         }
 
-        String mode = getExportMode(stack);
+        RegionWandExportMode mode = getExportMode();
         List<Entity> entities = Collections.emptyList();
-        if (includeEntities(mode)) {
+        if (mode.includeEntities()) {
             @SuppressWarnings("unchecked")
             List<Entity> all = world.getEntitiesWithinAABBExcludingEntity(
                 null,
@@ -365,7 +322,7 @@ public class RegionWandItem extends Item {
             }
             entities = filtered;
         }
-        boolean isBlocks = MODE_BLOCKS.equals(mode) || MODE_BLOCKS_ENTITIES.equals(mode);
+        boolean isBlocks = mode == RegionWandExportMode.BLOCKS || mode == RegionWandExportMode.BLOCKS_ENTITIES;
         ExportResult result;
         if (isBlocks) {
             result = exportBlocks(world, minX, minY, minZ, maxX, maxY, maxZ, entities);
@@ -692,7 +649,7 @@ public class RegionWandItem extends Item {
         int[] p2 = getPos(stack, 2);
         list.add(GuidebookText.RegionWandTooltipSelect.text());
         list.add(GuidebookText.RegionWandTooltipExport.text());
-        list.add(GuidebookText.RegionWandTooltipMode.text(modeDisplay(getExportMode(stack))));
+        list.add(GuidebookText.RegionWandTooltipMode.text(getExportMode().getDisplayName()));
         if (p1 != null) list.add(GuidebookText.RegionWandTooltipPos.text(1, p1[0], p1[1], p1[2]));
         if (p2 != null) list.add(GuidebookText.RegionWandTooltipPos.text(2, p2[0], p2[1], p2[2]));
     }

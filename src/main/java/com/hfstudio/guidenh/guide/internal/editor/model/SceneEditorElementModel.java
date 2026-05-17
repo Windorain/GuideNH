@@ -1,6 +1,11 @@
 package com.hfstudio.guidenh.guide.internal.editor.model;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
+
+import org.joml.Vector3f;
 
 public class SceneEditorElementModel {
 
@@ -20,6 +25,7 @@ public class SceneEditorElementModel {
     private String textMarkdown;
     private int maxWidth;
     private int backgroundAlpha;
+    private final List<Vector3f> linePoints;
 
     public SceneEditorElementModel(SceneEditorElementType type) {
         this.id = UUID.randomUUID();
@@ -38,6 +44,7 @@ public class SceneEditorElementModel {
         this.textMarkdown = type.getDefaultText();
         this.maxWidth = type.getDefaultMaxWidth();
         this.backgroundAlpha = type.getDefaultBackgroundAlpha();
+        this.linePoints = new ArrayList<>();
     }
 
     public UUID getId() {
@@ -94,6 +101,22 @@ public class SceneEditorElementModel {
 
     public void setSecondaryZ(float secondaryZ) {
         this.secondaryZ = secondaryZ;
+    }
+
+    public List<Vector3f> getLinePoints() {
+        return Collections.unmodifiableList(linePoints);
+    }
+
+    public void setLinePoints(List<Vector3f> points) {
+        linePoints.clear();
+        if (points == null) {
+            return;
+        }
+        for (Vector3f point : points) {
+            if (point != null) {
+                linePoints.add(new Vector3f(point));
+            }
+        }
     }
 
     public String getColorLiteral() {
@@ -176,6 +199,7 @@ public class SceneEditorElementModel {
         duplicate.setTextMarkdown(this.textMarkdown);
         duplicate.setMaxWidth(this.maxWidth);
         duplicate.setBackgroundAlpha(this.backgroundAlpha);
+        duplicate.setLinePoints(this.linePoints);
         return duplicate;
     }
 }

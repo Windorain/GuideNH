@@ -1,5 +1,7 @@
 package com.hfstudio.guidenh.guide.internal.editor.gui;
 
+import org.jetbrains.annotations.Nullable;
+
 import com.hfstudio.guidenh.guide.internal.editor.SceneEditorSession;
 import com.hfstudio.guidenh.guide.internal.editor.md.SceneEditorMarkdownCodec;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneModel;
@@ -50,9 +52,21 @@ public class SceneEditorParameterController {
         syncText();
     }
 
+    public void setZoom(@Nullable Float value) {
+        session.getSceneModel()
+            .setZoom(value != null ? value : Float.NaN);
+        syncText();
+    }
+
     public void setCenterX(float value) {
         session.getSceneModel()
             .setCenterX(value);
+        syncText();
+    }
+
+    public void setCenterX(@Nullable Float value) {
+        session.getSceneModel()
+            .setCenterX(value != null ? value : Float.NaN);
         syncText();
     }
 
@@ -62,9 +76,21 @@ public class SceneEditorParameterController {
         syncText();
     }
 
+    public void setCenterY(@Nullable Float value) {
+        session.getSceneModel()
+            .setCenterY(value != null ? value : Float.NaN);
+        syncText();
+    }
+
     public void setCenterZ(float value) {
         session.getSceneModel()
             .setCenterZ(value);
+        syncText();
+    }
+
+    public void setCenterZ(@Nullable Float value) {
+        session.getSceneModel()
+            .setCenterZ(value != null ? value : Float.NaN);
         syncText();
     }
 

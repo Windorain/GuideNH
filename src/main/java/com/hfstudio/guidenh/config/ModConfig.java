@@ -10,6 +10,7 @@ import com.gtnewhorizon.gtnhlib.config.Config.Sync;
 import com.gtnewhorizon.gtnhlib.config.ConfigException;
 import com.gtnewhorizon.gtnhlib.config.ConfigurationManager;
 import com.hfstudio.guidenh.GuideNH;
+import com.hfstudio.guidenh.guide.internal.item.RegionWandExportMode;
 
 @Config(modid = GuideNH.MODID, filename = "guidenh", configSubDirectory = "guidenh")
 @Config.LangKeyPattern(pattern = "guideme.gui.config.%cat.%field", fullyQualified = true)
@@ -99,6 +100,9 @@ public class ModConfig {
         @Comment("Whether the Region Wand selection box remains visible after switching away from the wand.")
         @DefaultBoolean(true)
         public boolean regionWandPersistentSelectionRender = true;
+
+        @Comment("Client-global Region Wand export mode used for selection exports.")
+        public RegionWandExportMode regionWandExportMode = RegionWandExportMode.SNBT;
 
         @Comment("Maximum undo history entries kept by the scene editor.")
         public int sceneEditorUndoHistoryLimit = 15;

@@ -39,14 +39,14 @@ public class SceneEditorSceneModel {
         this.rotationX = 35f;
         this.rotationY = 45f;
         this.rotationZ = 0f;
-        this.offsetX = 0f;
-        this.offsetY = 0f;
-        this.zoom = 1f;
+        this.offsetX = Float.NaN;
+        this.offsetY = Float.NaN;
+        this.zoom = Float.NaN;
         this.interactive = true;
         this.allowLayerSlider = false;
-        this.centerX = 0f;
-        this.centerY = 0f;
-        this.centerZ = 0f;
+        this.centerX = Float.NaN;
+        this.centerY = Float.NaN;
+        this.centerZ = Float.NaN;
         this.sceneNodes = new ArrayList<>();
         this.elements = new ArrayList<>();
     }
@@ -230,6 +230,34 @@ public class SceneEditorSceneModel {
 
     public void setCenterZ(float centerZ) {
         this.centerZ = centerZ;
+    }
+
+    public boolean hasExplicitOffsetX() {
+        return !Float.isNaN(offsetX);
+    }
+
+    public boolean hasExplicitOffsetY() {
+        return !Float.isNaN(offsetY);
+    }
+
+    public boolean hasExplicitZoom() {
+        return !Float.isNaN(zoom);
+    }
+
+    public boolean hasExplicitCenterX() {
+        return !Float.isNaN(centerX);
+    }
+
+    public boolean hasExplicitCenterY() {
+        return !Float.isNaN(centerY);
+    }
+
+    public boolean hasExplicitCenterZ() {
+        return !Float.isNaN(centerZ);
+    }
+
+    public boolean hasExplicitCenter() {
+        return hasExplicitCenterX() || hasExplicitCenterY() || hasExplicitCenterZ();
     }
 
     public List<SceneEditorSceneNodeModel> getSceneNodes() {
