@@ -123,6 +123,8 @@ public class SceneEditorParameterController {
         sceneModel.setCenterX(Float.NaN);
         sceneModel.setCenterY(Float.NaN);
         sceneModel.setCenterZ(Float.NaN);
+        sceneModel.setOffsetX(Float.NaN);
+        sceneModel.setOffsetY(Float.NaN);
         syncText();
     }
 
