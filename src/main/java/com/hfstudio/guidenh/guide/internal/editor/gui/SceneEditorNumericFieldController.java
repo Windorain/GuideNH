@@ -125,6 +125,7 @@ public class SceneEditorNumericFieldController {
 
     public void syncFromModel(float nextValue) {
         if (Float.isNaN(nextValue) && allowEmptyDraft) {
+            this.value = Float.NaN;
             this.draftText = "";
         } else {
             this.value = clamp(nextValue);

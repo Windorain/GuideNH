@@ -136,6 +136,8 @@ public class SceneEditorScreen extends GuiScreen {
     public static final int INTERACTIVE_CHECKBOX_SIZE = 12;
     public static final int PREVIEW_FRAME_BUTTON_WIDTH = 74;
     public static final int PREVIEW_FRAME_BUTTON_HEIGHT = 14;
+    public static final int AUTO_ACTION_BUTTON_WIDTH = 64;
+    public static final int ACTION_ROW_BUTTON_GAP = 8;
     public static final int ELEMENT_ROW_HEIGHT = 20;
     public static final int ELEMENT_ROW_GAP = 4;
     public static final int ELEMENT_EXPANDED_HEIGHT = 154;
@@ -243,6 +245,10 @@ public class SceneEditorScreen extends GuiScreen {
     private int interactiveToggleX;
     private int interactiveToggleY;
     private int interactiveLabelX;
+    private int autoCenterButtonX;
+    private int autoCenterButtonY;
+    private int autoRotationButtonX;
+    private int autoRotationButtonY;
     private int previewFrameButtonX;
     private int previewFrameButtonY;
     private int elementsBoxX;
@@ -910,6 +916,18 @@ public class SceneEditorScreen extends GuiScreen {
             return;
         }
         if (handleParameterMouseClick(mouseX, mouseY, button)) {
+            return;
+        }
+        if (button == 0 && isInsideAutoCenterButton(mouseX, mouseY)) {
+            parameterController.resetAutoCenter();
+            onParameterValueApplied();
+            syncParameterRowsFromModel();
+            return;
+        }
+        if (button == 0 && isInsideAutoRotationButton(mouseX, mouseY)) {
+            parameterController.resetAutoRotation();
+            onParameterValueApplied();
+            syncParameterRowsFromModel();
             return;
         }
         if (button == 0 && isInsidePreviewFrameButton(mouseX, mouseY)) {
@@ -1621,7 +1639,7 @@ public class SceneEditorScreen extends GuiScreen {
         for (NumericParameterRow row : getVisibleParameterRows()) {
             row.draw(mouseX, mouseY);
         }
-        drawInteractiveToggle();
+        drawSettingsActions();
         drawElementPanel(mouseX, mouseY);
     }
 
@@ -2319,6 +2337,10 @@ public class SceneEditorScreen extends GuiScreen {
         interactiveLabelX = contentLeft;
         interactiveToggleX = contentLeft + PARAMETER_LABEL_WIDTH + 2;
         interactiveToggleY = rowY + 2;
+        autoCenterButtonX = contentRight - AUTO_ACTION_BUTTON_WIDTH;
+        autoCenterButtonY = interactiveToggleY - 1;
+        autoRotationButtonX = contentRight - AUTO_ACTION_BUTTON_WIDTH;
+        autoRotationButtonY = interactiveToggleY - 1;
         previewFrameButtonX = contentRight - PREVIEW_FRAME_BUTTON_WIDTH;
         previewFrameButtonY = interactiveToggleY - 1;
         settingsBoxHeight = interactiveToggleY + INTERACTIVE_CHECKBOX_SIZE + 8 - settingsBoxY;
@@ -2499,6 +2521,33 @@ public class SceneEditorScreen extends GuiScreen {
         row.setFocused(true);
     }
 
+    private void drawSettingsActions() {
+        if (activeSettingsTab == SceneEditorSettingsTab.CAMERA) {
+            drawInteractiveToggle();
+            drawTextActionButton(
+                autoCenterButtonX,
+                autoCenterButtonY,
+                AUTO_ACTION_BUTTON_WIDTH,
+                PREVIEW_FRAME_BUTTON_HEIGHT,
+                GuidebookText.SceneEditorAutoCenter.text(),
+                isInsideAutoCenterButton(currentMouseX(), currentMouseY()));
+            return;
+        }
+        if (activeSettingsTab == SceneEditorSettingsTab.ROTATION) {
+            drawTextActionButton(
+                autoRotationButtonX,
+                autoRotationButtonY,
+                AUTO_ACTION_BUTTON_WIDTH,
+                PREVIEW_FRAME_BUTTON_HEIGHT,
+                GuidebookText.SceneEditorAutoRotation.text(),
+                isInsideAutoRotationButton(currentMouseX(), currentMouseY()));
+            return;
+        }
+        if (activeSettingsTab == SceneEditorSettingsTab.PREVIEW) {
+            drawPreviewFrameButton();
+        }
+    }
+
     private void drawInteractiveToggle() {
         int boxRight = interactiveToggleX + INTERACTIVE_CHECKBOX_SIZE;
         int boxBottom = interactiveToggleY + INTERACTIVE_CHECKBOX_SIZE;
@@ -2520,37 +2569,67 @@ public class SceneEditorScreen extends GuiScreen {
             interactiveLabelX,
             interactiveToggleY + 2,
             PANEL_MUTED_TEXT);
-        if (activeSettingsTab == SceneEditorSettingsTab.PREVIEW) {
-            int mouseX = Mouse.getX() * this.width / this.mc.displayWidth;
-            int mouseY = this.height - Mouse.getY() * this.height / this.mc.displayHeight - 1;
-            boolean hovered = isInsidePreviewFrameButton(mouseX, mouseY);
-            int backgroundColor = previewFrameOverlayVisible ? 0xA61C252E : hovered ? 0x7A1C252E : 0x5512181C;
-            drawRect(
-                previewFrameButtonX,
-                previewFrameButtonY,
-                previewFrameButtonX + PREVIEW_FRAME_BUTTON_WIDTH,
-                previewFrameButtonY + PREVIEW_FRAME_BUTTON_HEIGHT,
-                backgroundColor);
-            drawBorder(
-                previewFrameButtonX,
-                previewFrameButtonY,
-                PREVIEW_FRAME_BUTTON_WIDTH,
-                PREVIEW_FRAME_BUTTON_HEIGHT,
-                previewFrameOverlayVisible ? 0xFF00CAF2 : INPUT_BORDER_COLOR);
-            this.drawCenteredString(
-                this.fontRendererObj,
-                GuidebookText.SceneEditorPreviewFrame.text(),
-                previewFrameButtonX + PREVIEW_FRAME_BUTTON_WIDTH / 2,
-                previewFrameButtonY + 3,
-                PANEL_HEADER_COLOR);
-        }
+    }
+
+    private void drawPreviewFrameButton() {
+        boolean hovered = isInsidePreviewFrameButton(currentMouseX(), currentMouseY());
+        int backgroundColor = previewFrameOverlayVisible ? 0xA61C252E : hovered ? 0x7A1C252E : 0x5512181C;
+        drawRect(
+            previewFrameButtonX,
+            previewFrameButtonY,
+            previewFrameButtonX + PREVIEW_FRAME_BUTTON_WIDTH,
+            previewFrameButtonY + PREVIEW_FRAME_BUTTON_HEIGHT,
+            backgroundColor);
+        drawBorder(
+            previewFrameButtonX,
+            previewFrameButtonY,
+            PREVIEW_FRAME_BUTTON_WIDTH,
+            PREVIEW_FRAME_BUTTON_HEIGHT,
+            previewFrameOverlayVisible ? 0xFF00CAF2 : INPUT_BORDER_COLOR);
+        this.drawCenteredString(
+            this.fontRendererObj,
+            GuidebookText.SceneEditorPreviewFrame.text(),
+            previewFrameButtonX + PREVIEW_FRAME_BUTTON_WIDTH / 2,
+            previewFrameButtonY + 3,
+            PANEL_HEADER_COLOR);
+    }
+
+    private void drawTextActionButton(int x, int y, int width, int height, String text, boolean hovered) {
+        int backgroundColor = hovered ? 0x7A1C252E : 0x5512181C;
+        drawRect(x, y, x + width, y + height, backgroundColor);
+        drawBorder(x, y, width, height, hovered ? 0xFF00CAF2 : INPUT_BORDER_COLOR);
+        this.drawCenteredString(this.fontRendererObj, text, x + width / 2, y + 3, PANEL_HEADER_COLOR);
+    }
+
+    private int currentMouseX() {
+        return Mouse.getX() * this.width / this.mc.displayWidth;
+    }
+
+    private int currentMouseY() {
+        return this.height - Mouse.getY() * this.height / this.mc.displayHeight - 1;
     }
 
     private boolean isInsideInteractiveToggle(int mouseX, int mouseY) {
-        int rowRight = activeSettingsTab == SceneEditorSettingsTab.PREVIEW ? previewFrameButtonX - 8
-            : settingsBoxX + settingsBoxWidth - SETTINGS_BOX_PADDING;
+        if (activeSettingsTab != SceneEditorSettingsTab.CAMERA) {
+            return false;
+        }
+        int rowRight = autoCenterButtonX - ACTION_ROW_BUTTON_GAP;
         int rowBottom = interactiveToggleY + INTERACTIVE_ROW_HEIGHT;
         return mouseX >= interactiveLabelX && mouseX < rowRight && mouseY >= interactiveToggleY && mouseY < rowBottom;
+    }
+
+    private boolean isInsideAutoCenterButton(int mouseX, int mouseY) {
+        return activeSettingsTab == SceneEditorSettingsTab.CAMERA && mouseX >= autoCenterButtonX
+            && mouseX < autoCenterButtonX + AUTO_ACTION_BUTTON_WIDTH
+            && mouseY >= autoCenterButtonY
+            && mouseY < autoCenterButtonY + PREVIEW_FRAME_BUTTON_HEIGHT;
+    }
+
+    private boolean isInsideAutoRotationButton(int mouseX, int mouseY) {
+        return activeSettingsTab == SceneEditorSettingsTab.ROTATION && mouseX >= autoRotationButtonX
+            && mouseX < autoRotationButtonX + AUTO_ACTION_BUTTON_WIDTH
+            && mouseY >= autoRotationButtonY
+            && mouseY < autoRotationButtonY + PREVIEW_FRAME_BUTTON_HEIGHT;
     }
 
     private boolean isInsideRightPanelToggle(int mouseX, int mouseY) {

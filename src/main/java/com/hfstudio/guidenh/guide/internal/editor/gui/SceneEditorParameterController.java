@@ -34,15 +34,33 @@ public class SceneEditorParameterController {
         syncText();
     }
 
+    public void setRotationX(@Nullable Float value) {
+        session.getSceneModel()
+            .setRotationX(value != null ? value : Float.NaN);
+        syncText();
+    }
+
     public void setRotationY(float value) {
         session.getSceneModel()
             .setRotationY(value);
         syncText();
     }
 
+    public void setRotationY(@Nullable Float value) {
+        session.getSceneModel()
+            .setRotationY(value != null ? value : Float.NaN);
+        syncText();
+    }
+
     public void setRotationZ(float value) {
         session.getSceneModel()
             .setRotationZ(value);
+        syncText();
+    }
+
+    public void setRotationZ(@Nullable Float value) {
+        session.getSceneModel()
+            .setRotationZ(value != null ? value : Float.NaN);
         syncText();
     }
 
@@ -97,6 +115,22 @@ public class SceneEditorParameterController {
     public void setInteractive(boolean value) {
         session.getSceneModel()
             .setInteractive(value);
+        syncText();
+    }
+
+    public void resetAutoCenter() {
+        SceneEditorSceneModel sceneModel = session.getSceneModel();
+        sceneModel.setCenterX(Float.NaN);
+        sceneModel.setCenterY(Float.NaN);
+        sceneModel.setCenterZ(Float.NaN);
+        syncText();
+    }
+
+    public void resetAutoRotation() {
+        SceneEditorSceneModel sceneModel = session.getSceneModel();
+        sceneModel.setRotationX(Float.NaN);
+        sceneModel.setRotationY(Float.NaN);
+        sceneModel.setRotationZ(Float.NaN);
         syncText();
     }
 

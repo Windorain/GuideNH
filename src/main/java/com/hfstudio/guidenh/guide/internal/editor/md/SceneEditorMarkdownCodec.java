@@ -162,9 +162,9 @@ public class SceneEditorMarkdownCodec {
         model.setPreviewHeight(parseIntAttribute(sceneElement, "height", model.getPreviewHeight()));
         model.setPerspectivePreset(parseOptionalStringAttribute(sceneElement, "perspective"));
         model.setZoom(parseOptionalFloatAttribute(sceneElement, "zoom"));
-        model.setRotationX(parseFloatAttribute(sceneElement, "rotateX", model.getRotationX()));
-        model.setRotationY(parseFloatAttribute(sceneElement, "rotateY", model.getRotationY()));
-        model.setRotationZ(parseFloatAttribute(sceneElement, "rotateZ", model.getRotationZ()));
+        model.setRotationX(parseOptionalFloatAttribute(sceneElement, "rotateX"));
+        model.setRotationY(parseOptionalFloatAttribute(sceneElement, "rotateY"));
+        model.setRotationZ(parseOptionalFloatAttribute(sceneElement, "rotateZ"));
         model.setOffsetX(parseOptionalFloatAttribute(sceneElement, "offsetX"));
         model.setOffsetY(parseOptionalFloatAttribute(sceneElement, "offsetY"));
         model.setCenterX(parseOptionalFloatAttribute(sceneElement, "centerX"));
@@ -440,9 +440,9 @@ public class SceneEditorMarkdownCodec {
                 .append('"');
         }
         appendOptionalFloatAttribute(builder, "zoom", model.getZoom(), 1f);
-        appendFloatAttribute(builder, "rotateX", model.getRotationX(), 35f);
-        appendFloatAttribute(builder, "rotateY", model.getRotationY(), 45f);
-        appendFloatAttribute(builder, "rotateZ", model.getRotationZ(), 0f);
+        appendOptionalFloatAttribute(builder, "rotateX", model.getRotationX(), 35f);
+        appendOptionalFloatAttribute(builder, "rotateY", model.getRotationY(), 45f);
+        appendOptionalFloatAttribute(builder, "rotateZ", model.getRotationZ(), 0f);
         appendOptionalFloatAttribute(builder, "offsetX", model.getOffsetX(), 0f);
         appendOptionalFloatAttribute(builder, "offsetY", model.getOffsetY(), 0f);
         appendOptionalFloatAttribute(builder, "centerX", model.getCenterX(), 0f);

@@ -36,9 +36,9 @@ public class SceneEditorSceneModel {
         this.perspectivePreset = null;
         this.previewWidth = 256;
         this.previewHeight = 192;
-        this.rotationX = 35f;
-        this.rotationY = 45f;
-        this.rotationZ = 0f;
+        this.rotationX = Float.NaN;
+        this.rotationY = Float.NaN;
+        this.rotationZ = Float.NaN;
         this.offsetX = Float.NaN;
         this.offsetY = Float.NaN;
         this.zoom = Float.NaN;
@@ -166,6 +166,18 @@ public class SceneEditorSceneModel {
 
     public void setRotationZ(float rotationZ) {
         this.rotationZ = rotationZ;
+    }
+
+    public boolean hasExplicitRotationX() {
+        return !Float.isNaN(rotationX);
+    }
+
+    public boolean hasExplicitRotationY() {
+        return !Float.isNaN(rotationY);
+    }
+
+    public boolean hasExplicitRotationZ() {
+        return !Float.isNaN(rotationZ);
     }
 
     public float getOffsetX() {

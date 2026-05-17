@@ -209,6 +209,8 @@ public enum GuidebookText implements LocalizationEnum {
     SceneEditorPreviewWidth,
     SceneEditorPreviewHeight,
     SceneEditorInteractive,
+    SceneEditorAutoCenter,
+    SceneEditorAutoRotation,
     SceneEditorElementBlock,
     SceneEditorElementBox,
     SceneEditorElementLine,

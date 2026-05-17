@@ -19,10 +19,18 @@ public class SceneEditorPreviewCameraController {
         if (model.getPerspectivePreset() != null && !model.getPerspectivePreset()
             .isEmpty()) {
             camera.setPerspectivePreset(PerspectivePreset.fromSerializedName(model.getPerspectivePreset()));
+        } else {
+            camera.setPerspectivePreset(PerspectivePreset.ISOMETRIC_NORTH_EAST);
         }
-        camera.setRotationX(model.getRotationX());
-        camera.setRotationY(model.getRotationY() + EDITOR_PREVIEW_YAW_OFFSET);
-        camera.setRotationZ(model.getRotationZ());
+        if (!Float.isNaN(model.getRotationX())) {
+            camera.setRotationX(model.getRotationX());
+        }
+        if (!Float.isNaN(model.getRotationY())) {
+            camera.setRotationY(model.getRotationY() + EDITOR_PREVIEW_YAW_OFFSET);
+        }
+        if (!Float.isNaN(model.getRotationZ())) {
+            camera.setRotationZ(model.getRotationZ());
+        }
         if (!Float.isNaN(model.getOffsetX())) {
             camera.setOffsetX(model.getOffsetX());
         }
@@ -31,12 +39,6 @@ public class SceneEditorPreviewCameraController {
         }
         if (!Float.isNaN(model.getZoom())) {
             camera.setZoom(model.getZoom());
-        }
-        if (model.hasExplicitCenter()) {
-            camera.setRotationCenter(
-                Float.isNaN(model.getCenterX()) ? 0f : model.getCenterX(),
-                Float.isNaN(model.getCenterY()) ? 0f : model.getCenterY(),
-                Float.isNaN(model.getCenterZ()) ? 0f : model.getCenterZ());
         }
     }
 
@@ -53,15 +55,15 @@ public class SceneEditorPreviewCameraController {
         int height = model.getPreviewHeight();
         camera.setViewportSize(width, height);
 
+        float[] autoCenter = level.getCenter();
         float centerX;
         float centerY;
         float centerZ;
         if (model.hasExplicitCenter()) {
-            centerX = Float.isNaN(model.getCenterX()) ? 0f : model.getCenterX();
-            centerY = Float.isNaN(model.getCenterY()) ? 0f : model.getCenterY();
-            centerZ = Float.isNaN(model.getCenterZ()) ? 0f : model.getCenterZ();
+            centerX = Float.isNaN(model.getCenterX()) ? autoCenter[0] : model.getCenterX();
+            centerY = Float.isNaN(model.getCenterY()) ? autoCenter[1] : model.getCenterY();
+            centerZ = Float.isNaN(model.getCenterZ()) ? autoCenter[2] : model.getCenterZ();
         } else {
-            float[] autoCenter = level.getCenter();
             centerX = autoCenter[0];
             centerY = autoCenter[1];
             centerZ = autoCenter[2];
