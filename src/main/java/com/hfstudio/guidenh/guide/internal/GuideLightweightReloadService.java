@@ -1,5 +1,6 @@
 package com.hfstudio.guidenh.guide.internal;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -25,7 +26,7 @@ import com.hfstudio.guidenh.guide.render.GuidePageTexture;
 
 import cpw.mods.fml.common.FMLLog;
 
-public final class GuideLightweightReloadService {
+public class GuideLightweightReloadService {
 
     private GuideLightweightReloadService() {}
 
@@ -120,7 +121,7 @@ public final class GuideLightweightReloadService {
                 parsed = tryParsePage(
                     resourceManager,
                     sourcePack,
-                    defaultLanguage,
+                    lang,
                     pageId,
                     new ResourceLocation(sourceNamespace, folder + "/" + pagePath));
             }
@@ -182,8 +183,7 @@ public final class GuideLightweightReloadService {
     private static ParsedGuidePage parsePageBytes(String sourcePack, String language, ResourceLocation pageId,
         ResourceLocation sourceId, byte[] bytes) {
         try {
-            return PageCompiler
-                .parse(sourcePack, language, pageId, new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+            return PageCompiler.parse(sourcePack, language, pageId, new String(bytes, StandardCharsets.UTF_8));
         } catch (Exception ex) {
             FMLLog.getLogger()
                 .error("[GuideNH] [GuideLightweightReloadService] Error parsing page {} from {}", pageId, sourceId, ex);
@@ -213,14 +213,28 @@ public final class GuideLightweightReloadService {
     }
 
     static int readLoadPriority(ResourceLocation sourceId, byte[] bytes) {
-        String source = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        String source = new String(bytes, StandardCharsets.UTF_8);
         var frontmatter = PageCompiler.parseFrontmatterFromSource(sourceId, PageCompiler.normalizeLineEndings(source));
         var navigation = frontmatter.navigationEntry();
         return navigation != null ? navigation.loadPriority() : 0;
     }
 
     @Desugar
-    private record PageCandidate(byte[] bytes, int priority, int order) {
+    private static class PageCandidate {
+
+        private final byte[] bytes;
+        private final int priority;
+        private final int order;
+
+        private PageCandidate(byte[] bytes, int priority, int order) {
+            this.bytes = bytes;
+            this.priority = priority;
+            this.order = order;
+        }
+
+        private byte[] bytes() {
+            return bytes;
+        }
 
         boolean shouldReplace(PageCandidate previous) {
             return priority > previous.priority || priority == previous.priority && order > previous.order;

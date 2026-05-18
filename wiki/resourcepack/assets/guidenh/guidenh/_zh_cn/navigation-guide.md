@@ -3,6 +3,7 @@ navigation:
   title: 导航与索引
   parent: index.md
   position: 5
+  recommend: 5
 categories:
   - markdown
 ---
@@ -65,6 +66,18 @@ navigation:
   title: Markdown 基础
   parent: index.md
   position: 10
+```
+
+### `navigation.recommend`
+
+用于首页推荐面板的可选整数。只有写了这个字段的页面才会出现在推荐列表中。
+`0` 是有效值，数值越大越靠前，数值相同时按标题字母序排序。
+
+```yaml
+navigation:
+  title: Markdown Basics
+  parent: index.md
+  recommend: 0
 ```
 
 ### `navigation.priority`

@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,7 +54,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
     private final Map<Class<?>, PageIndex> indices;
     private NavigationTree navigationTree = new NavigationTree();
     /**
-     * These are only loaded for the current language and backfilled by default language pages.
+     * These are only loaded for the current language and optionally supplemented by language-neutral pages.
      */
     private Map<ResourceLocation, ParsedGuidePage> pages;
     private final Map<ParsedGuidePage, GuidePage> compiledPages = Collections.synchronizedMap(new WeakHashMap<>());
@@ -349,48 +350,22 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
         tick();
     }
 
-    private boolean isForDefaultLanguage(GuidePageChange change) {
-        return change.language() == null || defaultLanguage.equals(change.language());
-    }
-
     private void applyChanges(List<GuidePageChange> changes) {
         var initialPages = new HashMap<>(developmentPages);
-
-        var currentLanguage = LangUtil.getCurrentLanguage();
-        // Remove redundant changes
+        var deduplicatedChanges = new ArrayList<GuidePageChange>(changes.size());
+        var seenPageIds = new LinkedHashSet<ResourceLocation>();
         for (int i = changes.size() - 1; i >= 0; i--) {
             var change = changes.get(i);
-            if (change == null) {
+            if (change == null || !seenPageIds.add(change.pageId())) {
                 continue;
             }
-
-            // Delete changes for languages that aren't relevant
-            if (!isForDefaultLanguage(change) && !currentLanguage.equals(change.language())) {
-                changes.set(i, null);
-            } else {
-                for (int j = 0; j < i; j++) {
-                    var prevChange = changes.get(j);
-                    if (prevChange != null && prevChange.pageId()
-                        .equals(change.pageId())) {
-                        changes.set(j, null);
-                    }
-                }
-            }
+            deduplicatedChanges.add(0, change);
         }
-        changes.removeIf(Objects::isNull); // remove erased changes
 
         // Enrich each change with the previous page data while we process them
-        for (int i = 0; i < changes.size(); i++) {
-            var change = changes.get(i);
+        for (int i = 0; i < deduplicatedChanges.size(); i++) {
+            var change = deduplicatedChanges.get(i);
             var pageId = change.pageId();
-
-            // Handle language changes
-            var currentPage = developmentPages.get(pageId);
-            if (currentPage != null && !defaultLanguage.equals(currentPage.getLanguage())
-                && isForDefaultLanguage(change)) {
-                changes.set(i, null);
-                continue;
-            }
 
             var newPage = change.newPage();
             if (newPage != null) {
@@ -400,9 +375,9 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
             }
             removeCompiledPage(pageId);
 
-            changes.set(i, new GuidePageChange(change.language(), pageId, initialPages.get(pageId), newPage));
+            deduplicatedChanges
+                .set(i, new GuidePageChange(change.language(), pageId, initialPages.get(pageId), newPage));
         }
-        changes.removeIf(Objects::isNull); // Remove changes not relevant for the current language
 
         // Allow indices to rebuild
         var allPages = new ArrayList<ParsedGuidePage>(pages.size() + developmentPages.size());
@@ -414,7 +389,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
                     .navigationEntry()));
         for (var index : indices.values()) {
             if (index.supportsUpdate()) {
-                index.update(allPages, changes);
+                index.update(allPages, deduplicatedChanges);
             } else {
                 index.rebuild(allPages);
             }
@@ -430,7 +405,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
         if (guideScreen != null) {
             var currentId = guideScreen.getCurrentPageId();
             if (currentId != null) {
-                for (var change : changes) {
+                for (var change : deduplicatedChanges) {
                     if (currentId.equals(change.pageId())) {
                         guideScreen.reloadPage();
                         break;
@@ -715,7 +690,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
             effectiveFailure.errorText);
     }
 
-    private static final class GuidePageFailure {
+    private static class GuidePageFailure {
 
         private final String headingText;
         private final String errorText;

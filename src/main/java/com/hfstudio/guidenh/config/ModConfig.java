@@ -184,8 +184,21 @@ public class ModConfig {
             + "Value is in milliseconds. Default: 750.")
         public int sceneWheelInteractionDelayMillis = 750;
 
+        @Comment("Maximum recommended guide pages shown on the home page.")
+        public int homeRecommendedPageLimit = 30;
+
+        @Comment("Maximum bookmarked guide pages shown on the home page.")
+        public int homeBookmarkedPageLimit = 10;
+
+        @Comment("Maximum recent history guide pages shown on the home page.")
+        public int homeHistoryPageLimit = 10;
+
         @Comment("Client-global bookmarked guide page ids, serialized as a pipe-delimited list.")
         public String guideBookmarks = "";
+    }
+
+    public static int clampPositiveHomeLimit(int value, int fallback) {
+        return value >= 1 ? value : fallback;
     }
 
     public static void save() {

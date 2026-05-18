@@ -121,8 +121,10 @@ public class GuideBuilder {
     }
 
     /**
-     * Changes the default language for the guide. This has no effect on what content is actually shown, but affects how
-     * the full-text search analyzes the text in your untranslated guide pages.
+     * Changes the default language for the guide. This language is used as the page fallback language when the current
+     * UI language does not provide a matching page, and it also affects how full-text search analyzes untranslated
+     * guide
+     * pages.
      * <p/>
      * The default is {@code en_us}, which is the default language code for Minecraft.
      * <p/>

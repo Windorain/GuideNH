@@ -89,6 +89,10 @@ import com.hfstudio.guidenh.guide.internal.editor.guide.GuideScreenEditorState;
 import com.hfstudio.guidenh.guide.internal.editor.guide.GuideScreenEditorTextActions;
 import com.hfstudio.guidenh.guide.internal.editor.guide.GuideScreenEditorUndoHistory;
 import com.hfstudio.guidenh.guide.internal.editor.guide.GuideScreenEditorUnsavedPrompt;
+import com.hfstudio.guidenh.guide.internal.home.GuideScreenHomeHistory;
+import com.hfstudio.guidenh.guide.internal.home.HomePageController;
+import com.hfstudio.guidenh.guide.internal.home.HomePageDataBuilder;
+import com.hfstudio.guidenh.guide.internal.home.HomePageLayout;
 import com.hfstudio.guidenh.guide.internal.item.RegionWandItem;
 import com.hfstudio.guidenh.guide.internal.markdown.CodeBlockClipboardService;
 import com.hfstudio.guidenh.guide.internal.screen.GuideIconButton;
@@ -212,6 +216,9 @@ public class GuideScreen extends GuiContainer
 
     private final GuideNavBar navBar = new GuideNavBar();
     private final GuideBookmarkState bookmarkState = GuideBookmarkState.getSharedInstance();
+    private final GuideScreenHomeHistory homeHistory = GuideScreenHomeHistory.shared();
+    private final HomePageDataBuilder homePageDataBuilder = new HomePageDataBuilder();
+    private final HomePageController homePageController = new HomePageController();
     private final MinecraftFontMetrics layoutFontMetrics = new MinecraftFontMetrics();
     private final CodeBlockClipboardService codeBlockClipboardService = new CodeBlockClipboardService();
     private final GuideDebugOverlayRenderer debugOverlayRenderer = new GuideDebugOverlayRenderer();
@@ -557,6 +564,7 @@ public class GuideScreen extends GuiContainer
         }
         ensureLayout();
         scrollToCurrentAnchor();
+        finalizePendingViewState();
         clampScroll();
     }
 
@@ -586,6 +594,7 @@ public class GuideScreen extends GuiContainer
     private void restoreViewState(GuideScreenViewState state) {
         GuideScreenViewState nextState = state != null ? state : GuideScreenViewState.home();
         applyRoute(nextState.route());
+        recordHomeHistoryIfEligible();
         pendingRestoreViewState = nextState;
         GuideSoundPlayback.stopAll();
         clearInteractionState();
@@ -614,12 +623,24 @@ public class GuideScreen extends GuiContainer
         clampScroll();
     }
 
+    private void finalizePendingViewState() {
+        if (pendingRestoreViewState == null) {
+            return;
+        }
+        recordHomeHistoryIfEligible();
+        applyPendingRestoreScroll();
+    }
+
     private void rememberCurrentContentStateIfEligible() {
         GuideScreenMemory.rememberContentState(captureCurrentViewState());
     }
 
     private boolean isHomeRoute() {
         return currentRoute != null && (currentRoute.isHome() || currentRoute.isHomeSearch());
+    }
+
+    private boolean isExactHomeRoute() {
+        return currentRoute != null && currentRoute.isHome();
     }
 
     private boolean hasContentRoute() {
@@ -2275,6 +2296,12 @@ public class GuideScreen extends GuiContainer
         pageTitle.clearContent();
         cachedTitleLayoutWidth = -1;
 
+        if (isExactHomeRoute()) {
+            currentPageTitle = GuidebookText.HomePage.text();
+            pageTitle.appendText(currentPageTitle);
+            return;
+        }
+
         if (currentAnchor == null) {
             currentPageTitle = "";
             return;
@@ -2393,8 +2420,8 @@ public class GuideScreen extends GuiContainer
             drawGuideEditorScreen(contentMouseX, contentMouseY);
         } else {
             var activeDocument = getActiveDocument();
-            if (currentRoute != null && currentRoute.isHome()) {
-                drawHomeContent();
+            if (isExactHomeRoute()) {
+                drawHomeContent(contentMouseX, contentMouseY);
             } else if (activeDocument != null) {
                 if (isCenteredSearchStateDocument(activeDocument)) {
                     drawCenteredSearchStateMessage(activeDocument);
@@ -2473,32 +2500,14 @@ public class GuideScreen extends GuiContainer
         fr.drawString(text, textX, textY, 0xFFAAAAAA, false);
     }
 
-    private void drawHomeContent() {
+    private void drawHomeContent(int mouseX, int mouseY) {
         ResourceLocation logoTexture = getHomeLogoTexture();
         if (logoTexture == null || homeLogoWidth <= 0 || homeLogoHeight <= 0) {
             return;
         }
-
-        int maxWidth = Math.max(1, contentW / 2);
-        int maxHeight = Math.max(1, contentH / 2);
-        float scale = Math.min(maxWidth / (float) homeLogoWidth, maxHeight / (float) homeLogoHeight);
-        int drawWidth = Math.max(1, Math.round(homeLogoWidth * scale));
-        int drawHeight = Math.max(1, Math.round(homeLogoHeight * scale));
-        int drawX = contentX + Math.max(0, (contentW - drawWidth) / 2);
-        int drawY = contentY + Math.max(0, (contentH - drawHeight) / 2);
-
-        mc.getTextureManager()
-            .bindTexture(logoTexture);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GL11.glColor4f(1f, 1f, 1f, 1f);
-        var tess = Tessellator.instance;
-        tess.startDrawingQuads();
-        tess.addVertexWithUV(drawX, drawY + drawHeight, 0, 0f, 1f);
-        tess.addVertexWithUV(drawX + drawWidth, drawY + drawHeight, 0, 1f, 1f);
-        tess.addVertexWithUV(drawX + drawWidth, drawY, 0, 1f, 0f);
-        tess.addVertexWithUV(drawX, drawY, 0, 0f, 0f);
-        tess.draw();
+        var sections = homePageDataBuilder.build(bookmarkState, homeHistory);
+        var layout = HomePageLayout.compute(contentX, contentY, contentW, contentH, homeLogoWidth, homeLogoHeight);
+        homePageController.render(mc, sections, layout, logoTexture, mouseX, mouseY);
     }
 
     @Nullable
@@ -3509,7 +3518,7 @@ public class GuideScreen extends GuiContainer
     }
 
     private void drawPageTitle() {
-        if (isHomeRoute() || currentAnchor == null || isSearchPage()) return;
+        if (currentAnchor == null && !isExactHomeRoute() || isSearchPage()) return;
         if (pageTitle.isEmpty()) return;
 
         int reservedRight = (16 + TOOLBAR_GAP) * 5 + PANEL_PADDING + 4;
@@ -4104,6 +4113,14 @@ public class GuideScreen extends GuiContainer
             if (GuideScreenNeiBridge.mouseScrolled(this, mouseX, mouseY, dwheel)) {
                 return;
             }
+            if (isExactHomeRoute()) {
+                var sections = homePageDataBuilder.build(bookmarkState, homeHistory);
+                var layout = HomePageLayout
+                    .compute(contentX, contentY, contentW, contentH, homeLogoWidth, homeLogoHeight);
+                if (homePageController.mouseWheel(sections, layout, mouseX, mouseY, dwheel)) {
+                    return;
+                }
+            }
             LytGuidebookScene scene = isHomeRoute() ? null : sceneAt(mouseX, mouseY);
             boolean sceneWheelBlocked = isSceneWheelInteractionBlocked(now);
             if (scene != null && scene.isInteractive()
@@ -4243,6 +4260,13 @@ public class GuideScreen extends GuiContainer
                     searchField.setText("");
                     updateSearchQuery("");
                 }
+                return;
+            }
+        }
+        if (button == 0 && isExactHomeRoute()) {
+            var sections = homePageDataBuilder.build(bookmarkState, homeHistory);
+            var layout = HomePageLayout.compute(contentX, contentY, contentW, contentH, homeLogoWidth, homeLogoHeight);
+            if (homePageController.mousePressed(sections, layout, mouseX, mouseY)) {
                 return;
             }
         }
@@ -4422,6 +4446,9 @@ public class GuideScreen extends GuiContainer
         if (GuideScreenNeiBridge.mouseDragged(this, mouseX, mouseY, clickedMouseButton, timeSinceLastClick)) {
             return;
         }
+        if (isExactHomeRoute() && homePageController.mouseDragged(mouseX, mouseY)) {
+            return;
+        }
         if (handleGuideEditorMouseDragged(mouseX, mouseY, clickedMouseButton)) {
             return;
         }
@@ -4459,6 +4486,15 @@ public class GuideScreen extends GuiContainer
             return;
         }
         if (handleGuideEditorMouseReleased(mouseX, mouseY, state)) {
+            return;
+        }
+        if (isExactHomeRoute() && state == 0) {
+            var sections = homePageDataBuilder.build(bookmarkState, homeHistory);
+            var layout = HomePageLayout.compute(contentX, contentY, contentW, contentH, homeLogoWidth, homeLogoHeight);
+            var target = homePageController.mouseReleased(sections, layout, mouseX, mouseY);
+            if (target != null) {
+                navigateTo(target.guideId(), target.anchor());
+            }
             return;
         }
         if (draggingScrollbar && state != -1) {
@@ -5344,6 +5380,18 @@ public class GuideScreen extends GuiContainer
         rebuildSearchDocumentIfNeeded(true);
         scrollY = 0;
         rebuildToolbar();
+    }
+
+    private void recordHomeHistoryIfEligible() {
+        if (currentRoute == null || !currentRoute.isContent()
+            || currentAnchor == null
+            || currentAnchor.pageId() == null
+            || !GuideScreenMemory.isSupportedContentAnchor(currentAnchor)
+            || guide == null
+            || !guide.pageExists(currentAnchor.pageId())) {
+            return;
+        }
+        homeHistory.record(guide.getId(), currentAnchor.pageId());
     }
 
     private boolean isInsideSearchField(int mouseX, int mouseY) {

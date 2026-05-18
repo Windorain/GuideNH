@@ -3,7 +3,6 @@ package com.hfstudio.guidenh.guide.internal.datadriven;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -20,6 +19,7 @@ import com.hfstudio.guidenh.guide.Guide;
 import com.hfstudio.guidenh.guide.internal.GuideDevelopmentResourcePack;
 import com.hfstudio.guidenh.guide.internal.GuideDevelopmentResourcePacks;
 import com.hfstudio.guidenh.guide.internal.MutableGuide;
+import com.hfstudio.guidenh.guide.internal.resource.GuideResourceAccess;
 import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.mixins.early.fml.AccessorFMLClientHandler;
 import com.hfstudio.guidenh.mixins.early.minecraft.AccessorAbstractResourcePack;
@@ -47,7 +47,7 @@ public class DataDrivenGuideLoader {
             var builder = Guide.builder(guideId)
                 .register(false)
                 .folder(AUTO_GUIDE_FOLDER)
-                .defaultLanguage(selectDefaultLanguage(entry.getValue()));
+                .defaultLanguage(autoDiscoveredDefaultLanguage());
             guides.put(guideId, (MutableGuide) builder.build());
         }
         return guides;
@@ -227,8 +227,11 @@ public class DataDrivenGuideLoader {
             return;
         }
 
-        if (!resourcePackFile.isDirectory()) return;
-        scanResourcePackFolder(resourcePackFile, discoveredLanguages);
+        if (resourcePackFile.isDirectory()) {
+            scanResourcePackFolder(resourcePackFile, discoveredLanguages);
+        } else {
+            scanResourcePackZip(resourcePackFile, discoveredLanguages);
+        }
     }
 
     public static void scanPagePaths(IResourcePack resourcePack, String prefix, Set<String> pagePaths) {
@@ -271,7 +274,7 @@ public class DataDrivenGuideLoader {
             return null;
         }
         try (var input = resourcePack.getInputStream(resourceLocation)) {
-            return com.hfstudio.guidenh.guide.internal.resource.GuideResourceAccess.readFully(input);
+            return GuideResourceAccess.readFully(input);
         } catch (IOException e) {
             FMLLog.getLogger()
                 .warn(
@@ -316,6 +319,60 @@ public class DataDrivenGuideLoader {
                 discoveredLanguages.computeIfAbsent(guideId, ignored -> new LinkedHashSet<>())
                     .add(toLanguageCode(languageFolder));
             }
+        }
+    }
+
+    public static void scanResourcePackZip(File resourcePackFile,
+        Map<ResourceLocation, LinkedHashSet<String>> discoveredLanguages) {
+        String assetsPrefix = "assets/";
+        try (var zip = new ZipFile(resourcePackFile)) {
+            var entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                var entry = entries.nextElement();
+                if (entry.isDirectory()) {
+                    continue;
+                }
+
+                var path = entry.getName();
+                if (!path.startsWith(assetsPrefix) || !path.endsWith(".md")) {
+                    continue;
+                }
+
+                var afterAssets = path.substring(assetsPrefix.length());
+                var namespaceEnd = afterAssets.indexOf('/');
+                if (namespaceEnd <= 0) {
+                    continue;
+                }
+
+                var namespace = afterAssets.substring(0, namespaceEnd);
+                var afterNamespace = afterAssets.substring(namespaceEnd + 1);
+                if (!afterNamespace.startsWith(AUTO_GUIDE_FOLDER + "/")) {
+                    continue;
+                }
+
+                var afterGuideFolder = afterNamespace.substring(AUTO_GUIDE_FOLDER.length() + 1);
+                var languageEnd = afterGuideFolder.indexOf('/');
+                if (languageEnd <= 0) {
+                    continue;
+                }
+
+                var languageFolder = afterGuideFolder.substring(0, languageEnd);
+                if (!isLanguageFolder(languageFolder)) {
+                    continue;
+                }
+
+                discoveredLanguages
+                    .computeIfAbsent(
+                        new ResourceLocation(namespace, AUTO_GUIDE_FOLDER),
+                        ignored -> new LinkedHashSet<>())
+                    .add(toLanguageCode(languageFolder));
+            }
+        } catch (IOException e) {
+            FMLLog.getLogger()
+                .warn(
+                    "[GuideNH] [DataDrivenGuideLoader] Failed to scan guide languages from resource pack {}",
+                    resourcePackFile.getAbsolutePath(),
+                    e);
         }
     }
 
@@ -418,14 +475,8 @@ public class DataDrivenGuideLoader {
         return LangUtil.normalizeLanguage(folderName.substring(LANGUAGE_FOLDER_PREFIX.length()));
     }
 
-    public static String selectDefaultLanguage(Set<String> languages) {
-        if (languages.contains("en_us")) {
-            return "en_us";
-        }
-
-        return languages.stream()
-            .min(Comparator.naturalOrder())
-            .orElse("en_us");
+    public static String autoDiscoveredDefaultLanguage() {
+        return LangUtil.ENGLISH_LANGUAGE;
     }
 
     public static String toFolderPrefix(String namespace, String folder) {

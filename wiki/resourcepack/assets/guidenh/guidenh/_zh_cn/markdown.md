@@ -3,6 +3,7 @@ navigation:
   title: Markdown 基础
   parent: index.md
   position: 10
+  recommend: 0
 categories:
   - markdown
 ---

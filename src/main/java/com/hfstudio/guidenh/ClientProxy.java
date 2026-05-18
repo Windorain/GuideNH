@@ -20,6 +20,7 @@ import com.hfstudio.guidenh.guide.internal.GuideRegistry;
 import com.hfstudio.guidenh.guide.internal.GuideReloadListener;
 import com.hfstudio.guidenh.guide.internal.GuideScreenMemory;
 import com.hfstudio.guidenh.guide.internal.GuideWarmupPump;
+import com.hfstudio.guidenh.guide.internal.home.GuideScreenHomeHistory;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookFakeWorld;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.integration.GuideNhClientIntegrationBootstrap;
@@ -97,6 +98,8 @@ public class ClientProxy extends CommonProxy {
     public void onClientDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         GuideME.closeSearch();
         GuideScreenMemory.clear();
+        GuideScreenHomeHistory.shared()
+            .clear();
         for (var guide : GuideRegistry.getAll()) {
             guide.resetWarmup();
         }

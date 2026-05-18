@@ -21,10 +21,10 @@ Language folders are recognized only in the underscored form. Plain folders such
 For each requested page id, GuideNH tries:
 
 1. `_<current language>/<page>`
-2. if the current language is not the guide default language, `_<default language>/<page>`
+2. `_<default language>/<page>` if the current language page is missing
 3. `<page>` without a language folder
 
-In practice, you should keep page files in underscored language folders and rely on the default language as the main fallback.
+Guide pages only fall back to the guide's `defaultLanguage`. Auto-discovered resource-pack guides still default that value to `en_us`, so another language is not promoted into a fallback language just because it exists.
 
 ## Asset Lookup Order
 
@@ -42,11 +42,12 @@ Search documents store both the raw Minecraft language and the analyzer language
 
 ## Ignore Translation Config
 
-GuideNH exposes a client configuration option named `Ignore Guide Translations`. When enabled, the original guide language is used regardless of the current UI language.
+GuideNH does not expose a global "ignore translations" switch. If you want a guide to fall back to a non-English language, set that guide's `defaultLanguage` explicitly in code.
 
 ## Authoring Advice
 
-- always keep one fully complete default language
+- set `defaultLanguage` deliberately when you want a non-English fallback language for a guide
+- add a shared language-neutral page only when cross-language fallback is actually intended
 - translate pages first, then translate assets only when text is embedded in the asset
 - avoid language-specific asset filenames when a rooted shared asset would do
 

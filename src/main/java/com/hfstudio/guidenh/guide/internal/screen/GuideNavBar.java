@@ -435,14 +435,22 @@ public class GuideNavBar {
     }
 
     public static void drawMiniIcon(Minecraft mc, GuidePageIcon icon, int x, int y) {
+        drawMiniIcon(mc, icon, x, y, ICON_SIZE);
+    }
+
+    public static void drawMiniIcon(Minecraft mc, GuidePageIcon icon, int x, int y, int size) {
         if (icon.isTextureIcon()) {
-            drawMiniTextureIcon(icon.resolveCurrentTexture(), x, y);
+            drawMiniTextureIcon(icon.resolveCurrentTexture(), x, y, size);
             return;
         }
-        drawMiniItemIcon(mc, icon.resolveCurrentItemStack(), x, y);
+        drawMiniItemIcon(mc, icon.resolveCurrentItemStack(), x, y, size);
     }
 
     public static void drawMiniItemIcon(Minecraft mc, ItemStack stack, int x, int y) {
+        drawMiniItemIcon(mc, stack, x, y, ICON_SIZE);
+    }
+
+    public static void drawMiniItemIcon(Minecraft mc, ItemStack stack, int x, int y, int size) {
         if (stack == null) {
             return;
         }
@@ -450,7 +458,7 @@ public class GuideNavBar {
             GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT);
             GL11.glPushMatrix();
             GL11.glTranslatef(x, y, 0);
-            float s = (float) ICON_SIZE / 16f;
+            float s = (float) size / 16f;
             GL11.glScalef(s, s, 1f);
             RenderHelper.enableGUIStandardItemLighting();
             GL11.glEnable(GL11.GL_NORMALIZE);
@@ -470,6 +478,10 @@ public class GuideNavBar {
     }
 
     public static void drawMiniTextureIcon(@Nullable GuidePageTexture texture, int x, int y) {
+        drawMiniTextureIcon(texture, x, y, ICON_SIZE);
+    }
+
+    public static void drawMiniTextureIcon(@Nullable GuidePageTexture texture, int x, int y, int size) {
         if (texture == null || texture.isMissing()) {
             return;
         }
@@ -485,9 +497,9 @@ public class GuideNavBar {
 
         var tess = Tessellator.instance;
         tess.startDrawingQuads();
-        tess.addVertexWithUV(x, y + ICON_SIZE, 0, 0f, 1f);
-        tess.addVertexWithUV(x + ICON_SIZE, y + ICON_SIZE, 0, 1f, 1f);
-        tess.addVertexWithUV(x + ICON_SIZE, y, 0, 1f, 0f);
+        tess.addVertexWithUV(x, y + size, 0, 0f, 1f);
+        tess.addVertexWithUV(x + size, y + size, 0, 1f, 1f);
+        tess.addVertexWithUV(x + size, y, 0, 1f, 0f);
         tess.addVertexWithUV(x, y, 0, 0f, 0f);
         tess.draw();
     }

@@ -4,6 +4,7 @@ item_ids:
 navigation:
   title: GuideNH Examples
   position: 0
+  recommend: 3
 author: GuideNH
 date: 2024-01-01
 ---

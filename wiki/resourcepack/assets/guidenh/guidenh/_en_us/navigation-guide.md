@@ -3,6 +3,7 @@ navigation:
   title: Navigation & Index
   parent: index.md
   position: 5
+  recommend: 5
 categories:
   - markdown
 ---
@@ -65,6 +66,18 @@ navigation:
   title: Markdown Basics
   parent: index.md
   position: 10
+```
+
+### `navigation.recommend`
+
+Optional integer used by the home page Recommended panel. The page only appears there when this field is present.
+`0` is valid. Larger values appear earlier. Equal values are sorted by title alphabetically.
+
+```yaml
+navigation:
+  title: Markdown Basics
+  parent: index.md
+  recommend: 0
 ```
 
 ### `navigation.priority`

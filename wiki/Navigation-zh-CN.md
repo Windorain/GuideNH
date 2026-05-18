@@ -23,12 +23,32 @@ navigation:
 | `title` | 必填，显示标题 |
 | `parent` | 可选，父页面 id；解析规则与指南页面链接相同 |
 | `position` | 可选，同级排序提示 |
+| `recommend` | 可选，首页推荐优先级；缺省时不会出现在推荐面板中 |
 | `priority` | 可选，同路径页面覆盖时的加载优先级；默认 `0` |
 | `icon` | 可选，物品图标 |
 | `icon_texture` | 可选，从指南资源中解析的纹理图标 |
 | `icon_components` | 会被解析，但当前内置渲染尚未使用 |
 | `required_mod` | 可选，单个模组 id；该模组未加载时页面不可见 |
 | `required_mods` | 可选，模组 id 列表；列出的全部模组都加载时页面才可见 |
+
+## 首页推荐
+
+### `navigation.recommend`
+
+`navigation.recommend` 是用于首页推荐面板的可选整数。
+
+- 只有写了这个字段的页面才会出现在推荐面板中。
+- `0` 是有效值。
+- 数值越大越靠前。
+- 数值相同时，按标题字母序排序。
+- 推荐面板按 `GuidePage` 工作，因此每一项都会直接跳转到对应页面。
+
+```yaml
+navigation:
+  title: Steam Stage Checklist
+  parent: index.md
+  recommend: 0
+```
 
 ## 模组需求
 

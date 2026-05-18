@@ -54,13 +54,94 @@ public class GuideSourceWatcher implements AutoCloseable {
 
     // Queued changes that come in from a separate thread
     @Desugar
-    private record PageLangKey(String sourceLang, ResourceLocation pageId) {}
+    private static class PageLangKey {
+
+        @Nullable
+        private final String sourceLang;
+        private final ResourceLocation pageId;
+
+        private PageLangKey(@Nullable String sourceLang, ResourceLocation pageId) {
+            this.sourceLang = sourceLang;
+            this.pageId = pageId;
+        }
+
+        @Nullable
+        private String sourceLang() {
+            return sourceLang;
+        }
+
+        private ResourceLocation pageId() {
+            return pageId;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof PageLangKey other)) {
+                return false;
+            }
+            return Objects.equals(sourceLang, other.sourceLang) && Objects.equals(pageId, other.pageId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(sourceLang, pageId);
+        }
+    }
 
     @Desugar
-    private record PageSource(String language, Path path) {}
+    private static class PageSource {
+
+        private final String language;
+        private final Path path;
+
+        private PageSource(String language, Path path) {
+            this.language = language;
+            this.path = path;
+        }
+
+        private String language() {
+            return language;
+        }
+
+        private Path path() {
+            return path;
+        }
+    }
 
     @Desugar
-    private record PageReloadRequest(@Nullable String namespace) {}
+    private static class PageReloadRequest {
+
+        @Nullable
+        private final String namespace;
+
+        private PageReloadRequest(@Nullable String namespace) {
+            this.namespace = namespace;
+        }
+
+        @Nullable
+        private String namespace() {
+            return namespace;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof PageReloadRequest other)) {
+                return false;
+            }
+            return Objects.equals(namespace, other.namespace);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(namespace);
+        }
+    }
 
     private final Map<PageLangKey, ParsedGuidePage> changedPages = new HashMap<>();
     private final Set<PageLangKey> deletedPages = new HashSet<>();
@@ -131,7 +212,9 @@ public class GuideSourceWatcher implements AutoCloseable {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     var pageKey = getPageLangKey(file);
-                    if (pageKey != null) {
+                    if (pageKey != null && (namespaceFilter == null || namespaceFilter.equals(
+                        pageKey.pageId()
+                            .getResourceDomain()))) {
                         pageSources.put(pageKey, file);
                         pageIds.add(pageKey.pageId());
                     }
@@ -166,9 +249,6 @@ public class GuideSourceWatcher implements AutoCloseable {
                 pageSources.size());
         var loadedPages = new ArrayList<ParsedGuidePage>(pageIds.size());
         for (var pageId : pageIds) {
-            if (namespaceFilter != null && !namespaceFilter.equals(pageId.getResourceDomain())) {
-                continue;
-            }
             var pageSource = resolvePageSource(pageSources, pageId, currentLanguage);
             if (pageSource == null) {
                 continue;
@@ -223,6 +303,7 @@ public class GuideSourceWatcher implements AutoCloseable {
 
     private synchronized void queueReloadedPages(List<ParsedGuidePage> pages) {
         for (ParsedGuidePage page : pages) {
+            clearQueuedPageState(page.getId());
             PageLangKey pageKey = new PageLangKey(page.getLanguage(), page.getId());
             changedPages.put(pageKey, page);
             deletedPages.remove(pageKey);
@@ -306,19 +387,7 @@ public class GuideSourceWatcher implements AutoCloseable {
             resourceChanged(path);
             return;
         }
-
-        var language = pageKey.sourceLang() != null ? pageKey.sourceLang() : defaultLanguage;
-
-        // If it was previously deleted in the same change-set, undelete it
-        deletedPages.remove(pageKey);
-
-        try (var in = Files.newInputStream(path)) {
-            var page = PageCompiler.parse(getSourcePackId(pageKey.pageId()), language, pageKey.pageId(), in);
-            changedPages.put(pageKey, page);
-        } catch (Exception e) {
-            FMLLog.getLogger()
-                .error("[GuideNH] [GuideSourceWatcher] Failed to reload guidebook page {}", path, e);
-        }
+        queueResolvedPageState(pageKey.pageId());
     }
 
     // Only call while holding the lock!
@@ -328,17 +397,7 @@ public class GuideSourceWatcher implements AutoCloseable {
             resourceChanged(path);
             return;
         }
-
-        var fallbackPage = loadFallbackPage(pageKey, path);
-        if (fallbackPage != null) {
-            changedPages.put(pageKey, fallbackPage);
-            deletedPages.remove(pageKey);
-            return;
-        }
-
-        // If it was previously changed in the same change-set, remove the change
-        changedPages.remove(pageKey);
-        deletedPages.add(pageKey);
+        queueResolvedPageState(pageKey.pageId());
     }
 
     public static boolean isGuideResourcePathForSourcePath(Path sourceFolder, String namespace,
@@ -438,42 +497,59 @@ public class GuideSourceWatcher implements AutoCloseable {
 
         var neutralPath = pageSources.get(new PageLangKey(null, pageId));
         if (neutralPath != null) {
-            return new PageSource(defaultLanguage, neutralPath);
+            return new PageSource(currentLanguage, neutralPath);
         }
 
         return null;
     }
 
-    @Nullable
-    private ParsedGuidePage loadFallbackPage(PageLangKey pageKey, Path removedPath) {
-        var fallbackSource = resolveFallbackSource(pageKey, removedPath);
-        if (fallbackSource == null) {
-            return null;
+    private void queueResolvedPageState(ResourceLocation pageId) {
+        clearQueuedPageState(pageId);
+        PageSource activeSource = resolveActivePageSource(pageId, LangUtil.getCurrentLanguage());
+        if (activeSource == null) {
+            deletedPages.add(new PageLangKey(null, pageId));
+            return;
         }
 
-        try (var in = Files.newInputStream(fallbackSource.path())) {
-            return PageCompiler
-                .parse(getSourcePackId(pageKey.pageId()), fallbackSource.language(), pageKey.pageId(), in);
+        try (var in = Files.newInputStream(activeSource.path())) {
+            var page = PageCompiler.parse(getSourcePackId(pageId), activeSource.language(), pageId, in);
+            changedPages.put(new PageLangKey(activeSource.language(), pageId), page);
         } catch (Exception e) {
             FMLLog.getLogger()
                 .error(
-                    "[GuideNH] [GuideSourceWatcher] Failed to load fallback guidebook page {}",
-                    fallbackSource.path(),
+                    "[GuideNH] [GuideSourceWatcher] Failed to resolve effective guidebook page {}",
+                    activeSource.path(),
                     e);
-            return null;
         }
     }
 
+    private void clearQueuedPageState(ResourceLocation pageId) {
+        changedPages.keySet()
+            .removeIf(
+                pageKey -> pageKey.pageId()
+                    .equals(pageId));
+        deletedPages.removeIf(
+            pageKey -> pageKey.pageId()
+                .equals(pageId));
+    }
+
     @Nullable
-    private PageSource resolveFallbackSource(PageLangKey pageKey, Path removedPath) {
-        var defaultPath = getLocalizedSourcePath(pageKey.pageId(), defaultLanguage);
-        if (!defaultPath.equals(removedPath) && Files.isRegularFile(defaultPath)) {
-            return new PageSource(defaultLanguage, defaultPath);
+    private PageSource resolveActivePageSource(ResourceLocation pageId, String currentLanguage) {
+        var currentPath = getLocalizedSourcePath(pageId, currentLanguage);
+        if (Files.isRegularFile(currentPath)) {
+            return new PageSource(currentLanguage, currentPath);
         }
 
-        var neutralPath = getNeutralSourcePath(pageKey.pageId());
-        if (!neutralPath.equals(removedPath) && Files.isRegularFile(neutralPath)) {
-            return new PageSource(defaultLanguage, neutralPath);
+        if (!Objects.equals(currentLanguage, defaultLanguage)) {
+            var defaultPath = getLocalizedSourcePath(pageId, defaultLanguage);
+            if (Files.isRegularFile(defaultPath)) {
+                return new PageSource(defaultLanguage, defaultPath);
+            }
+        }
+
+        var neutralPath = getNeutralSourcePath(pageId);
+        if (Files.isRegularFile(neutralPath)) {
+            return new PageSource(currentLanguage, neutralPath);
         }
 
         return null;

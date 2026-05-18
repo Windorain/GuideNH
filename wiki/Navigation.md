@@ -21,12 +21,32 @@ navigation:
 | `title` | Required display title |
 | `parent` | Optional parent page id, resolved like a guide page link |
 | `position` | Optional sibling ordering hint |
+| `recommend` | Optional home-page recommendation priority; absent means the page is not shown in the Recommended panel |
 | `priority` | Optional load priority for same-path page overrides; default `0` |
 | `icon` | Optional item icon |
 | `icon_texture` | Optional texture icon resolved from guide assets |
 | `icon_components` | Parsed but not currently used by built-in rendering |
 | `required_mod` | Optional single mod id; page is hidden when this mod is not loaded |
 | `required_mods` | Optional list of mod ids; page is hidden unless all listed mods are loaded |
+
+## Home Page Recommendations
+
+### `navigation.recommend`
+
+`navigation.recommend` is an optional integer used by the home page Recommended panel.
+
+- Pages only appear in the Recommended panel when this field is present.
+- `0` is valid.
+- Larger values appear earlier.
+- If two pages have the same value, they are sorted by title alphabetically.
+- The panel works at the `GuidePage` level, so each recommended page entry jumps directly to that page.
+
+```yaml
+navigation:
+  title: Steam Stage Checklist
+  parent: index.md
+  recommend: 0
+```
 
 ## Mod Requirements
 
