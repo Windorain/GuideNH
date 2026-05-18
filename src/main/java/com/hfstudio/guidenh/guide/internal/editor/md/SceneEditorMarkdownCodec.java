@@ -59,16 +59,35 @@ public class SceneEditorMarkdownCodec {
                 "allowLayerSlider")));
     public static final Set<String> IMPORT_STRUCTURE_ATTRIBUTES = Collections
         .unmodifiableSet(new HashSet<>(Collections.singletonList("src")));
-    public static final Set<String> IMPORT_STRUCTURE_LIB_ATTRIBUTES = Collections
-        .unmodifiableSet(new HashSet<>(Arrays.asList("controller", "piece", "facing", "rotation", "flip", "channel")));
+    public static final Set<String> IMPORT_STRUCTURE_LIB_ATTRIBUTES = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList("controller", "name", "piece", "facing", "rotation", "flip", "channel")));
     public static final Set<String> REMOVE_BLOCKS_ATTRIBUTES = Collections
         .unmodifiableSet(new HashSet<>(Collections.singletonList("id")));
     public static final Set<String> BLOCK_ANNOTATION_TEMPLATE_ATTRIBUTES = Collections
-        .unmodifiableSet(new HashSet<>(Collections.singletonList("id")));
-    public static final Set<String> BLOCK_ATTRIBUTES = Collections
-        .unmodifiableSet(new HashSet<>(Arrays.asList("pos", "color", "thickness", "alwaysOnTop", "visible")));
-    public static final Set<String> BOX_ATTRIBUTES = Collections
-        .unmodifiableSet(new HashSet<>(Arrays.asList("min", "max", "color", "thickness", "alwaysOnTop", "visible")));
+        .unmodifiableSet(new HashSet<>(Arrays.asList("id", "showWhenStructure", "showWhenTier", "showWhenChannels")));
+    public static final Set<String> BLOCK_ATTRIBUTES = Collections.unmodifiableSet(
+        new HashSet<>(
+            Arrays.asList(
+                "pos",
+                "color",
+                "thickness",
+                "alwaysOnTop",
+                "visible",
+                "showWhenStructure",
+                "showWhenTier",
+                "showWhenChannels")));
+    public static final Set<String> BOX_ATTRIBUTES = Collections.unmodifiableSet(
+        new HashSet<>(
+            Arrays.asList(
+                "min",
+                "max",
+                "color",
+                "thickness",
+                "alwaysOnTop",
+                "visible",
+                "showWhenStructure",
+                "showWhenTier",
+                "showWhenChannels")));
     public static final Set<String> LINE_ATTRIBUTES = Collections.unmodifiableSet(
         new HashSet<>(
             Arrays.asList(
@@ -82,11 +101,34 @@ public class SceneEditorMarkdownCodec {
                 "visible",
                 "showPoints",
                 "pointColor",
-                "pointSize")));
-    public static final Set<String> DIAMOND_ATTRIBUTES = Collections
-        .unmodifiableSet(new HashSet<>(Arrays.asList("pos", "color", "alwaysOnTop", "visible")));
+                "pointSize",
+                "showWhenStructure",
+                "showWhenTier",
+                "showWhenChannels")));
+    public static final Set<String> DIAMOND_ATTRIBUTES = Collections.unmodifiableSet(
+        new HashSet<>(
+            Arrays.asList(
+                "pos",
+                "color",
+                "alwaysOnTop",
+                "visible",
+                "showWhenStructure",
+                "showWhenTier",
+                "showWhenChannels")));
     public static final Set<String> TEXT_ATTRIBUTES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList("pos", "x", "y", "z", "color", "maxWidth", "backgroundAlpha", "visible")));
+        new HashSet<>(
+            Arrays.asList(
+                "pos",
+                "x",
+                "y",
+                "z",
+                "color",
+                "maxWidth",
+                "backgroundAlpha",
+                "visible",
+                "showWhenStructure",
+                "showWhenTier",
+                "showWhenChannels")));
 
     public SceneEditorMarkdownParseResult parse(String markdown) {
         String normalized = normalizeLineEndings(markdown);
@@ -284,6 +326,7 @@ public class SceneEditorMarkdownCodec {
             model.setThickness(parseFloatAttribute(element, "thickness", model.getThickness()));
             model.setAlwaysOnTop(parseBooleanAttribute(element, "alwaysOnTop", model.isAlwaysOnTop()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
+            applyStructureLibConditionAttributes(model, element);
             model.setTooltipMarkdown(extractTooltipMarkdown(element, source));
             return model;
         }
@@ -299,6 +342,7 @@ public class SceneEditorMarkdownCodec {
             model.setThickness(parseFloatAttribute(element, "thickness", model.getThickness()));
             model.setAlwaysOnTop(parseBooleanAttribute(element, "alwaysOnTop", model.isAlwaysOnTop()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
+            applyStructureLibConditionAttributes(model, element);
             model.setTooltipMarkdown(extractTooltipMarkdown(element, source));
             return model;
         }
@@ -319,6 +363,7 @@ public class SceneEditorMarkdownCodec {
             model.setThickness(parseFloatAttribute(element, "thickness", model.getThickness()));
             model.setAlwaysOnTop(parseBooleanAttribute(element, "alwaysOnTop", model.isAlwaysOnTop()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
+            applyStructureLibConditionAttributes(model, element);
             model.setTooltipMarkdown(extractTooltipMarkdown(element, source));
             return model;
         }
@@ -332,6 +377,7 @@ public class SceneEditorMarkdownCodec {
             model.setColorLiteral(parseColorAttribute(element, model.getColorLiteral()));
             model.setAlwaysOnTop(parseBooleanAttribute(element, "alwaysOnTop", model.isAlwaysOnTop()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
+            applyStructureLibConditionAttributes(model, element);
             model.setTooltipMarkdown(extractTooltipMarkdown(element, source));
             return model;
         }
@@ -350,6 +396,7 @@ public class SceneEditorMarkdownCodec {
             model.setMaxWidth(parseIntAttribute(element, "maxWidth", model.getMaxWidth()));
             model.setBackgroundAlpha(parseAlphaAttribute(element, "backgroundAlpha", model.getBackgroundAlpha()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
+            applyStructureLibConditionAttributes(model, element);
             model.setTextMarkdown(parseTextAnnotationText(element, source, model.getTextMarkdown()));
             return model;
         }
@@ -379,6 +426,7 @@ public class SceneEditorMarkdownCodec {
         if (type.supportsBackgroundAlpha()) {
             model.setBackgroundAlpha(parseAlphaAttribute(element, "backgroundAlpha", model.getBackgroundAlpha()));
         }
+        applyStructureLibConditionAttributes(model, element);
         if (type.supportsText()) {
             model.setTextMarkdown(parseTextAnnotationText(element, source, model.getTextMarkdown()));
         } else if (type.supportsTooltip()) {
@@ -408,6 +456,7 @@ public class SceneEditorMarkdownCodec {
 
         SceneEditorSceneNodeModel node = new SceneEditorSceneNodeModel(SceneEditorSceneNodeType.IMPORT_STRUCTURE_LIB);
         node.setAttribute("controller", controller);
+        copyOptionalAttribute(element, node, "name");
         copyOptionalAttribute(element, node, "piece");
         copyOptionalAttribute(element, node, "facing");
         copyOptionalAttribute(element, node, "rotation");
@@ -438,6 +487,9 @@ public class SceneEditorMarkdownCodec {
         SceneEditorSceneNodeModel node = new SceneEditorSceneNodeModel(
             SceneEditorSceneNodeType.BLOCK_ANNOTATION_TEMPLATE);
         node.setAttribute("id", blockId);
+        copyOptionalAttribute(element, node, "showWhenStructure");
+        copyOptionalAttribute(element, node, "showWhenTier");
+        copyOptionalAttribute(element, node, "showWhenChannels");
 
         for (Object child : element.children()) {
             if (!(child instanceof UnistNode childNode)) {
@@ -470,6 +522,12 @@ public class SceneEditorMarkdownCodec {
         if (value != null && !value.isEmpty()) {
             node.setAttribute(attribute, value);
         }
+    }
+
+    private void applyStructureLibConditionAttributes(SceneEditorElementModel model, MdxJsxElementFields element) {
+        model.setShowWhenStructure(parseOptionalStringAttribute(element, "showWhenStructure"));
+        model.setShowWhenTier(parseOptionalStringAttribute(element, "showWhenTier"));
+        model.setShowWhenChannels(parseOptionalStringAttribute(element, "showWhenChannels"));
     }
 
     private void appendRootAttributes(StringBuilder builder, SceneEditorSceneModel model) {
@@ -591,6 +649,7 @@ public class SceneEditorMarkdownCodec {
         builder.append("    <ImportStructureLib controller=\"")
             .append(escapeAttribute(controller))
             .append('"');
+        appendSceneNodeAttribute(builder, sceneNode, "name");
         appendSceneNodeAttribute(builder, sceneNode, "piece");
         appendSceneNodeAttribute(builder, sceneNode, "facing");
         appendSceneNodeAttribute(builder, sceneNode, "rotation");
@@ -619,13 +678,21 @@ public class SceneEditorMarkdownCodec {
             .isEmpty()) {
             builder.append("    <BlockAnnotationTemplate id=\"")
                 .append(escapeAttribute(blockId))
-                .append("\" />\n");
+                .append('"');
+            appendSceneNodeAttribute(builder, sceneNode, "showWhenStructure");
+            appendSceneNodeAttribute(builder, sceneNode, "showWhenTier");
+            appendSceneNodeAttribute(builder, sceneNode, "showWhenChannels");
+            builder.append(" />\n");
             return;
         }
 
         builder.append("    <BlockAnnotationTemplate id=\"")
             .append(escapeAttribute(blockId))
-            .append("\">\n");
+            .append('"');
+        appendSceneNodeAttribute(builder, sceneNode, "showWhenStructure");
+        appendSceneNodeAttribute(builder, sceneNode, "showWhenTier");
+        appendSceneNodeAttribute(builder, sceneNode, "showWhenChannels");
+        builder.append(">\n");
         for (SceneEditorElementModel templateElement : sceneNode.getTemplateElements()) {
             appendElement(builder, templateElement, "        ");
         }
@@ -744,6 +811,7 @@ public class SceneEditorMarkdownCodec {
         if (!element.isVisible()) {
             tagBuilder.append(" visible={false}");
         }
+        appendStructureLibConditionAttributes(tagBuilder, element);
         appendTextElementBody(builder, indent, tagBuilder, element.getTextMarkdown());
     }
 
@@ -780,6 +848,7 @@ public class SceneEditorMarkdownCodec {
                 .append(element.getBackgroundAlpha())
                 .append('"');
         }
+        appendStructureLibConditionAttributes(tagBuilder, element);
         if (element.getType()
             .supportsText()) {
             appendTextElementBody(
@@ -818,6 +887,23 @@ public class SceneEditorMarkdownCodec {
         if (!element.isVisible()) {
             builder.append(" visible={false}");
         }
+    }
+
+    private void appendStructureLibConditionAttributes(StringBuilder builder, SceneEditorElementModel element) {
+        appendOptionalStringAttribute(builder, "showWhenStructure", element.getShowWhenStructure());
+        appendOptionalStringAttribute(builder, "showWhenTier", element.getShowWhenTier());
+        appendOptionalStringAttribute(builder, "showWhenChannels", element.getShowWhenChannels());
+    }
+
+    private void appendOptionalStringAttribute(StringBuilder builder, String attribute, String value) {
+        if (value == null || value.isEmpty()) {
+            return;
+        }
+        builder.append(' ')
+            .append(attribute)
+            .append("=\"")
+            .append(escapeAttribute(value))
+            .append('"');
     }
 
     private void appendElementTooltip(StringBuilder builder, String indent, String tagName, StringBuilder openingTag,

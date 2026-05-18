@@ -331,6 +331,7 @@ Imports a StructureLib multiblock preview by controller id.
 | Attribute | Required | Meaning |
 | --- | --- | --- |
 | `controller` | yes | controller block id, using `modid:block[:meta]` |
+| `name` | no | optional binding name used by `showWhenStructure` on annotations, templates, and sounds |
 | `piece` | no | StructureLib piece name override |
 | `facing` | no | facing override passed to the importer |
 | `rotation` | no | rotation override passed to the importer |
@@ -345,12 +346,40 @@ Notes:
 - the imported structure starts from scene `0 0 0`; the controller is not forced to be placed at `0 0 0`
 - this tag enables StructureLib-specific tooltip, hatch highlight, and channel slider UI when metadata is available
 - controller matching supports the GTNH-style `modid:block:meta` form
+- use `name` when the scene contains multiple StructureLib imports and another tag needs to target one specific structure state
 
 Example:
 
 ````md
 <ImportStructureLib controller="botanichorizons:automatedCraftingPool" />
 <ImportStructureLib controller="gregtech:gt.blockmachines:1000" channel="7" />
+<ImportStructureLib name="main" controller="gregtech:gt.blockmachines:15411" />
+````
+
+Structure-aware annotation and sound example:
+
+````md
+<GameScene interactive={true}>
+  <ImportStructureLib name="main" controller="gregtech:gt.blockmachines:15411" />
+  <ImportStructureLib name="aux" controller="gregtech:gt.blockmachines:15412" />
+
+  <BlockAnnotation
+    pos="5 1 2"
+    color="#FFD24C"
+    showWhenStructure="main"
+    showWhenTier="2..4,!3"
+    showWhenChannels="input:1..3, casing:!2"
+  >
+    Visible only for matching `main` states.
+  </BlockAnnotation>
+
+  <PlaySound
+    sound="guidenh:machine.start"
+    trigger="click"
+    showWhenStructure="aux"
+    showWhenTier="1..2"
+  />
+</GameScene>
 ````
 
 ## `<IsometricCamera>`

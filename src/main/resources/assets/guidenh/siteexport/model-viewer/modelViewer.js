@@ -156,6 +156,7 @@ function createSceneNode(documentRef, descriptor, variant) {
   }
   setOrRemoveAttribute(node, "data-scene-in-world-annotations", variant?.inWorldAnnotationsJson);
   setOrRemoveAttribute(node, "data-scene-overlay-annotations", variant?.overlayAnnotationsJson);
+  setOrRemoveAttribute(node, "data-guide-scene-sounds", variant?.sceneSoundsJson);
   setOrRemoveAttribute(node, "data-scene-hover-targets", variant?.hoverTargetsJson);
   applySceneGridDescriptor(node, descriptor);
   return node;
@@ -370,10 +371,23 @@ function applySceneGridDescriptor(node, descriptor) {
 }
 
 function buildStateKey(state) {
-  let key = `layer=${Math.max(0, Number(state.visibleLayer) || 0)}|ponder=${Math.max(0, Number(state.ponderTick) || 0)}|tier=${Math.max(1, Number(state.tier) || 1)}`;
-  const channels = state.channels || {};
-  for (const channelId of Object.keys(channels)) {
-    key += `|channel:${channelId}=${Math.max(0, Number(channels[channelId]) || 0)}`;
+  let key = `layer=${Math.max(0, Number(state.visibleLayer) || 0)}|ponder=${Math.max(0, Number(state.ponderTick) || 0)}`;
+  const structures = normalizeStateStructures(state);
+  if (Object.keys(structures).length === 0) {
+    key += `|tier=${Math.max(1, Number(state.tier) || 1)}`;
+    const channels = state.channels || {};
+    for (const channelId of Object.keys(channels)) {
+      key += `|channel:${channelId}=${Math.max(0, Number(channels[channelId]) || 0)}`;
+    }
+    return key;
+  }
+  for (const structureId of Object.keys(structures)) {
+    const structureState = structures[structureId] || {};
+    key += `|structure:${structureId}|tier=${Math.max(1, Number(structureState.tier) || 1)}`;
+    const channels = structureState.channels || {};
+    for (const channelId of Object.keys(channels)) {
+      key += `|channel:${channelId}=${Math.max(0, Number(channels[channelId]) || 0)}`;
+    }
   }
   return key;
 }
@@ -384,7 +398,24 @@ function cloneState(state) {
     ponderTick: Math.max(0, Number(state?.ponderTick) || 0),
     tier: Math.max(1, Number(state?.tier) || 1),
     channels: { ...(state?.channels || {}) },
+    structures: normalizeStateStructures(state),
   };
+}
+
+function normalizeStateStructures(state) {
+  const structures = state?.structures;
+  if (!structures || typeof structures !== "object") {
+    return {};
+  }
+  const normalized = {};
+  for (const structureId of Object.keys(structures)) {
+    const structureState = structures[structureId];
+    normalized[structureId] = {
+      tier: Math.max(1, Number(structureState?.tier) || 1),
+      channels: { ...(structureState?.channels || {}) },
+    };
+  }
+  return normalized;
 }
 
 function loadSceneStateManifest(src) {
@@ -845,11 +876,84 @@ async function mountSceneStateControls(sceneContext) {
       );
     }
   }
+
+  if (Array.isArray(controls.structures)) {
+    for (const structure of controls.structures) {
+      const structureId = structure?.id;
+      if (!structureId) {
+        continue;
+      }
+      const structureLabel = structure.label || structureId;
+      const currentStructureState = sceneContext.currentState.structures?.[structureId] || { tier: 1, channels: {} };
+      if (structure.tier && Number.isFinite(Number(structure.tier.min)) && Number.isFinite(Number(structure.tier.max))) {
+        const min = Math.max(1, Number(structure.tier.min) || 1);
+        const max = Math.max(min, Number(structure.tier.max) || min);
+        host.append(
+          createRangeControl(
+            documentRef,
+            `${structureLabel} ${structure.tier.label || "Tier"}`,
+            min,
+            max,
+            currentStructureState.tier,
+            (value) => String(value),
+            (value) =>
+              updateSceneState(sceneContext, {
+                structures: {
+                  [structureId]: {
+                    tier: value,
+                  },
+                },
+              }),
+          ),
+        );
+      }
+      if (Array.isArray(structure.channels)) {
+        for (const channel of structure.channels) {
+          const min = Math.max(0, Number(channel?.min) || 0);
+          const max = Math.max(0, Number(channel?.max) || 0);
+          host.append(
+            createRangeControl(
+              documentRef,
+              `${structureLabel} ${channel.label || channel.id || "Channel"}`,
+              min,
+              max,
+              currentStructureState.channels?.[channel.id] ?? min,
+              (value) => (value === 0 && min === 0 ? channel.unsetLabel || "Not set" : String(value)),
+              (value) =>
+                updateSceneState(sceneContext, {
+                  structures: {
+                    [structureId]: {
+                      channels: {
+                        [channel.id]: value,
+                      },
+                    },
+                  },
+                }),
+            ),
+          );
+        }
+      }
+    }
+  }
 }
 
 async function updateSceneState(sceneContext, patch) {
   if (!sceneContext.manifest || sceneContext.transitioning) {
     return;
+  }
+
+  const currentStructures = sceneContext.currentState?.structures || {};
+  const patchedStructures = patch?.structures || {};
+  const mergedStructures = { ...currentStructures };
+  for (const structureId of Object.keys(patchedStructures)) {
+    mergedStructures[structureId] = {
+      ...(currentStructures[structureId] || {}),
+      ...(patchedStructures[structureId] || {}),
+      channels: {
+        ...(currentStructures[structureId]?.channels || {}),
+        ...(patchedStructures[structureId]?.channels || {}),
+      },
+    };
   }
 
   const nextState = cloneState({
@@ -859,6 +963,7 @@ async function updateSceneState(sceneContext, patch) {
       ...(sceneContext.currentState?.channels || {}),
       ...(patch?.channels || {}),
     },
+    structures: mergedStructures,
   });
   const key = buildStateKey(nextState);
   const variant = sceneContext.manifest.states[key];
@@ -883,6 +988,7 @@ async function recreateSceneRuntime(sceneContext, variant) {
   }
 
   const replacement = createSceneNode(parent.ownerDocument, sceneContext.descriptor, variant);
+  sceneContext.descriptor = captureSceneDescriptor(replacement);
   parent.insertBefore(replacement, sceneContext.runtime.wrapper);
 
   disposeSceneContext(sceneContext);

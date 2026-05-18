@@ -7,6 +7,7 @@ public class GuideSiteExportedScene {
     private final String inWorldJson;
     private final String overlayJson;
     private final String hoverTargetsJson;
+    private final String sceneSoundsJson;
     private final String stateManifestPath;
     private final String blockStatsHtml;
     private final String blockStatsLayoutClass;
@@ -27,22 +28,36 @@ public class GuideSiteExportedScene {
 
     public GuideSiteExportedScene(String placeholderPath, String scenePath, String inWorldJson, String overlayJson,
         String hoverTargetsJson) {
-        this(placeholderPath, scenePath, inWorldJson, overlayJson, hoverTargetsJson, null);
+        this(placeholderPath, scenePath, inWorldJson, overlayJson, hoverTargetsJson, null, null);
     }
 
     public GuideSiteExportedScene(String placeholderPath, String scenePath, String inWorldJson, String overlayJson,
         String hoverTargetsJson, String stateManifestPath) {
-        this(placeholderPath, scenePath, inWorldJson, overlayJson, hoverTargetsJson, stateManifestPath, null);
+        this(placeholderPath, scenePath, inWorldJson, overlayJson, hoverTargetsJson, null, stateManifestPath, null);
     }
 
     public GuideSiteExportedScene(String placeholderPath, String scenePath, String inWorldJson, String overlayJson,
-        String hoverTargetsJson, String stateManifestPath, String blockStatsHtml) {
+        String hoverTargetsJson, String sceneSoundsJson, String stateManifestPath) {
         this(
             placeholderPath,
             scenePath,
             inWorldJson,
             overlayJson,
             hoverTargetsJson,
+            sceneSoundsJson,
+            stateManifestPath,
+            null);
+    }
+
+    public GuideSiteExportedScene(String placeholderPath, String scenePath, String inWorldJson, String overlayJson,
+        String hoverTargetsJson, String sceneSoundsJson, String stateManifestPath, String blockStatsHtml) {
+        this(
+            placeholderPath,
+            scenePath,
+            inWorldJson,
+            overlayJson,
+            hoverTargetsJson,
+            sceneSoundsJson,
             stateManifestPath,
             blockStatsHtml,
             null,
@@ -50,14 +65,15 @@ public class GuideSiteExportedScene {
     }
 
     public GuideSiteExportedScene(String placeholderPath, String scenePath, String inWorldJson, String overlayJson,
-        String hoverTargetsJson, String stateManifestPath, String blockStatsHtml, String blockStatsLayoutClass,
-        String blockStatsLayoutStyle) {
+        String hoverTargetsJson, String sceneSoundsJson, String stateManifestPath, String blockStatsHtml,
+        String blockStatsLayoutClass, String blockStatsLayoutStyle) {
         this(
             placeholderPath,
             scenePath,
             inWorldJson,
             overlayJson,
             hoverTargetsJson,
+            sceneSoundsJson,
             stateManifestPath,
             blockStatsHtml,
             blockStatsLayoutClass,
@@ -70,14 +86,15 @@ public class GuideSiteExportedScene {
     }
 
     public GuideSiteExportedScene(String placeholderPath, String scenePath, String inWorldJson, String overlayJson,
-        String hoverTargetsJson, String stateManifestPath, String blockStatsHtml, String blockStatsLayoutClass,
-        String blockStatsLayoutStyle, boolean gridButtonEnabled, boolean gridVisible, String gridAnnotationJson,
-        boolean blockStatsButtonEnabled, boolean blockStatsVisible) {
+        String hoverTargetsJson, String sceneSoundsJson, String stateManifestPath, String blockStatsHtml,
+        String blockStatsLayoutClass, String blockStatsLayoutStyle, boolean gridButtonEnabled, boolean gridVisible,
+        String gridAnnotationJson, boolean blockStatsButtonEnabled, boolean blockStatsVisible) {
         this.placeholderPath = placeholderPath;
         this.scenePath = scenePath;
         this.inWorldJson = inWorldJson;
         this.overlayJson = overlayJson;
         this.hoverTargetsJson = hoverTargetsJson;
+        this.sceneSoundsJson = sceneSoundsJson;
         this.stateManifestPath = stateManifestPath;
         this.blockStatsHtml = blockStatsHtml;
         this.blockStatsLayoutClass = blockStatsLayoutClass;
@@ -107,6 +124,10 @@ public class GuideSiteExportedScene {
 
     public String hoverTargetsJson() {
         return hoverTargetsJson;
+    }
+
+    public String sceneSoundsJson() {
+        return sceneSoundsJson;
     }
 
     public String stateManifestPath() {

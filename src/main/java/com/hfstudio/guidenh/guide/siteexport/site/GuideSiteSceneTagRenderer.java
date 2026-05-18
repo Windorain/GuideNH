@@ -11,6 +11,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.hfstudio.guidenh.guide.scene.StructureLibSceneCondition;
 import com.hfstudio.guidenh.guide.sound.GuideSoundSpec;
 import com.hfstudio.guidenh.guide.sound.GuideSoundTrigger;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxAttribute;
@@ -125,7 +126,7 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
             }
         }
         appendSceneActionAttributes(html, exportedScene);
-        appendSceneSoundAttributes(html, element, defaultNamespace, currentPageId);
+        appendSceneSoundAttributes(html, element, defaultNamespace, currentPageId, exportedScene);
 
         html.append(">");
         if (hasBlockStats) {
@@ -136,13 +137,20 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
     }
 
     private void appendSceneSoundAttributes(StringBuilder html, MdxJsxElementFields element, String defaultNamespace,
-        ResourceLocation currentPageId) {
-        List<Map<String, Object>> sounds = collectSounds(element, defaultNamespace, currentPageId);
-        if (sounds.isEmpty()) {
+        ResourceLocation currentPageId, @Nullable GuideSiteExportedScene exportedScene) {
+        String soundsJson = exportedScene != null ? exportedScene.sceneSoundsJson() : null;
+        if ((soundsJson == null || soundsJson.isEmpty()) && element != null) {
+            List<Map<String, Object>> sounds = collectSounds(element, defaultNamespace, currentPageId);
+            if (sounds.isEmpty()) {
+                return;
+            }
+            soundsJson = GSON.toJson(sounds);
+        }
+        if (soundsJson == null || soundsJson.isEmpty() || "[]".equals(soundsJson)) {
             return;
         }
         html.append(" data-guide-scene-sounds=\"")
-            .append(escapeAttribute(GSON.toJson(sounds)))
+            .append(escapeAttribute(soundsJson))
             .append("\"");
     }
 
@@ -181,6 +189,13 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
                 data.put("x", sound.x());
                 data.put("y", sound.y());
                 data.put("z", sound.z());
+            }
+            StructureLibSceneCondition condition = StructureLibSceneCondition.parse(
+                readOptional(flowElement, "showWhenStructure"),
+                readOptional(flowElement, "showWhenTier"),
+                readOptional(flowElement, "showWhenChannels"));
+            if (condition != null && condition.hasAnyConstraint()) {
+                data.put("structureLibCondition", condition.toSiteExportData());
             }
             sounds.add(data);
         }

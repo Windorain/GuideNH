@@ -3,6 +3,7 @@ package com.hfstudio.guidenh.guide.scene;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +11,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import net.minecraft.item.ItemStack;
+
+import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.config.ModConfig;
 import com.hfstudio.guidenh.guide.compiler.IdUtils;
@@ -23,6 +26,7 @@ import com.hfstudio.guidenh.guide.scene.annotation.compiler.AnnotationTagCompile
 import com.hfstudio.guidenh.guide.scene.element.SceneElementTagCompiler;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibPreviewSelection;
+import com.hfstudio.guidenh.integration.structurelib.StructureLibSceneMetadata;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxFlowElement;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstAnyContent;
@@ -130,8 +134,7 @@ public class SceneTagCompiler extends BlockTagCompiler {
         if (el instanceof MdxJsxFlowElement flow) {
             blockStatsDeclared = compileSceneChildren(scene, compiler, parent, flow);
             scene.initializePonderTimelineBaseline();
-            scene.setStructureLibSelectionChangeListener(
-                selection -> rebuildSceneForStructureLibSelection(scene, compiler, flow, explicitCenter, selection));
+            configureStructureLibSelectionListeners(scene, compiler, flow, explicitCenter);
         }
 
         if (!scene.getLevel()
@@ -449,9 +452,21 @@ public class SceneTagCompiler extends BlockTagCompiler {
     }
 
     private void rebuildSceneForStructureLibSelection(LytGuidebookScene scene, PageCompiler compiler,
-        MdxJsxFlowElement flow, boolean explicitCenter, StructureLibPreviewSelection selection) {
+        MdxJsxFlowElement flow, boolean explicitCenter, @Nullable String structureName,
+        StructureLibPreviewSelection selection) {
         if (scene == null) {
             return;
+        }
+        Map<String, StructureLibPreviewSelection> bindingSelections = new LinkedHashMap<>(
+            scene.getStructureLibPreviewSelectionsByBinding());
+        if (structureName != null && !structureName.trim()
+            .isEmpty()) {
+            bindingSelections.put(structureName.trim(), selection);
+        } else if (!bindingSelections.isEmpty()) {
+            String primaryBindingKey = bindingSelections.keySet()
+                .iterator()
+                .next();
+            bindingSelections.put(primaryBindingKey, selection);
         }
         SavedCameraSettings savedCamera = scene.getCamera()
             .save();
@@ -460,20 +475,22 @@ public class SceneTagCompiler extends BlockTagCompiler {
         boolean gridVisible = scene.isGridVisible();
         scene.getAnnotations()
             .clear();
+        scene.clearSoundCues();
         scene.setHoveredBlock(null);
         scene.setHoveredEntity(null);
         scene.setHoveredStructureLibHatch(null);
         scene.clearAnnotationHover();
         scene.setStructureLibSceneMetadata(null);
-        scene.setPendingStructureLibPreviewSelection(selection);
+        scene.seedStructureLibPreviewSelections(bindingSelections);
         scene.setLevel(new GuidebookLevel());
         scene.resetBlockStatsConfiguration();
         boolean blockStatsDeclared;
         try {
             blockStatsDeclared = compileSceneChildren(scene, compiler, NOOP_ERROR_SINK, flow);
             scene.initializePonderTimelineBaseline();
+            configureStructureLibSelectionListeners(scene, compiler, flow, explicitCenter);
         } finally {
-            scene.setPendingStructureLibPreviewSelection(null);
+            scene.clearSeededStructureLibPreviewSelections();
         }
         applyImplicitBlockStats(scene, blockStatsDeclared);
         scene.applyDefaultBlockStatsMaxSizeFromScene();
@@ -489,6 +506,27 @@ public class SceneTagCompiler extends BlockTagCompiler {
         scene.setGridVisible(gridVisible);
         scene.getCamera()
             .restore(savedCamera);
+    }
+
+    private void configureStructureLibSelectionListeners(LytGuidebookScene scene, PageCompiler compiler,
+        MdxJsxFlowElement flow, boolean explicitCenter) {
+        scene.setStructureLibSelectionChangeListener(
+            selection -> rebuildSceneForStructureLibSelection(scene, compiler, flow, explicitCenter, null, selection));
+        for (StructureLibSceneBinding binding : scene.getStructureLibBindings()) {
+            StructureLibSceneMetadata metadata = binding.getMetadata();
+            if (binding.getName() == null || metadata == null) {
+                continue;
+            }
+            String structureName = binding.getName();
+            binding.setSelectionChangeListener(
+                selection -> rebuildSceneForStructureLibSelection(
+                    scene,
+                    compiler,
+                    flow,
+                    explicitCenter,
+                    structureName,
+                    selection));
+        }
     }
 
     public static MdxJsxElementFields unwrapSceneElement(UnistNode node) {

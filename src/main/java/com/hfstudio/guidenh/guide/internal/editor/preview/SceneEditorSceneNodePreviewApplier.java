@@ -29,6 +29,8 @@ import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneModel;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneNodeModel;
 import com.hfstudio.guidenh.guide.internal.structure.GuideTextNbtCodec;
 import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
+import com.hfstudio.guidenh.guide.scene.StructureLibSceneBinding;
+import com.hfstudio.guidenh.guide.scene.StructureLibSceneCondition;
 import com.hfstudio.guidenh.guide.scene.annotation.DiamondAnnotation;
 import com.hfstudio.guidenh.guide.scene.annotation.InWorldBoxAnnotation;
 import com.hfstudio.guidenh.guide.scene.annotation.InWorldLineAnnotation;
@@ -169,6 +171,14 @@ public class SceneEditorSceneNodePreviewApplier {
         }
         GuidebookLevel level = scene.getLevel();
         Integer requestedChannel = parseIntegerAttribute(node.getAttribute("channel"));
+        String structureName = normalizeAttribute(node.getAttribute("name"));
+        StructureLibSceneBinding binding = scene.registerStructureLibBinding(structureName);
+        StructureLibPreviewSelection selection = structureLibSelectionOverride != null ? structureLibSelectionOverride
+            : binding.getPendingSelection() != null ? binding.getPendingSelection()
+                : scene.getPendingStructureLibPreviewSelection(structureName) != null
+                    ? scene.getPendingStructureLibPreviewSelection(structureName)
+                    : requestedChannel != null ? StructureLibPreviewSelection.ofMasterTier(requestedChannel)
+                        : StructureLibPreviewSelection.defaultSelection();
 
         StructureLibImportRequest request = new StructureLibImportRequest(
             controller,
@@ -178,11 +188,9 @@ public class SceneEditorSceneNodePreviewApplier {
             node.getAttribute("flip"),
             structureLibSelectionOverride != null ? Integer.valueOf(structureLibSelectionOverride.getMasterTier())
                 : requestedChannel,
-            structureLibSelectionOverride != null ? structureLibSelectionOverride
-                : requestedChannel != null ? StructureLibPreviewSelection.ofMasterTier(requestedChannel)
-                    : StructureLibPreviewSelection.defaultSelection());
+            selection);
         StructureLibImportResult result = structureLibImportService.importScene(request);
-        attachStructureLibMetadata(scene, request, result);
+        attachStructureLibMetadata(scene, structureName, request, result);
         if (!result.isSuccess()) {
             return;
         }
@@ -205,10 +213,10 @@ public class SceneEditorSceneNodePreviewApplier {
         }
     }
 
-    private void attachStructureLibMetadata(LytGuidebookScene scene, StructureLibImportRequest request,
-        StructureLibImportResult result) {
+    private void attachStructureLibMetadata(LytGuidebookScene scene, @Nullable String structureName,
+        StructureLibImportRequest request, StructureLibImportResult result) {
         if (result.getMetadata() != null) {
-            scene.setStructureLibSceneMetadata(result.getMetadata());
+            scene.setStructureLibSceneMetadata(structureName, result.getMetadata());
             return;
         }
         if (!result.isSuccess()) {
@@ -216,6 +224,7 @@ public class SceneEditorSceneNodePreviewApplier {
         }
 
         scene.setStructureLibSceneMetadata(
+            structureName,
             new StructureLibSceneMetadata(
                 request.getController(),
                 request.getPiece(),
@@ -390,6 +399,7 @@ public class SceneEditorSceneNodePreviewApplier {
             InWorldBoxAnnotation annotation = new InWorldBoxAnnotation(min, max, color, element.getThickness());
             annotation.setAlwaysOnTop(element.isAlwaysOnTop());
             applyTooltip(annotation, element.getTooltipMarkdown());
+            applyStructureLibCondition(annotation, element);
             return annotation;
         }
         if (element.getType() == SceneEditorElementType.BOX) {
@@ -399,6 +409,7 @@ public class SceneEditorSceneNodePreviewApplier {
             InWorldBoxAnnotation annotation = new InWorldBoxAnnotation(min, max, color, element.getThickness());
             annotation.setAlwaysOnTop(element.isAlwaysOnTop());
             applyTooltip(annotation, element.getTooltipMarkdown());
+            applyStructureLibCondition(annotation, element);
             return annotation;
         }
         if (element.getType() == SceneEditorElementType.LINE) {
@@ -408,6 +419,7 @@ public class SceneEditorSceneNodePreviewApplier {
                 element.getThickness());
             annotation.setAlwaysOnTop(element.isAlwaysOnTop());
             applyTooltip(annotation, element.getTooltipMarkdown());
+            applyStructureLibCondition(annotation, element);
             return annotation;
         }
         if (element.getType() == SceneEditorElementType.TEXT) {
@@ -422,6 +434,7 @@ public class SceneEditorSceneNodePreviewApplier {
             PageCompiler compiler = SceneEditorTooltipCompiler.createPreviewCompiler(text);
             compiler.compileInlineMarkdown(text, paragraph);
             annotation.setRichContent(paragraph);
+            applyStructureLibCondition(annotation, element);
             return annotation;
         }
         DiamondAnnotation annotation = new DiamondAnnotation(
@@ -429,6 +442,7 @@ public class SceneEditorSceneNodePreviewApplier {
             color);
         annotation.setAlwaysOnTop(element.isAlwaysOnTop());
         applyTooltip(annotation, element.getTooltipMarkdown());
+        applyStructureLibCondition(annotation, element);
         return annotation;
     }
 
@@ -445,6 +459,12 @@ public class SceneEditorSceneNodePreviewApplier {
 
     private void applyTooltip(SceneAnnotation annotation, @Nullable String tooltipMarkdown) {
         annotation.setTooltip(tooltipCompiler.compile(tooltipMarkdown));
+    }
+
+    private void applyStructureLibCondition(SceneAnnotation annotation, SceneEditorElementModel element) {
+        annotation.setStructureLibCondition(
+            StructureLibSceneCondition
+                .parse(element.getShowWhenStructure(), element.getShowWhenTier(), element.getShowWhenChannels()));
     }
 
     private void normalizeBounds(Vector3f min, Vector3f max) {

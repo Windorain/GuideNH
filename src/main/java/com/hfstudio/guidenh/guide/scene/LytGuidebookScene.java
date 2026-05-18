@@ -285,6 +285,7 @@ public class LytGuidebookScene extends LytBlock {
     private Integer visibleLayerOverride;
     @Nullable
     private StructureLibSceneMetadata structureLibSceneMetadata;
+    private final LinkedHashMap<String, StructureLibSceneBinding> structureLibBindings = new LinkedHashMap<>();
     private final List<StructureLibSceneMetadata.ChannelData> selectableStructureLibChannels = new ArrayList<>();
     private int structureLibCurrentTier = 1;
     private final LinkedHashMap<String, Integer> structureLibChannelOverrides = new LinkedHashMap<>();
@@ -292,13 +293,17 @@ public class LytGuidebookScene extends LytBlock {
     @Nullable
     private Consumer<StructureLibPreviewSelection> structureLibSelectionChangeListener;
     @Nullable
+    private String structureLibPrimaryBindingKey;
+    @Nullable
     private StructureLibPreviewSelection pendingStructureLibPreviewSelection;
+    private final LinkedHashMap<String, StructureLibPreviewSelection> seededStructureLibPreviewSelections = new LinkedHashMap<>();
     private boolean initialStateCaptured;
     private boolean initialAnnotationsVisible = true;
     @Nullable
     private Integer initialVisibleLayerOverride;
     private int initialStructureLibCurrentTier = 1;
     private final LinkedHashMap<String, Integer> initialStructureLibChannelOverrides = new LinkedHashMap<>();
+    private final LinkedHashMap<String, StructureLibPreviewSelection> initialStructureLibSelectionsByBinding = new LinkedHashMap<>();
     private boolean initialStructureLibHatchHighlightEnabled;
     private boolean gridButtonEnabled = true;
     private boolean gridVisible = false;
@@ -466,6 +471,13 @@ public class LytGuidebookScene extends LytBlock {
         initialStructureLibCurrentTier = structureLibCurrentTier;
         initialStructureLibChannelOverrides.clear();
         initialStructureLibChannelOverrides.putAll(structureLibChannelOverrides);
+        initialStructureLibSelectionsByBinding.clear();
+        for (Map.Entry<String, StructureLibSceneBinding> entry : structureLibBindings.entrySet()) {
+            initialStructureLibSelectionsByBinding.put(
+                entry.getKey(),
+                entry.getValue()
+                    .getPreviewSelection());
+        }
         initialStructureLibHatchHighlightEnabled = structureLibHatchHighlightEnabled;
         initialGridVisible = gridVisible;
     }
@@ -490,6 +502,13 @@ public class LytGuidebookScene extends LytBlock {
             structureLibCurrentTier = initialStructureLibCurrentTier;
             structureLibChannelOverrides.clear();
             structureLibChannelOverrides.putAll(initialStructureLibChannelOverrides);
+            for (Map.Entry<String, StructureLibSceneBinding> entry : structureLibBindings.entrySet()) {
+                StructureLibPreviewSelection selection = initialStructureLibSelectionsByBinding.get(entry.getKey());
+                if (selection != null) {
+                    entry.getValue()
+                        .applyPreviewSelection(selection);
+                }
+            }
             structureLibHatchHighlightEnabled = initialStructureLibHatchHighlightEnabled;
             gridVisible = initialGridVisible;
         }
@@ -899,6 +918,9 @@ public class LytGuidebookScene extends LytBlock {
     }
 
     private boolean isAnnotationVisibleForCurrentLayer(SceneAnnotation annotation) {
+        if (!isStructureLibConditionSatisfied(annotation != null ? annotation.getStructureLibCondition() : null)) {
+            return false;
+        }
         Integer visibleLayerY = resolveVisibleLayerY();
         if (visibleLayerY == null || annotation == null) {
             return true;
@@ -996,43 +1018,148 @@ public class LytGuidebookScene extends LytBlock {
         clearAnnotationHover();
     }
 
-    public void setStructureLibSceneMetadata(@Nullable StructureLibSceneMetadata structureLibSceneMetadata) {
-        this.structureLibSceneMetadata = structureLibSceneMetadata;
+    public StructureLibSceneBinding registerStructureLibBinding(@Nullable String name) {
+        String normalizedName = StructureLibSceneCondition.normalizeStructureName(name);
+        String bindingKey = normalizedName != null ? normalizedName : "structurelib#" + structureLibBindings.size();
+        StructureLibSceneBinding binding = structureLibBindings.get(bindingKey);
+        if (binding != null) {
+            StructureLibPreviewSelection seededSelection = seededStructureLibPreviewSelections.get(bindingKey);
+            if (seededSelection != null) {
+                binding.setPendingSelection(seededSelection);
+            }
+            return binding;
+        }
+        StructureLibSceneBinding created = new StructureLibSceneBinding(normalizedName, bindingKey);
+        StructureLibPreviewSelection seededSelection = seededStructureLibPreviewSelections.get(bindingKey);
+        if (seededSelection != null) {
+            created.setPendingSelection(seededSelection);
+        }
+        created.setSelectionChangeListener(structureLibSelectionChangeListener);
+        structureLibBindings.put(bindingKey, created);
+        if (structureLibPrimaryBindingKey == null) {
+            structureLibPrimaryBindingKey = bindingKey;
+        }
+        return created;
+    }
+
+    @Nullable
+    public StructureLibSceneBinding resolveStructureLibBinding(@Nullable String name) {
+        String normalizedName = StructureLibSceneCondition.normalizeStructureName(name);
+        if (normalizedName == null) {
+            return structureLibBindings.size() == 1 ? structureLibBindings.values()
+                .iterator()
+                .next() : getPrimaryStructureLibBinding();
+        }
+        for (StructureLibSceneBinding binding : structureLibBindings.values()) {
+            if (normalizedName.equals(binding.getName())) {
+                return binding;
+            }
+        }
+        return null;
+    }
+
+    public int getStructureLibBindingCount() {
+        return structureLibBindings.size();
+    }
+
+    public List<StructureLibSceneBinding> getStructureLibBindings() {
+        return Collections.unmodifiableList(new ArrayList<>(structureLibBindings.values()));
+    }
+
+    public Map<String, StructureLibPreviewSelection> getStructureLibPreviewSelectionsByBinding() {
+        LinkedHashMap<String, StructureLibPreviewSelection> selections = new LinkedHashMap<>(
+            structureLibBindings.size());
+        for (Map.Entry<String, StructureLibSceneBinding> entry : structureLibBindings.entrySet()) {
+            selections.put(
+                entry.getKey(),
+                entry.getValue()
+                    .getPreviewSelection());
+        }
+        return selections;
+    }
+
+    @Nullable
+    private StructureLibSceneBinding getPrimaryStructureLibBinding() {
+        return structureLibPrimaryBindingKey != null ? structureLibBindings.get(structureLibPrimaryBindingKey) : null;
+    }
+
+    public boolean isStructureLibConditionSatisfied(@Nullable StructureLibSceneCondition condition) {
+        if (condition == null || !condition.hasAnyConstraint()) {
+            return true;
+        }
+        StructureLibSceneBinding binding = resolveStructureLibBinding(condition.getStructureName());
+        if (binding == null || binding.getMetadata() == null) {
+            return false;
+        }
+        if (condition.getTierCondition() != null && !condition.getTierCondition()
+            .matches(binding.getCurrentTier())) {
+            return false;
+        }
+        for (Map.Entry<String, StructureLibValueCondition> entry : condition.getChannelConditions()
+            .entrySet()) {
+            if (!entry.getValue()
+                .matches(binding.getChannelValue(entry.getKey()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void bindPrimaryStructureLibState(@Nullable StructureLibSceneBinding binding) {
+        this.structureLibSceneMetadata = binding != null ? binding.getMetadata() : null;
         this.structureLibChannelOverrides.clear();
         this.selectableStructureLibChannels.clear();
         this.structureLibHatchOverlayAnnotations.clear();
-        if (structureLibSceneMetadata == null) {
+        if (binding == null || binding.getMetadata() == null) {
             this.structureLibCurrentTier = 1;
             this.structureLibHatchHighlightEnabled = false;
             this.hoveredStructureLibHatch = null;
             return;
         }
-        StructureLibSceneMetadata.TierData tierData = structureLibSceneMetadata.getTierData();
-        this.structureLibCurrentTier = tierData != null ? tierData.getCurrentValue() : 1;
-        for (StructureLibSceneMetadata.ChannelData channelData : structureLibSceneMetadata.getChannelDataList()) {
-            if (channelData == null) {
-                continue;
-            }
-            if (channelData.isSelectable()) {
+        this.structureLibCurrentTier = binding.getCurrentTier();
+        this.structureLibChannelOverrides.putAll(binding.getChannelOverrides());
+        StructureLibSceneMetadata metadata = binding.getMetadata();
+        for (StructureLibSceneMetadata.ChannelData channelData : metadata.getChannelDataList()) {
+            if (channelData != null && channelData.isSelectable()) {
                 this.selectableStructureLibChannels.add(channelData);
             }
-            if (channelData.getCurrentValue() > 0) {
-                this.structureLibChannelOverrides.put(channelData.getChannelId(), channelData.getCurrentValue());
-            }
         }
-        for (StructureLibSceneMetadata.BlockTooltipEntry entry : structureLibSceneMetadata.getHatchTooltipEntries()) {
+        for (StructureLibSceneMetadata.BlockTooltipEntry entry : metadata.getHatchTooltipEntries()) {
             InWorldBlockFaceOverlayAnnotation overlay = new InWorldBlockFaceOverlayAnnotation(
                 entry.getX(),
                 entry.getY(),
                 entry.getZ(),
                 new ConstantColor(StructureLibTooltipContentBuilder.resolveHatchOverlayArgb(entry.getTooltipData())),
-                structureLibSceneMetadata.getHatchTooltipPositions());
+                metadata.getHatchTooltipPositions());
             overlay.setAlwaysOnTop(true);
             this.structureLibHatchOverlayAnnotations.add(overlay);
         }
-        if (!structureLibSceneMetadata.hasHatchTooltipData()) {
+        if (!metadata.hasHatchTooltipData()) {
             this.structureLibHatchHighlightEnabled = false;
             this.hoveredStructureLibHatch = null;
+        }
+        binding.setSelectionChangeListener(structureLibSelectionChangeListener);
+        binding.setPendingSelection(pendingStructureLibPreviewSelection);
+    }
+
+    public void setStructureLibSceneMetadata(@Nullable StructureLibSceneMetadata structureLibSceneMetadata) {
+        structureLibBindings.clear();
+        structureLibPrimaryBindingKey = null;
+        if (structureLibSceneMetadata == null) {
+            bindPrimaryStructureLibState(null);
+            return;
+        }
+        StructureLibSceneBinding binding = registerStructureLibBinding(null);
+        binding.setMetadata(structureLibSceneMetadata);
+        bindPrimaryStructureLibState(binding);
+    }
+
+    public void setStructureLibSceneMetadata(@Nullable String name,
+        @Nullable StructureLibSceneMetadata structureLibSceneMetadata) {
+        StructureLibSceneBinding binding = registerStructureLibBinding(name);
+        binding.setMetadata(structureLibSceneMetadata);
+        if (binding == getPrimaryStructureLibBinding()) {
+            bindPrimaryStructureLibState(binding);
         }
     }
 
@@ -1041,12 +1168,28 @@ public class LytGuidebookScene extends LytBlock {
         return structureLibSceneMetadata;
     }
 
+    @Nullable
+    public StructureLibSceneMetadata getStructureLibSceneMetadata(@Nullable String name) {
+        StructureLibSceneBinding binding = resolveStructureLibBinding(name);
+        return binding != null ? binding.getMetadata() : null;
+    }
+
     public boolean hasStructureLibSceneMetadata() {
         return structureLibSceneMetadata != null;
     }
 
+    public boolean hasStructureLibSceneMetadata(@Nullable String name) {
+        StructureLibSceneBinding binding = resolveStructureLibBinding(name);
+        return binding != null && binding.getMetadata() != null;
+    }
+
     public int getStructureLibCurrentTier() {
         return structureLibCurrentTier;
+    }
+
+    public int getStructureLibCurrentTier(@Nullable String name) {
+        StructureLibSceneBinding binding = resolveStructureLibBinding(name);
+        return binding != null ? binding.getCurrentTier() : StructureLibPreviewSelection.DEFAULT_MASTER_TIER;
     }
 
     public void setStructureLibCurrentTier(int structureLibCurrentTier) {
@@ -1057,9 +1200,21 @@ public class LytGuidebookScene extends LytBlock {
         setStructureLibCurrentTierInternal(structureLibCurrentTier, false);
     }
 
+    public void setStructureLibCurrentTier(@Nullable String structureName, int structureLibCurrentTier) {
+        setStructureLibCurrentTierInternal(structureName, structureLibCurrentTier, true);
+    }
+
+    public void setStructureLibCurrentTierSilently(@Nullable String structureName, int structureLibCurrentTier) {
+        setStructureLibCurrentTierInternal(structureName, structureLibCurrentTier, false);
+    }
+
     public void setStructureLibSelectionChangeListener(
         @Nullable Consumer<StructureLibPreviewSelection> structureLibSelectionChangeListener) {
         this.structureLibSelectionChangeListener = structureLibSelectionChangeListener;
+        StructureLibSceneBinding binding = getPrimaryStructureLibBinding();
+        if (binding != null) {
+            binding.setSelectionChangeListener(structureLibSelectionChangeListener);
+        }
     }
 
     private void setStructureLibCurrentTierInternal(int structureLibCurrentTier, boolean notifyListener) {
@@ -1073,8 +1228,27 @@ public class LytGuidebookScene extends LytBlock {
                 tierData.getMinValue(),
                 tierData.getMaxValue());
         }
+        StructureLibSceneBinding binding = getPrimaryStructureLibBinding();
+        if (binding != null) {
+            binding.setCurrentTier(this.structureLibCurrentTier);
+        }
         if (notifyListener && previousValue != this.structureLibCurrentTier) {
             notifyStructureLibSelectionChanged();
+        }
+    }
+
+    private void setStructureLibCurrentTierInternal(@Nullable String structureName, int structureLibCurrentTier,
+        boolean notifyListener) {
+        StructureLibSceneBinding binding = structureName != null ? registerStructureLibBinding(structureName)
+            : getPrimaryStructureLibBinding();
+        if (binding == null || binding == getPrimaryStructureLibBinding()) {
+            setStructureLibCurrentTierInternal(structureLibCurrentTier, notifyListener);
+            return;
+        }
+        int previousValue = binding.getCurrentTier();
+        binding.setCurrentTier(structureLibCurrentTier);
+        if (notifyListener && previousValue != binding.getCurrentTier()) {
+            notifyStructureLibSelectionChanged(structureName);
         }
     }
 
@@ -1087,12 +1261,25 @@ public class LytGuidebookScene extends LytBlock {
         return value != null ? value : 0;
     }
 
+    public int getStructureLibChannelValue(@Nullable String structureName, String channelId) {
+        StructureLibSceneBinding binding = resolveStructureLibBinding(structureName);
+        return binding != null ? binding.getChannelValue(channelId) : 0;
+    }
+
     public void setStructureLibChannelValue(String channelId, int value) {
         setStructureLibChannelValueInternal(channelId, value, true);
     }
 
     public void setStructureLibChannelValueSilently(String channelId, int value) {
         setStructureLibChannelValueInternal(channelId, value, false);
+    }
+
+    public void setStructureLibChannelValue(@Nullable String structureName, String channelId, int value) {
+        setStructureLibChannelValueInternal(structureName, channelId, value, true);
+    }
+
+    public void setStructureLibChannelValueSilently(@Nullable String structureName, String channelId, int value) {
+        setStructureLibChannelValueInternal(structureName, channelId, value, false);
     }
 
     private void setStructureLibChannelValueInternal(String channelId, int value, boolean notifyListener) {
@@ -1113,8 +1300,31 @@ public class LytGuidebookScene extends LytBlock {
         } else {
             structureLibChannelOverrides.remove(normalized);
         }
+        StructureLibSceneBinding binding = getPrimaryStructureLibBinding();
+        if (binding != null) {
+            binding.setChannelValue(normalized, nextValue);
+        }
         if (notifyListener && previousValue != nextValue) {
             notifyStructureLibSelectionChanged();
+        }
+    }
+
+    private void setStructureLibChannelValueInternal(@Nullable String structureName, String channelId, int value,
+        boolean notifyListener) {
+        StructureLibSceneBinding binding = structureName != null ? registerStructureLibBinding(structureName)
+            : getPrimaryStructureLibBinding();
+        if (binding == null || binding == getPrimaryStructureLibBinding()) {
+            setStructureLibChannelValueInternal(channelId, value, notifyListener);
+            return;
+        }
+        String normalized = StructureLibPreviewSelection.normalizeChannelId(channelId);
+        if (normalized == null) {
+            return;
+        }
+        int previousValue = binding.getChannelValue(normalized);
+        binding.setChannelValue(normalized, value);
+        if (notifyListener && previousValue != binding.getChannelValue(normalized)) {
+            notifyStructureLibSelectionChanged(structureName);
         }
     }
 
@@ -1122,18 +1332,81 @@ public class LytGuidebookScene extends LytBlock {
         return new StructureLibPreviewSelection(structureLibCurrentTier, structureLibChannelOverrides);
     }
 
+    public StructureLibPreviewSelection getStructureLibPreviewSelection(@Nullable String structureName) {
+        StructureLibSceneBinding binding = resolveStructureLibBinding(structureName);
+        return binding != null ? binding.getPreviewSelection() : StructureLibPreviewSelection.defaultSelection();
+    }
+
     @Nullable
     public StructureLibPreviewSelection getPendingStructureLibPreviewSelection() {
         return pendingStructureLibPreviewSelection;
     }
 
+    @Nullable
+    public StructureLibPreviewSelection getPendingStructureLibPreviewSelection(@Nullable String structureName) {
+        StructureLibSceneBinding binding = resolveStructureLibBinding(structureName);
+        return binding != null ? binding.getPendingSelection() : null;
+    }
+
     public void setPendingStructureLibPreviewSelection(@Nullable StructureLibPreviewSelection pendingSelection) {
         this.pendingStructureLibPreviewSelection = pendingSelection;
+        StructureLibSceneBinding binding = getPrimaryStructureLibBinding();
+        if (binding != null) {
+            binding.setPendingSelection(pendingSelection);
+        }
+    }
+
+    public void setPendingStructureLibPreviewSelection(@Nullable String structureName,
+        @Nullable StructureLibPreviewSelection pendingSelection) {
+        StructureLibSceneBinding binding = pendingSelection != null ? registerStructureLibBinding(structureName)
+            : resolveStructureLibBinding(structureName);
+        if (binding != null) {
+            binding.setPendingSelection(pendingSelection);
+        }
+        if (binding == getPrimaryStructureLibBinding()) {
+            this.pendingStructureLibPreviewSelection = pendingSelection;
+        }
+    }
+
+    public void seedStructureLibPreviewSelections(@Nullable Map<String, StructureLibPreviewSelection> selections) {
+        seededStructureLibPreviewSelections.clear();
+        if (selections == null || selections.isEmpty()) {
+            return;
+        }
+        seededStructureLibPreviewSelections.putAll(selections);
+    }
+
+    public void clearSeededStructureLibPreviewSelections() {
+        seededStructureLibPreviewSelections.clear();
+    }
+
+    public List<SceneSoundCue> getSoundCues() {
+        return Collections.unmodifiableList(soundCues);
+    }
+
+    public void clearSoundCues() {
+        soundCues.clear();
     }
 
     private void notifyStructureLibSelectionChanged() {
         if (structureLibSelectionChangeListener != null) {
             structureLibSelectionChangeListener.accept(getStructureLibPreviewSelection());
+        }
+    }
+
+    public void notifyStructureLibSelectionChanged(@Nullable String structureName) {
+        StructureLibSceneBinding binding = resolveStructureLibBinding(structureName);
+        if (binding == null) {
+            notifyStructureLibSelectionChanged();
+            return;
+        }
+        if (binding == getPrimaryStructureLibBinding()) {
+            notifyStructureLibSelectionChanged();
+            return;
+        }
+        Consumer<StructureLibPreviewSelection> listener = binding.getSelectionChangeListener();
+        if (listener != null) {
+            listener.accept(binding.getPreviewSelection());
         }
     }
 
@@ -1215,7 +1488,8 @@ public class LytGuidebookScene extends LytBlock {
         if (includeSceneAnnotations) {
             for (SceneAnnotation annotation : annotations) {
                 if (annotation instanceof InWorldAnnotation inWorldAnnotation
-                    && isAnnotationVisibleForLayerSelection(inWorldAnnotation, effectiveLayers)) {
+                    && isAnnotationVisibleForLayerSelection(inWorldAnnotation, effectiveLayers)
+                    && isStructureLibConditionSatisfied(annotation.getStructureLibCondition())) {
                     inWorld.add(inWorldAnnotation);
                 }
             }
@@ -1224,7 +1498,8 @@ public class LytGuidebookScene extends LytBlock {
             appendBlockStatsHighlightAnnotations(inWorld);
             for (SceneAnnotation annotation : ponderActiveAnnotations) {
                 if (annotation instanceof InWorldAnnotation inWorldAnnotation
-                    && isAnnotationVisibleForLayerSelection(inWorldAnnotation, effectiveLayers)) {
+                    && isAnnotationVisibleForLayerSelection(inWorldAnnotation, effectiveLayers)
+                    && isStructureLibConditionSatisfied(annotation.getStructureLibCondition())) {
                     inWorld.add(inWorldAnnotation);
                 }
             }
@@ -1244,20 +1519,23 @@ public class LytGuidebookScene extends LytBlock {
             : GuidebookSceneLayerSelection.all();
         for (SceneAnnotation annotation : annotations) {
             if (annotation instanceof OverlayAnnotation overlay
-                && isOverlayAnnotationVisibleForLayerSelection(overlay, effectiveLayers)) {
+                && isOverlayAnnotationVisibleForLayerSelection(overlay, effectiveLayers)
+                && isStructureLibConditionSatisfied(annotation.getStructureLibCondition())) {
                 overlays.add(overlay);
             }
         }
         for (SceneAnnotation annotation : ponderOutgoingAnnotations) {
             if (annotation instanceof OverlayAnnotation overlay
-                && isOverlayAnnotationVisibleForLayerSelection(overlay, effectiveLayers)) {
+                && isOverlayAnnotationVisibleForLayerSelection(overlay, effectiveLayers)
+                && isStructureLibConditionSatisfied(annotation.getStructureLibCondition())) {
                 overlay.setFade(Math.min(1f, ponderOutgoingFadeTick / 5f));
                 overlays.add(overlay);
             }
         }
         for (SceneAnnotation annotation : ponderActiveAnnotations) {
             if (annotation instanceof OverlayAnnotation overlay
-                && isOverlayAnnotationVisibleForLayerSelection(overlay, effectiveLayers)) {
+                && isOverlayAnnotationVisibleForLayerSelection(overlay, effectiveLayers)
+                && isStructureLibConditionSatisfied(annotation.getStructureLibCondition())) {
                 overlay.setFade(Math.min(1f, ponderAnnotationFadeTick / 5f));
                 overlays.add(overlay);
             }
@@ -1612,12 +1890,15 @@ public class LytGuidebookScene extends LytBlock {
         }
         appendBlockStatsHighlightAnnotations(inWorld);
         for (SceneAnnotation pa : ponderOutgoingAnnotations) {
-            if (pa instanceof OverlayAnnotation ov) {
+            if (pa instanceof OverlayAnnotation ov && isStructureLibConditionSatisfied(pa.getStructureLibCondition())) {
                 ov.setFade(Math.min(1f, ponderOutgoingFadeTick / 5f));
                 overlays.add(ov);
             }
         }
         for (SceneAnnotation pa : ponderActiveAnnotations) {
+            if (!isStructureLibConditionSatisfied(pa.getStructureLibCondition())) {
+                continue;
+            }
             if (pa instanceof InWorldAnnotation iw) inWorld.add(iw);
             else if (pa instanceof OverlayAnnotation ov) {
                 ov.setFade(Math.min(1f, ponderAnnotationFadeTick / 5f));
@@ -3337,6 +3618,10 @@ public class LytGuidebookScene extends LytBlock {
             if (!cue.matches(GuideSoundTrigger.HOVER)) {
                 continue;
             }
+            if (!isStructureLibConditionSatisfied(cue.getStructureLibCondition())) {
+                cue.setHovered(false);
+                continue;
+            }
             if (!inside) {
                 cue.setHovered(false);
                 continue;
@@ -3361,7 +3646,8 @@ public class LytGuidebookScene extends LytBlock {
         int centerY = cachedScreenRect != null ? cachedScreenRect.y() + cachedScreenRect.height() / 2
             : lastAbsY + lastH / 2;
         for (SceneSoundCue cue : soundCues) {
-            if (!cue.matches(GuideSoundTrigger.ENTER) || cue.isEntered()) {
+            if (!cue.matches(GuideSoundTrigger.ENTER) || cue.isEntered()
+                || !isStructureLibConditionSatisfied(cue.getStructureLibCondition())) {
                 continue;
             }
             cue.setEntered(true);
@@ -3374,7 +3660,7 @@ public class LytGuidebookScene extends LytBlock {
             return;
         }
         for (SceneSoundCue cue : soundCues) {
-            if (cue.matches(trigger)) {
+            if (cue.matches(trigger) && isStructureLibConditionSatisfied(cue.getStructureLibCondition())) {
                 playSceneSound(cue.getSound(), referenceX, referenceY);
             }
         }

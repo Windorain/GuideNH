@@ -98,6 +98,9 @@ public final class GuideSiteSceneAnnotationSerializer {
 
         if (scene != null) {
             for (SceneAnnotation annotation : scene.getAnnotations()) {
+                if (!scene.isStructureLibConditionSatisfied(annotation.getStructureLibCondition())) {
+                    continue;
+                }
                 if (annotation instanceof InWorldBoxAnnotation box) {
                     inWorld.add(serializeBox(box, templates, currentPageId, assetExporter, itemIconResolver));
                     continue;
@@ -133,6 +136,7 @@ public final class GuideSiteSceneAnnotationSerializer {
             currentPageId,
             assetExporter,
             itemIconResolver);
+        appendStructureLibCondition(data, box);
         data.put("minCorner", toVector(box.min()));
         data.put("maxCorner", toVector(box.max()));
         return data;
@@ -151,6 +155,7 @@ public final class GuideSiteSceneAnnotationSerializer {
             currentPageId,
             assetExporter,
             itemIconResolver);
+        appendStructureLibCondition(data, line);
         data.put("from", toVector(line.from()));
         data.put("to", toVector(line.to()));
         data.put("points", toVectors(line.points()));
@@ -200,6 +205,7 @@ public final class GuideSiteSceneAnnotationSerializer {
             currentPageId,
             assetExporter,
             itemIconResolver);
+        appendStructureLibCondition(data, blockOverlay);
         data.put(
             "minCorner",
             new float[] { blockOverlay.getBlockX(), blockOverlay.getBlockY(), blockOverlay.getBlockZ() });
@@ -217,6 +223,7 @@ public final class GuideSiteSceneAnnotationSerializer {
         data.put("type", "overlay");
         data.put("position", toVector(diamond.getPos()));
         data.put("color", toCssColor(diamond.getColor()));
+        appendStructureLibCondition(data, diamond);
         String templateId = createTemplateId(
             diamond.getTooltip(),
             templates,
@@ -227,6 +234,19 @@ public final class GuideSiteSceneAnnotationSerializer {
             data.put("contentTemplateId", templateId);
         }
         return data;
+    }
+
+    private static void appendStructureLibCondition(Map<String, Object> data, SceneAnnotation annotation) {
+        if (data == null || annotation == null
+            || annotation.getStructureLibCondition() == null
+            || !annotation.getStructureLibCondition()
+                .hasAnyConstraint()) {
+            return;
+        }
+        data.put(
+            "structureLibCondition",
+            annotation.getStructureLibCondition()
+                .toSiteExportData());
     }
 
     private static Map<String, Object> createBaseInWorldAnnotation(String type, ColorValue color, float thickness,

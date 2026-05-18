@@ -21,6 +21,27 @@ categories:
 
 Hover blocks in the StructureLib preview to inspect the extra structure text. Hold `Shift` to expand replacement candidates. If the imported structure exposes hatch or channel metadata, the preview also adds the hatch highlight button and the bottom sliders automatically.
 
+Named StructureLib imports can drive conditional annotations and sounds:
+
+<GameScene width="384" height="256" zoom={4} interactive={true}>
+  <ImportStructureLib name="main" controller="botanichorizons:automatedCraftingPool" />
+  <BlockAnnotation
+    pos="5 1 2"
+    color="#FFD24C"
+    showWhenStructure="main"
+    showWhenTier="1..3"
+    showWhenChannels="input:1..3"
+  >
+    This marker follows the selected `main` StructureLib state.
+  </BlockAnnotation>
+  <PlaySound
+    sound="guidenh:guide.sample_click"
+    trigger="click"
+    showWhenStructure="main"
+    showWhenTier="2..3"
+  />
+</GameScene>
+
 ## ImportStructure + RemoveBlocks
 
 `<ImportStructure src="..." />` expands an external SNBT/NBT file. `<RemoveBlocks id="..." />` strips blocks by id after import:

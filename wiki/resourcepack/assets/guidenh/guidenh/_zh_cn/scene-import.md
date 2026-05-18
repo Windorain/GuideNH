@@ -21,6 +21,27 @@ categories:
 
 将光标移到 StructureLib 结构方块上可以看到额外的结构说明；按住 `Shift` 会展开候选替换方块。如果该结构提供仓室或信道元数据，还会自动出现仓室高亮按钮和底部滑条。
 
+具名的 StructureLib 导入也可以驱动按状态显示的注解和音效：
+
+<GameScene width="384" height="256" zoom={4} interactive={true}>
+  <ImportStructureLib name="main" controller="botanichorizons:automatedCraftingPool" />
+  <BlockAnnotation
+    pos="5 1 2"
+    color="#FFD24C"
+    showWhenStructure="main"
+    showWhenTier="1..3"
+    showWhenChannels="input:1..3"
+  >
+    这个标记会跟随 `main` 结构当前选择的 StructureLib 状态。
+  </BlockAnnotation>
+  <PlaySound
+    sound="guidenh:guide.sample_click"
+    trigger="click"
+    showWhenStructure="main"
+    showWhenTier="2..3"
+  />
+</GameScene>
+
 ## ImportStructure + RemoveBlocks
 
 `<ImportStructure src="..." />` 展开外部 SNBT/NBT 文件。`<RemoveBlocks id="..." />` 在导入后按 id 移除方块：

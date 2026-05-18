@@ -55,6 +55,7 @@ public class SceneEditorPreviewBridge {
         boolean ponderFinished = scene.isPonderFinishedForPreviewRestore();
         scene.getAnnotations()
             .clear();
+        scene.clearSoundCues();
         scene.setHoveredStructureLibHatch(null);
         scene.setHoveredBlock(null);
         scene.setHoveredEntity(null);
@@ -90,6 +91,7 @@ public class SceneEditorPreviewBridge {
         scene.setStructureLibSelectionChangeListener(null);
         scene.getAnnotations()
             .clear();
+        scene.clearSoundCues();
         scene.clearAnnotationHover();
         scene.setHoveredStructureLibHatch(null);
         scene.setHoveredBlock(null);

@@ -563,7 +563,7 @@ These tags only work inside `<GameScene>` / `<Scene>`:
 | Tag | Purpose | Key attributes |
 | --- | --- | --- |
 | `<ImportStructure>` | import an external SNBT/NBT structure asset | `src`, `x`, `y`, `z` |
-| `<ImportStructureLib>` | import a StructureLib multiblock by controller id | `controller`, `piece`, `facing`, `rotation`, `flip`, `channel` |
+| `<ImportStructureLib>` | import a StructureLib multiblock by controller id | `controller`, `name`, `piece`, `facing`, `rotation`, `flip`, `channel` |
 | `<RemoveBlocks>` | remove already-placed blocks that match a block matcher | `id` |
 | `<BlockAnnotationTemplate>` | stamp the same child annotations onto every matching placed block | `id` |
 

@@ -311,6 +311,7 @@ GuideNH 当前注册了以下场景子标签：
 | 属性 | 必需 | 含义 |
 | --- | --- | --- |
 | `controller` | 是 | 控制器方块 id，格式为 `modid:block[:meta]` |
+| `name` | 否 | 可选绑定名，供注解、模板和音效上的 `showWhenStructure` 使用 |
 | `piece` | 否 | StructureLib piece 名称覆盖值 |
 | `facing` | 否 | 传给导入器的朝向覆盖值 |
 | `rotation` | 否 | 传给导入器的旋转覆盖值 |
@@ -325,12 +326,40 @@ GuideNH 当前注册了以下场景子标签：
 - 导入结构会从场景 `0 0 0` 开始；控制器不会被强制放在 `0 0 0`
 - 若有足够元数据，该标签会启用 StructureLib 专用 tooltip、舱口高亮和频道滑块 UI
 - 控制器匹配支持 GTNH 风格 `modid:block:meta`
+- 当场景里有多个 StructureLib 导入，而且其他标签需要只针对其中一个结构状态时，请显式提供 `name`
 
 示例：
 
 ````md
 <ImportStructureLib controller="botanichorizons:automatedCraftingPool" />
 <ImportStructureLib controller="gregtech:gt.blockmachines:1000" channel="7" />
+<ImportStructureLib name="main" controller="gregtech:gt.blockmachines:15411" />
+````
+
+按结构状态控制注解和音效的示例：
+
+````md
+<GameScene interactive={true}>
+  <ImportStructureLib name="main" controller="gregtech:gt.blockmachines:15411" />
+  <ImportStructureLib name="aux" controller="gregtech:gt.blockmachines:15412" />
+
+  <BlockAnnotation
+    pos="5 1 2"
+    color="#FFD24C"
+    showWhenStructure="main"
+    showWhenTier="2..4,!3"
+    showWhenChannels="input:1..3, casing:!2"
+  >
+    只会在匹配的 `main` 状态下显示。
+  </BlockAnnotation>
+
+  <PlaySound
+    sound="guidenh:machine.start"
+    trigger="click"
+    showWhenStructure="aux"
+    showWhenTier="1..2"
+  />
+</GameScene>
 ````
 
 ## `<IsometricCamera>`

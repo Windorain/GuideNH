@@ -7,11 +7,14 @@ import java.util.Set;
 import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
 
+import org.jetbrains.annotations.Nullable;
+
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.compiler.tags.MdxAttrs;
 import com.hfstudio.guidenh.guide.document.LytErrorSink;
 import com.hfstudio.guidenh.guide.scene.CameraSettings;
 import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
+import com.hfstudio.guidenh.guide.scene.StructureLibSceneBinding;
 import com.hfstudio.guidenh.guide.scene.annotation.compiler.AnnotationTagCompiler;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookPreviewBlockPlacer;
@@ -59,7 +62,11 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
         int offsetX = MdxAttrs.getInt(compiler, errorSink, el, "offsetX", 0);
         int offsetY = MdxAttrs.getInt(compiler, errorSink, el, "offsetY", 0);
         int offsetZ = MdxAttrs.getInt(compiler, errorSink, el, "offsetZ", 0);
-        StructureLibPreviewSelection selectionOverride = scene.getPendingStructureLibPreviewSelection();
+        String structureName = MdxAttrs.getString(compiler, errorSink, el, "name", null);
+        StructureLibSceneBinding binding = scene.registerStructureLibBinding(structureName);
+        StructureLibPreviewSelection selectionOverride = binding.getPendingSelection() != null
+            ? binding.getPendingSelection()
+            : scene.getPendingStructureLibPreviewSelection();
         StructureLibImportRequest request = new StructureLibImportRequest(
             controller,
             MdxAttrs.getString(compiler, errorSink, el, "piece", null),
@@ -72,7 +79,7 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
                     : StructureLibPreviewSelection.ofMasterTier(requestedChannel));
 
         StructureLibImportResult result = importService.importScene(request);
-        attachMetadata(scene, request, result);
+        attachMetadata(scene, structureName, request, result);
 
         if (!result.isSuccess()) {
             errorSink.appendError(compiler, resolveFailureMessage(result.getErrors(), request.getController()), el);
@@ -98,16 +105,17 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
         }
     }
 
-    public static void attachMetadata(LytGuidebookScene scene, StructureLibImportRequest request,
-        StructureLibImportResult result) {
+    public static void attachMetadata(LytGuidebookScene scene, @Nullable String structureName,
+        StructureLibImportRequest request, StructureLibImportResult result) {
         StructureLibSceneMetadata metadata = result.getMetadata();
         if (metadata != null) {
-            scene.setStructureLibSceneMetadata(metadata);
+            scene.setStructureLibSceneMetadata(structureName, metadata);
             return;
         }
 
         if (result.isSuccess()) {
             scene.setStructureLibSceneMetadata(
+                structureName,
                 new StructureLibSceneMetadata(
                     request.getController(),
                     request.getPiece(),

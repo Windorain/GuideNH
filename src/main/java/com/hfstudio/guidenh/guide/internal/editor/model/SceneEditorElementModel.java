@@ -23,6 +23,9 @@ public class SceneEditorElementModel {
     private boolean alwaysOnTop;
     private String tooltipMarkdown;
     private String textMarkdown;
+    private String showWhenStructure;
+    private String showWhenTier;
+    private String showWhenChannels;
     private int maxWidth;
     private int backgroundAlpha;
     private final List<Vector3f> linePoints;
@@ -42,6 +45,9 @@ public class SceneEditorElementModel {
         this.alwaysOnTop = false;
         this.tooltipMarkdown = "";
         this.textMarkdown = type.getDefaultText();
+        this.showWhenStructure = "";
+        this.showWhenTier = "";
+        this.showWhenChannels = "";
         this.maxWidth = type.getDefaultMaxWidth();
         this.backgroundAlpha = type.getDefaultBackgroundAlpha();
         this.linePoints = new ArrayList<>();
@@ -167,6 +173,30 @@ public class SceneEditorElementModel {
         this.textMarkdown = textMarkdown;
     }
 
+    public String getShowWhenStructure() {
+        return showWhenStructure;
+    }
+
+    public void setShowWhenStructure(String showWhenStructure) {
+        this.showWhenStructure = showWhenStructure != null ? showWhenStructure : "";
+    }
+
+    public String getShowWhenTier() {
+        return showWhenTier;
+    }
+
+    public void setShowWhenTier(String showWhenTier) {
+        this.showWhenTier = showWhenTier != null ? showWhenTier : "";
+    }
+
+    public String getShowWhenChannels() {
+        return showWhenChannels;
+    }
+
+    public void setShowWhenChannels(String showWhenChannels) {
+        this.showWhenChannels = showWhenChannels != null ? showWhenChannels : "";
+    }
+
     public int getMaxWidth() {
         return maxWidth;
     }
@@ -197,6 +227,9 @@ public class SceneEditorElementModel {
         duplicate.setAlwaysOnTop(this.alwaysOnTop);
         duplicate.setTooltipMarkdown(this.tooltipMarkdown);
         duplicate.setTextMarkdown(this.textMarkdown);
+        duplicate.setShowWhenStructure(this.showWhenStructure);
+        duplicate.setShowWhenTier(this.showWhenTier);
+        duplicate.setShowWhenChannels(this.showWhenChannels);
         duplicate.setMaxWidth(this.maxWidth);
         duplicate.setBackgroundAlpha(this.backgroundAlpha);
         duplicate.setLinePoints(this.linePoints);
