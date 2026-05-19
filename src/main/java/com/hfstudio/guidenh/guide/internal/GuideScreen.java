@@ -2270,12 +2270,17 @@ public class GuideScreen extends GuiContainer
             int sizeX = bounds[3] - bounds[0] + 1;
             int sizeY = bounds[4] - bounds[1] + 1;
             int sizeZ = bounds[5] - bounds[2] + 1;
-            String label = currentAnchor != null ? currentAnchor.pageId() + "#" + i : "scene#" + i;
+            String label = currentAnchor != null
+                ? currentAnchor.pageId() + "@" + System.identityHashCode(currentPage) + "#" + i
+                : "scene@" + System.identityHashCode(currentPage) + "#" + i;
+            GuideNhClientBridgeController bridgeController = GuideNhClientBridgeController.getInstance();
+            if (bridgeController.hasRememberedScene(label)) {
+                continue;
+            }
             GuideStructureData structureData = RegionWandItem
                 .exportRegionAsStructureData(level, bounds[0], bounds[1], bounds[2], sizeX, sizeY, sizeZ);
             if (structureData != null) {
-                GuideNhClientBridgeController.getInstance()
-                    .rememberScene(label, structureData);
+                bridgeController.rememberScene(label, structureData);
             }
         }
     }

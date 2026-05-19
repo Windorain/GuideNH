@@ -561,6 +561,7 @@ public class SceneTagCompiler extends BlockTagCompiler {
         boolean annotationsVisible = scene.isAnnotationsVisible();
         boolean hatchHighlightEnabled = scene.isStructureLibHatchHighlightEnabled();
         boolean gridVisible = scene.isGridVisible();
+        scene.captureInitialStructureStateIfAbsent();
         scene.getAnnotations()
             .clear();
         scene.clearSoundCues();

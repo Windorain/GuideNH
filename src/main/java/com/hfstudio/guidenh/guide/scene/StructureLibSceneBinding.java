@@ -45,7 +45,7 @@ public class StructureLibSceneBinding {
 
     public void setMetadata(@Nullable StructureLibSceneMetadata metadata) {
         StructureLibPreviewSelection preservedSelection = pendingSelection != null ? pendingSelection
-            : getPreviewSelection();
+            : this.metadata != null ? getPreviewSelection() : null;
         this.metadata = metadata;
         channelOverrides.clear();
         if (metadata == null) {
@@ -59,7 +59,9 @@ public class StructureLibSceneBinding {
                 channelOverrides.put(channelData.getChannelId(), channelData.getCurrentValue());
             }
         }
-        applyPreviewSelection(preservedSelection);
+        if (preservedSelection != null) {
+            applyPreviewSelection(preservedSelection);
+        }
     }
 
     public int getCurrentTier() {

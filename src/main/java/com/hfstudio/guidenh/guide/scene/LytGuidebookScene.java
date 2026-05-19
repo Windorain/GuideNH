@@ -68,6 +68,7 @@ import com.hfstudio.guidenh.guide.scene.annotation.PonderInputAnnotation;
 import com.hfstudio.guidenh.guide.scene.annotation.SceneAnnotation;
 import com.hfstudio.guidenh.guide.scene.annotation.SceneFloorGridAnnotation;
 import com.hfstudio.guidenh.guide.scene.annotation.TextAnnotation;
+import com.hfstudio.guidenh.guide.scene.cache.GuideSceneStructureCacheEntry;
 import com.hfstudio.guidenh.guide.scene.element.GuidebookSceneEntityLoader;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookPreviewBlockPlacer;
@@ -116,6 +117,11 @@ public class LytGuidebookScene extends LytBlock {
     public static final ResolvedTextStyle STRUCTURELIB_CHANNEL_SLIDER_TEXT_STYLE = DefaultStyles.BODY_TEXT
         .mergeWith(DefaultStyles.BASE_STYLE);
     public static final ResolvedTextStyle BLOCK_STATS_TEXT_STYLE = DefaultStyles.BODY_TEXT
+        .mergeWith(DefaultStyles.BASE_STYLE);
+    public static final ResolvedTextStyle BLOCK_STATS_COUNT_TEXT_STYLE = DefaultStyles.BODY_TEXT.toBuilder()
+        .color(ConstantColor.WHITE)
+        .dropShadow(true)
+        .build()
         .mergeWith(DefaultStyles.BASE_STYLE);
     public static final int BLOCK_STATS_BACKGROUND_COLOR = 0xAA111922;
     public static final int BLOCK_STATS_BORDER_COLOR = 0x66FFFFFF;
@@ -304,7 +310,10 @@ public class LytGuidebookScene extends LytBlock {
     private int initialStructureLibCurrentTier = 1;
     private final LinkedHashMap<String, Integer> initialStructureLibChannelOverrides = new LinkedHashMap<>();
     private final LinkedHashMap<String, StructureLibPreviewSelection> initialStructureLibSelectionsByBinding = new LinkedHashMap<>();
+    private final LinkedHashMap<String, StructureLibPreviewSelection> initialPendingStructureLibSelectionsByBinding = new LinkedHashMap<>();
     private boolean initialStructureLibHatchHighlightEnabled;
+    @Nullable
+    private GuideSceneStructureCacheEntry initialStructureState;
     private boolean gridButtonEnabled = true;
     private boolean gridVisible = false;
     private boolean initialGridVisible = false;
@@ -321,6 +330,7 @@ public class LytGuidebookScene extends LytBlock {
     private final List<SceneBlockStatsEntry> cachedBlockStatsEntries = new ArrayList<>();
     private boolean blockStatsDirty = true;
     private boolean blockStatsWidthsDirty = true;
+    private int cachedBlockStatsItemWidth = BLOCK_STATS_ITEM_SIZE;
     private int cachedBlockStatsContentWidth;
     private int blockStatsMaxWidth = BLOCK_STATS_DEFAULT_MAX_WIDTH;
     private int blockStatsMaxHeight = BLOCK_STATS_DEFAULT_MAX_HEIGHT;
@@ -472,14 +482,23 @@ public class LytGuidebookScene extends LytBlock {
         initialStructureLibChannelOverrides.clear();
         initialStructureLibChannelOverrides.putAll(structureLibChannelOverrides);
         initialStructureLibSelectionsByBinding.clear();
+        initialPendingStructureLibSelectionsByBinding.clear();
         for (Map.Entry<String, StructureLibSceneBinding> entry : structureLibBindings.entrySet()) {
-            initialStructureLibSelectionsByBinding.put(
-                entry.getKey(),
-                entry.getValue()
-                    .getPreviewSelection());
+            StructureLibSceneBinding binding = entry.getValue();
+            initialStructureLibSelectionsByBinding.put(entry.getKey(), binding.getPreviewSelection());
+            StructureLibPreviewSelection pendingSelection = binding.getPendingSelection();
+            if (pendingSelection != null) {
+                initialPendingStructureLibSelectionsByBinding.put(entry.getKey(), pendingSelection);
+            }
         }
         initialStructureLibHatchHighlightEnabled = structureLibHatchHighlightEnabled;
         initialGridVisible = gridVisible;
+    }
+
+    public void captureInitialStructureStateIfAbsent() {
+        if (initialStructureState == null && !level.isEmpty()) {
+            initialStructureState = GuideSceneStructureCacheEntry.capture(this);
+        }
     }
 
     public void resetInteractiveState() {
@@ -497,18 +516,25 @@ public class LytGuidebookScene extends LytBlock {
         hoveredStructureLibHatch = null;
         clearAnnotationHover();
         if (initialStateCaptured) {
+            float[] capturedInitialCam = initialCam.clone();
+            if (initialStructureState != null) {
+                initialStructureState.restoreInto(this);
+                initialCam = capturedInitialCam;
+            }
             annotationsVisible = initialAnnotationsVisible;
             visibleLayerOverride = initialVisibleLayerOverride;
             structureLibCurrentTier = initialStructureLibCurrentTier;
             structureLibChannelOverrides.clear();
             structureLibChannelOverrides.putAll(initialStructureLibChannelOverrides);
             for (Map.Entry<String, StructureLibSceneBinding> entry : structureLibBindings.entrySet()) {
+                StructureLibSceneBinding binding = entry.getValue();
                 StructureLibPreviewSelection selection = initialStructureLibSelectionsByBinding.get(entry.getKey());
                 if (selection != null) {
-                    entry.getValue()
-                        .applyPreviewSelection(selection);
+                    binding.applyPreviewSelection(selection);
                 }
+                binding.setPendingSelection(initialPendingStructureLibSelectionsByBinding.get(entry.getKey()));
             }
+            bindPrimaryStructureLibState(getPrimaryStructureLibBinding());
             structureLibHatchHighlightEnabled = initialStructureLibHatchHighlightEnabled;
             gridVisible = initialGridVisible;
         }
@@ -519,7 +545,6 @@ public class LytGuidebookScene extends LytBlock {
             ponderAnnotationFadeTick = 5;
             updatePonderState();
         }
-        pendingStructureLibPreviewSelection = null;
         clearCachedVisibleLayerSliderRects();
         clearCachedTierSliderRects();
         clearCachedChannelSliderRects();
@@ -1711,9 +1736,26 @@ public class LytGuidebookScene extends LytBlock {
     }
 
     private int blockStatsDockEntryWidthForLayout() {
-        return blockStatsShowNames
-            ? Math.max(96, Math.min(blockStatsMaxWidth, BLOCK_STATS_ITEM_SIZE + BLOCK_STATS_GAP + 72))
-            : BLOCK_STATS_ITEM_SIZE;
+        int itemWidth = blockStatsItemWidthForLayout();
+        return blockStatsShowNames ? Math.max(96, Math.min(blockStatsMaxWidth, itemWidth + BLOCK_STATS_GAP + 72))
+            : itemWidth;
+    }
+
+    private int blockStatsItemWidthForLayout() {
+        int width = BLOCK_STATS_ITEM_SIZE;
+        if (blockStatsDirty) {
+            rebuildBlockStatsEntries();
+        }
+        for (SceneBlockStatsEntry entry : cachedBlockStatsEntries) {
+            if (entry.getCount() > 1) {
+                width = Math.max(width, estimateBlockStatsCountWidth(formatBlockStatsDisplayCount(entry.getCount())));
+            }
+        }
+        return width;
+    }
+
+    private static int estimateBlockStatsCountWidth(String countText) {
+        return Math.max(BLOCK_STATS_ITEM_SIZE, (countText != null ? countText.length() : 0) * 6 + 4);
     }
 
     private int blockStatsRowHeightForLayout() {
@@ -2152,8 +2194,14 @@ public class LytGuidebookScene extends LytBlock {
             rebuildBlockStatsEntries();
         }
         if (blockStatsWidthsDirty) {
+            cachedBlockStatsItemWidth = BLOCK_STATS_ITEM_SIZE;
             cachedBlockStatsContentWidth = 0;
             for (SceneBlockStatsEntry entry : cachedBlockStatsEntries) {
+                if (entry.getCount() > 1) {
+                    String countText = formatBlockStatsDisplayCount(entry.getCount());
+                    int countWidth = context.getStringWidth(countText, BLOCK_STATS_COUNT_TEXT_STYLE);
+                    cachedBlockStatsItemWidth = Math.max(cachedBlockStatsItemWidth, countWidth + 4);
+                }
                 String text = blockStatsEntryText(entry);
                 int width = context.getStringWidth(text, BLOCK_STATS_TEXT_STYLE);
                 entry.setCachedTextWidth(width);
@@ -2228,7 +2276,7 @@ public class LytGuidebookScene extends LytBlock {
     }
 
     private static int displayCount(int count) {
-        return Math.max(1, Math.min(999, count));
+        return Math.max(1, count);
     }
 
     private String blockStatsEntryText(SceneBlockStatsEntry entry) {
@@ -2236,6 +2284,25 @@ public class LytGuidebookScene extends LytBlock {
             return "";
         }
         return entry.getLabel() + " x" + entry.getCount();
+    }
+
+    private static String formatBlockStatsDisplayCount(int count) {
+        int value = Math.max(1, count);
+        if (value < 1000) {
+            return Integer.toString(value);
+        }
+        if (value < 10000) {
+            int tenths = value / 100;
+            if (tenths % 10 == 0) {
+                return Integer.toString(tenths / 10) + "k";
+            }
+            return Integer.toString(tenths / 10) + "." + tenths % 10 + "k";
+        }
+        if (value < 1000000) {
+            return Integer.toString(value / 1000) + "k";
+        }
+        int millions = value / 1000000;
+        return Integer.toString(millions) + "m";
     }
 
     @Nullable
@@ -2556,9 +2623,13 @@ public class LytGuidebookScene extends LytBlock {
 
     private int blockStatsEntryWidth() {
         if (!blockStatsShowNames) {
-            return BLOCK_STATS_ITEM_SIZE;
+            return blockStatsItemWidth();
         }
-        return BLOCK_STATS_ITEM_SIZE + BLOCK_STATS_GAP + cachedBlockStatsContentWidth;
+        return blockStatsItemWidth() + BLOCK_STATS_GAP + cachedBlockStatsContentWidth;
+    }
+
+    private int blockStatsItemWidth() {
+        return Math.max(BLOCK_STATS_ITEM_SIZE, cachedBlockStatsItemWidth);
     }
 
     private void drawLinearBlockStatsRows(RenderContext context, List<SceneBlockStatsEntry> entries, LytRect viewport,
@@ -2566,7 +2637,7 @@ public class LytGuidebookScene extends LytBlock {
         int firstRow = Math.max(0, blockStatsScrollY / Math.max(1, rowStride));
         int rowY = viewport.y() - blockStatsScrollY + firstRow * rowStride;
         int itemX = viewport.x() - blockStatsScrollX;
-        int textX = itemX + BLOCK_STATS_ITEM_SIZE + BLOCK_STATS_GAP;
+        int textX = itemX + blockStatsItemWidth() + BLOCK_STATS_GAP;
         int textOffsetY = Math.max(0, (rowHeight - lineHeight) / 2);
         int itemOffsetY = Math.max(0, (rowHeight - BLOCK_STATS_ITEM_SIZE) / 2);
         for (int i = firstRow; i < entries.size() && rowY < viewport.bottom(); i++) {
@@ -2606,7 +2677,7 @@ public class LytGuidebookScene extends LytBlock {
                 viewport,
                 itemX,
                 rowY,
-                itemX + BLOCK_STATS_ITEM_SIZE + BLOCK_STATS_GAP,
+                itemX + blockStatsItemWidth() + BLOCK_STATS_GAP,
                 rowHeight,
                 textOffsetY,
                 itemOffsetY);
@@ -2616,17 +2687,30 @@ public class LytGuidebookScene extends LytBlock {
     private void drawBlockStatsEntry(RenderContext context, SceneBlockStatsEntry entry, LytRect viewport, int itemX,
         int rowY, int textX, int rowHeight, int textOffsetY, int itemOffsetY) {
         boolean selected = selectedBlockStatsKey != null && selectedBlockStatsKey.equals(entry.getKey());
-        int rowWidth = blockStatsShowNames ? blockStatsEntryWidth() : BLOCK_STATS_ITEM_SIZE;
+        int rowWidth = blockStatsShowNames ? blockStatsEntryWidth() : blockStatsItemWidth();
         if (selected) {
             context.fillRect(itemX - 1, rowY, rowWidth + 2, rowHeight, BLOCK_STATS_SELECTED_ROW_COLOR);
         }
         int itemY = rowY + itemOffsetY;
-        context.renderItem(entry.getDisplayStack(), itemX, itemY);
+        context.renderItemIcon(entry.getDisplayStack(), itemX, itemY);
+        drawBlockStatsItemCount(context, entry, itemX, itemY);
         addBlockStatsHitRegion(entry, itemX, rowY, rowWidth, rowHeight, viewport);
         if (blockStatsShowNames) {
             String text = blockStatsEntryText(entry);
             context.drawText(text, textX, rowY + textOffsetY, BLOCK_STATS_TEXT_STYLE);
         }
+    }
+
+    private void drawBlockStatsItemCount(RenderContext context, SceneBlockStatsEntry entry, int itemX, int itemY) {
+        if (entry.getCount() <= 1) {
+            return;
+        }
+        String countText = formatBlockStatsDisplayCount(entry.getCount());
+        int textWidth = context.getStringWidth(countText, BLOCK_STATS_COUNT_TEXT_STYLE);
+        int textHeight = context.getLineHeight(BLOCK_STATS_COUNT_TEXT_STYLE);
+        int countX = itemX + blockStatsItemWidth() - textWidth;
+        int countY = itemY + BLOCK_STATS_ITEM_SIZE - textHeight + 1;
+        context.drawText(countText, countX, countY, BLOCK_STATS_COUNT_TEXT_STYLE);
     }
 
     private void addBlockStatsHitRegion(SceneBlockStatsEntry entry, int x, int y, int width, int height,
