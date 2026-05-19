@@ -98,6 +98,9 @@ import com.hfstudio.guidenh.integration.structurelib.StructureLibPreviewSelectio
 import com.hfstudio.guidenh.integration.structurelib.StructureLibSceneMetadata;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibTooltipContentBuilder;
 
+import lombok.Getter;
+import lombok.Setter;
+
 public class LytGuidebookScene extends LytBlock {
 
     public static final float DRAG_ROTATE_SENSITIVITY = 0.5f;
@@ -134,7 +137,7 @@ public class LytGuidebookScene extends LytBlock {
     public static final int BLOCK_STATS_ITEM_SIZE = 16;
     public static final int BLOCK_STATS_MIN_WIDTH = 32;
     public static final int BLOCK_STATS_MIN_HEIGHT = 20;
-    public static final int BLOCK_STATS_DEFAULT_MAX_WIDTH = 140;
+    public static final int BLOCK_STATS_DEFAULT_MAX_WIDTH = 224;
     public static final int BLOCK_STATS_DEFAULT_MAX_HEIGHT = 96;
     public static final int BLOCK_STATS_SCROLLBAR_SIZE = 6;
     public static final int BLOCK_STATS_SCROLLBAR_MIN_THUMB = 12;
@@ -185,12 +188,26 @@ public class LytGuidebookScene extends LytBlock {
     private int cachedPonderBtnAbsX;
     private int cachedPonderBtnAbsY;
 
+    @Getter
+    @Setter
     private boolean interactive = true;
+    @Setter
+    @Getter
     private boolean sceneButtonsVisible = true;
+    @Getter
+    @Setter
     private boolean bottomControlsVisible = true;
+    @Getter
+    @Setter
     private boolean reserveBottomControlArea = true;
+    @Getter
+    @Setter
     private boolean visibleLayerSliderEnabled;
+    @Getter
+    @Setter
     private boolean forceOriginAxesVisible;
+    @Setter
+    @Getter
     private boolean forceHideOriginAxes;
 
     public static int SCENE_BG_COLOR = 0xFF0A0A10;
@@ -211,22 +228,27 @@ public class LytGuidebookScene extends LytBlock {
         GuideIconButton.Role.PONDER_PLAY_PAUSE, GuideIconButton.Role.PONDER_RESTART };
 
     public static final int PONDER_BTN_TOTAL_WIDTH = SCENE_SLIDER_AREA_HEIGHT * 3;
-    public static final int PONDER_PROGRESS_TRACK_COLOR = 0x40FFFFFF;
-    public static final int PONDER_PROGRESS_FILL_COLOR = 0xAA1CB4E9;
     public static final int PONDER_KEYFRAME_NODE_COLOR = 0xC0AAAADD;
     public static final int PONDER_KEYFRAME_NODE_HOVER_COLOR = 0xFFC0C0FF;
 
     public static final int DEFAULT_WIDTH = 256;
     public static final int DEFAULT_HEIGHT = 192;
 
+    @Getter
     private GuidebookLevel level = new GuidebookLevel();
+    @Getter
     private CameraSettings camera = new CameraSettings();
     private int width = DEFAULT_WIDTH;
     private int height = DEFAULT_HEIGHT;
+    @Setter
+    @Getter
     private int sceneBackgroundColor = SCENE_BG_COLOR;
+    @Setter
+    @Getter
     private int sceneBorderColor = SCENE_BORDER_COLOR;
     @Nullable
     private LytSize cameraViewportOverride;
+    @Getter
     private final List<SceneAnnotation> annotations = new ArrayList<>();
 
     // Reuse annotation partitions instead of allocating new lists every frame.
@@ -288,6 +310,7 @@ public class LytGuidebookScene extends LytBlock {
     private boolean cachedBlockStatsButtonEnabled = true;
     private GuideIconButton.Role[] cachedSceneButtonRoles = SCENE_BUTTONS_SHOWN;
 
+    @Getter
     private boolean annotationsVisible = true;
     @Nullable
     private Integer visibleLayerOverride;
@@ -295,8 +318,10 @@ public class LytGuidebookScene extends LytBlock {
     private StructureLibSceneMetadata structureLibSceneMetadata;
     private final LinkedHashMap<String, StructureLibSceneBinding> structureLibBindings = new LinkedHashMap<>();
     private final List<StructureLibSceneMetadata.ChannelData> selectableStructureLibChannels = new ArrayList<>();
+    @Getter
     private int structureLibCurrentTier = 1;
     private final LinkedHashMap<String, Integer> structureLibChannelOverrides = new LinkedHashMap<>();
+    @Getter
     private boolean structureLibHatchHighlightEnabled;
     @Nullable
     private Consumer<StructureLibPreviewSelection> structureLibSelectionChangeListener;
@@ -317,9 +342,12 @@ public class LytGuidebookScene extends LytBlock {
     @Nullable
     private GuideSceneStructureCacheEntry initialStructureState;
     private boolean gridButtonEnabled = true;
+    @Setter
+    @Getter
     private boolean gridVisible = false;
     private boolean initialGridVisible = false;
     private boolean blockStatsEnabled = false;
+    @Getter
     private boolean blockStatsVisible = false;
     private boolean blockStatsButtonEnabled = false;
     private BlockStatsMode blockStatsMode = BlockStatsMode.AUTO;
@@ -379,6 +407,7 @@ public class LytGuidebookScene extends LytBlock {
     private AxisAlignedBB hoveredEntityBounds;
     @Nullable
     private MovingObjectPosition hoveredEntityHitResult;
+    @Setter
     private int @Nullable [] hoveredStructureLibHatch;
     private int currentMouseAbsX = -1;
     private int currentMouseAbsY = -1;
@@ -413,6 +442,7 @@ public class LytGuidebookScene extends LytBlock {
 
     public static class PonderTimelineKeyframe {
 
+        @Getter
         private final int time;
         @Nullable
         private final String label;
@@ -420,10 +450,6 @@ public class LytGuidebookScene extends LytBlock {
         public PonderTimelineKeyframe(int time, @Nullable String label) {
             this.time = Math.max(0, time);
             this.label = label;
-        }
-
-        public int getTime() {
-            return time;
         }
 
         @Nullable
@@ -437,10 +463,6 @@ public class LytGuidebookScene extends LytBlock {
         snapshotInitialCamera();
     }
 
-    public GuidebookLevel getLevel() {
-        return level;
-    }
-
     public void setLevel(GuidebookLevel level) {
         this.level = level != null ? level : new GuidebookLevel();
         if (!this.level.isEmpty()) {
@@ -450,10 +472,6 @@ public class LytGuidebookScene extends LytBlock {
         snapshotInitialCamera();
         clearLayerDrivenHoverState();
         markBlockStatsDirty();
-    }
-
-    public CameraSettings getCamera() {
-        return camera;
     }
 
     public void addSoundCue(SceneSoundCue cue) {
@@ -566,84 +584,12 @@ public class LytGuidebookScene extends LytBlock {
         this.height = Math.max(16, height);
     }
 
-    public int getSceneBackgroundColor() {
-        return sceneBackgroundColor;
-    }
-
-    public void setSceneBackgroundColor(int sceneBackgroundColor) {
-        this.sceneBackgroundColor = sceneBackgroundColor;
-    }
-
-    public int getSceneBorderColor() {
-        return sceneBorderColor;
-    }
-
-    public void setSceneBorderColor(int sceneBorderColor) {
-        this.sceneBorderColor = sceneBorderColor;
-    }
-
     public void setCameraViewportOverride(int width, int height) {
         this.cameraViewportOverride = new LytSize(Math.max(16, width), Math.max(16, height));
     }
 
     public void clearCameraViewportOverride() {
         this.cameraViewportOverride = null;
-    }
-
-    public boolean isInteractive() {
-        return interactive;
-    }
-
-    public void setInteractive(boolean interactive) {
-        this.interactive = interactive;
-    }
-
-    public boolean isSceneButtonsVisible() {
-        return sceneButtonsVisible;
-    }
-
-    public void setSceneButtonsVisible(boolean sceneButtonsVisible) {
-        this.sceneButtonsVisible = sceneButtonsVisible;
-    }
-
-    public boolean isBottomControlsVisible() {
-        return bottomControlsVisible;
-    }
-
-    public void setBottomControlsVisible(boolean bottomControlsVisible) {
-        this.bottomControlsVisible = bottomControlsVisible;
-    }
-
-    public boolean isReserveBottomControlArea() {
-        return reserveBottomControlArea;
-    }
-
-    public void setReserveBottomControlArea(boolean reserveBottomControlArea) {
-        this.reserveBottomControlArea = reserveBottomControlArea;
-    }
-
-    public boolean isVisibleLayerSliderEnabled() {
-        return visibleLayerSliderEnabled;
-    }
-
-    public void setVisibleLayerSliderEnabled(boolean visibleLayerSliderEnabled) {
-        this.visibleLayerSliderEnabled = visibleLayerSliderEnabled;
-    }
-
-    public boolean isForceOriginAxesVisible() {
-        return forceOriginAxesVisible;
-    }
-
-    public void setForceOriginAxesVisible(boolean forceOriginAxesVisible) {
-        this.forceOriginAxesVisible = forceOriginAxesVisible;
-    }
-
-    public boolean isForceHideOriginAxes() {
-        return forceHideOriginAxes;
-    }
-
-    public void setForceHideOriginAxes(boolean forceHideOriginAxes) {
-        this.forceHideOriginAxes = forceHideOriginAxes;
     }
 
     public boolean isGridButtonEnabled() {
@@ -653,18 +599,6 @@ public class LytGuidebookScene extends LytBlock {
     public void setGridButtonEnabled(boolean gridButtonEnabled) {
         this.gridButtonEnabled = gridButtonEnabled;
         this.cachedSceneButtonRolesDirty = true;
-    }
-
-    public boolean isGridVisible() {
-        return gridVisible;
-    }
-
-    public void setGridVisible(boolean gridVisible) {
-        this.gridVisible = gridVisible;
-    }
-
-    public boolean isBlockStatsVisible() {
-        return blockStatsVisible;
     }
 
     public void setBlockStatsEnabled(boolean blockStatsEnabled) {
@@ -764,8 +698,9 @@ public class LytGuidebookScene extends LytBlock {
         if (blockStatsMaxWidthExplicit && blockStatsMaxHeightExplicit) {
             return;
         }
-        int maxWidth = Math.max(BLOCK_STATS_MIN_WIDTH, width / 4);
-        int maxHeight = Math.max(BLOCK_STATS_MIN_HEIGHT, height / 4);
+        int maxWidth = Math.max(BLOCK_STATS_DEFAULT_MAX_WIDTH, Math.max(BLOCK_STATS_MIN_WIDTH, Math.round(width * 0.4f)));
+        int maxHeight = Math
+            .max(BLOCK_STATS_DEFAULT_MAX_HEIGHT, Math.max(BLOCK_STATS_MIN_HEIGHT, Math.round(height * 0.4f)));
         boolean changed = false;
         if (!blockStatsMaxWidthExplicit) {
             changed |= blockStatsMaxWidth != maxWidth;
@@ -1211,10 +1146,6 @@ public class LytGuidebookScene extends LytBlock {
         return binding != null && binding.getMetadata() != null;
     }
 
-    public int getStructureLibCurrentTier() {
-        return structureLibCurrentTier;
-    }
-
     public int getStructureLibCurrentTier(@Nullable String name) {
         StructureLibSceneBinding binding = resolveStructureLibBinding(name);
         return binding != null ? binding.getCurrentTier() : StructureLibPreviewSelection.DEFAULT_MASTER_TIER;
@@ -1460,10 +1391,6 @@ public class LytGuidebookScene extends LytBlock {
         return structureLibSceneMetadata != null && structureLibSceneMetadata.hasHatchTooltipData();
     }
 
-    public boolean isStructureLibHatchHighlightEnabled() {
-        return structureLibHatchHighlightEnabled;
-    }
-
     @Nullable
     public ContentTooltip createStructureLibTooltipForHoveredBlock(String blockName, boolean shiftDown) {
         if (structureLibSceneMetadata == null) {
@@ -1502,10 +1429,6 @@ public class LytGuidebookScene extends LytBlock {
             annotations.add(annotation);
             cachedSceneButtonRolesDirty = true;
         }
-    }
-
-    public List<SceneAnnotation> getAnnotations() {
-        return annotations;
     }
 
     public List<InWorldAnnotation> collectInWorldAnnotationsForExport(boolean includeSceneAnnotations,
@@ -1671,10 +1594,6 @@ public class LytGuidebookScene extends LytBlock {
 
     public void clearAnnotationHover() {
         for (var a : annotations) a.setHovered(false);
-    }
-
-    public boolean isAnnotationsVisible() {
-        return annotationsVisible;
     }
 
     public void setAnnotationsVisible(boolean visible) {
@@ -2309,15 +2228,15 @@ public class LytGuidebookScene extends LytBlock {
         if (value < 10000) {
             int tenths = value / 100;
             if (tenths % 10 == 0) {
-                return Integer.toString(tenths / 10) + "k";
+                return tenths / 10 + "k";
             }
-            return Integer.toString(tenths / 10) + "." + tenths % 10 + "k";
+            return tenths / 10 + "." + tenths % 10 + "k";
         }
         if (value < 1000000) {
-            return Integer.toString(value / 1000) + "k";
+            return value / 1000 + "k";
         }
         int millions = value / 1000000;
-        return Integer.toString(millions) + "m";
+        return millions + "m";
     }
 
     @Nullable
@@ -2338,7 +2257,7 @@ public class LytGuidebookScene extends LytBlock {
         }
         boolean matched = blockStatsFilterKeys.contains(normalized)
             || blockStatsFilterKeys.contains(stripBlockStatsMeta(normalized));
-        return blockStatsFilterMode == BlockStatsFilterMode.WHITELIST ? matched : !matched;
+        return (blockStatsFilterMode == BlockStatsFilterMode.WHITELIST) == matched;
     }
 
     @Nullable
@@ -2465,7 +2384,10 @@ public class LytGuidebookScene extends LytBlock {
             clearBlockStatsGeometry();
             return;
         }
-        int boxWidth = Math.min(maxWidth, Math.max(BLOCK_STATS_MIN_WIDTH, rowContentWidth + BLOCK_STATS_PADDING_X * 2));
+        boolean reserveVerticalScrollbar = blockStatsContentHeight + BLOCK_STATS_PADDING_Y * 2 > maxHeight;
+        int preferredWidth = rowContentWidth + BLOCK_STATS_PADDING_X * 2
+            + (reserveVerticalScrollbar ? BLOCK_STATS_SCROLLBAR_SIZE : 0);
+        int boxWidth = Math.min(maxWidth, Math.max(BLOCK_STATS_MIN_WIDTH, preferredWidth));
         int boxHeight = Math
             .min(maxHeight, Math.max(BLOCK_STATS_MIN_HEIGHT, blockStatsContentHeight + BLOCK_STATS_PADDING_Y * 2));
 
@@ -2543,18 +2465,8 @@ public class LytGuidebookScene extends LytBlock {
         int rowStride = rowHeight + BLOCK_STATS_ROW_GAP;
         int entryWidth = blockStatsEntryWidth();
         boolean verticalDock = blockStatsDock == BlockStatsDock.LEFT || blockStatsDock == BlockStatsDock.RIGHT;
-        int maxAlong = Math.max(rowStride, verticalDock ? sceneRect.height() : sceneRect.width());
-        int alongSlots = Math.max(1, maxAlong / Math.max(1, verticalDock ? rowStride : entryWidth));
-        int wrappedLines = Math.max(1, (entries.size() + alongSlots - 1) / alongSlots);
-        int usedAlongSlots = Math.min(entries.size(), alongSlots);
-        blockStatsContentWidth = verticalDock ? wrappedLines * entryWidth : usedAlongSlots * entryWidth;
-        blockStatsContentHeight = verticalDock ? usedAlongSlots * rowStride - BLOCK_STATS_ROW_GAP
-            : wrappedLines * rowStride - BLOCK_STATS_ROW_GAP;
-        int maxWidth = verticalDock
-            ? Math.min(blockStatsMaxWidth, Math.max(BLOCK_STATS_MIN_WIDTH, blockStatsContentWidth))
-            : Math.min(blockStatsMaxWidth, sceneRect.width());
-        int maxHeight = verticalDock ? Math.min(blockStatsMaxHeight, sceneRect.height())
-            : Math.min(blockStatsMaxHeight, Math.max(BLOCK_STATS_MIN_HEIGHT, blockStatsContentHeight));
+        int maxWidth = verticalDock ? blockStatsMaxWidth : Math.min(blockStatsMaxWidth, sceneRect.width());
+        int maxHeight = verticalDock ? Math.min(blockStatsMaxHeight, sceneRect.height()) : blockStatsMaxHeight;
         if (blockStatsDock == BlockStatsDock.LEFT) {
             maxWidth = Math.min(maxWidth, Math.max(0, sceneRect.x() - getBounds().x() - BLOCK_STATS_DOCK_GAP));
         } else if (blockStatsDock == BlockStatsDock.RIGHT) {
@@ -2570,8 +2482,28 @@ public class LytGuidebookScene extends LytBlock {
             clearBlockStatsGeometry();
             return;
         }
+        int maxAlong = Math.max(rowStride, verticalDock ? sceneRect.height() : sceneRect.width());
+        int alongUnit = Math.max(1, verticalDock ? rowStride : entryWidth);
+        int alongSlots = Math.max(1, maxAlong / alongUnit);
+        int maxContentWidth = Math.max(entryWidth, maxWidth - BLOCK_STATS_PADDING_X * 2 - BLOCK_STATS_SCROLLBAR_SIZE);
+        int maxColumnsToFit = Math.max(1, maxContentWidth / Math.max(1, entryWidth));
+        if (verticalDock) {
+            int minRowsToFitWidth = Math.max(1, (entries.size() + maxColumnsToFit - 1) / maxColumnsToFit);
+            alongSlots = Math.min(entries.size(), Math.max(alongSlots, minRowsToFitWidth));
+        } else {
+            alongSlots = Math.min(alongSlots, maxColumnsToFit);
+        }
+        int wrappedLines = Math.max(1, (entries.size() + alongSlots - 1) / alongSlots);
+        int usedAlongSlots = Math.min(entries.size(), alongSlots);
+        blockStatsContentWidth = verticalDock ? wrappedLines * entryWidth : usedAlongSlots * entryWidth;
+        blockStatsContentHeight = verticalDock ? usedAlongSlots * rowStride - BLOCK_STATS_ROW_GAP
+            : wrappedLines * rowStride - BLOCK_STATS_ROW_GAP;
+        maxHeight = Math.min(maxHeight, Math.max(BLOCK_STATS_MIN_HEIGHT, blockStatsContentHeight));
+        boolean reserveVerticalScrollbar = blockStatsContentHeight + BLOCK_STATS_PADDING_Y * 2 > maxHeight;
+        int preferredWidth = blockStatsContentWidth + BLOCK_STATS_PADDING_X * 2
+            + (reserveVerticalScrollbar ? BLOCK_STATS_SCROLLBAR_SIZE : 0);
         int boxWidth = Math
-            .max(BLOCK_STATS_MIN_WIDTH, Math.min(maxWidth, blockStatsContentWidth + BLOCK_STATS_PADDING_X * 2));
+            .max(BLOCK_STATS_MIN_WIDTH, Math.min(maxWidth, preferredWidth));
         int boxHeight = Math
             .max(BLOCK_STATS_MIN_HEIGHT, Math.min(maxHeight, blockStatsContentHeight + BLOCK_STATS_PADDING_Y * 2));
         int innerWidth = Math.max(1, boxWidth - BLOCK_STATS_PADDING_X * 2);
@@ -3000,8 +2932,7 @@ public class LytGuidebookScene extends LytBlock {
     }
 
     private static InWorldLineAnnotation createOriginAxisAnnotation(Vector3f to, ConstantColor color) {
-        InWorldLineAnnotation annotation = new InWorldLineAnnotation(new Vector3f(), to, color, ORIGIN_AXIS_THICKNESS);
-        return annotation;
+        return new InWorldLineAnnotation(new Vector3f(), to, color, ORIGIN_AXIS_THICKNESS);
     }
 
     private void drawSceneButtons(int drawX, int drawY, int screenW, int screenH, int absX, int absY, float docZoom) {
@@ -3123,10 +3054,6 @@ public class LytGuidebookScene extends LytBlock {
             || (role == GuideIconButton.Role.TOGGLE_BLOCK_STATS && blockStatsVisible);
     }
 
-    GuideIconButton.Role[] getVisibleSceneButtonRolesForTesting() {
-        return cachedSceneButtonRoles();
-    }
-
     @Nullable
     public GuideIconButton.Role sceneButtonAt(int mouseX, int mouseY) {
         if (ponderSceneData != null && lastOuterH > 0) {
@@ -3209,10 +3136,6 @@ public class LytGuidebookScene extends LytBlock {
     @Nullable
     public MovingObjectPosition getHoveredEntityHitResult() {
         return hoveredEntityHitResult;
-    }
-
-    public void setHoveredStructureLibHatch(int @Nullable [] xyz) {
-        this.hoveredStructureLibHatch = xyz;
     }
 
     public int @Nullable [] getHoveredStructureLibHatch() {
@@ -3858,16 +3781,6 @@ public class LytGuidebookScene extends LytBlock {
         // also consumes tiny deltas left by a plain click, which makes a click rotate the scene.
     }
 
-    public void applyCameraDragForTesting(float dx, float dy, int button) {
-        int previousButton = dragButton;
-        dragButton = button;
-        try {
-            applyCameraDrag(dx, dy);
-        } finally {
-            dragButton = previousButton;
-        }
-    }
-
     private void applyCameraDrag(float dx, float dy) {
         if (dx == 0f && dy == 0f) {
             return;
@@ -3964,49 +3877,8 @@ public class LytGuidebookScene extends LytBlock {
         camera.setZoom(z);
     }
 
-    public LytRect getVisibleLayerSliderRectForTesting() {
-        return resolveVisibleLayerSliderTrackRect();
-    }
-
-    public int getVisibleLayerSliderAreaHeightForTesting() {
-        return visibleLayerSliderAreaHeight();
-    }
-
-    public int getCurrentVisibleLayerForTesting() {
-        return getCurrentVisibleLayer();
-    }
-
-    public void setVisibleLayerSilentlyForTesting(int layer) {
-        setVisibleLayerSilently(layer);
-    }
-
-    public List<Class<?>> getVisibleAnnotationTypesForTesting() {
-        if (annotations.isEmpty()) {
-            return Collections.emptyList();
-        }
-        List<Class<?>> visibleTypes = new ArrayList<>();
-        for (SceneAnnotation annotation : annotations) {
-            if (isAnnotationVisibleForCurrentLayer(annotation)) {
-                visibleTypes.add(annotation.getClass());
-            }
-        }
-        return visibleTypes;
-    }
-
     public List<SceneAnnotation> getPonderActiveAnnotationsForTesting() {
         return Collections.unmodifiableList(new ArrayList<>(ponderActiveAnnotations));
-    }
-
-    public LytRect getStructureLibChannelSliderRectForTesting() {
-        List<StructureLibSceneMetadata.ChannelData> channels = getSelectableStructureLibChannels();
-        return channels.isEmpty() ? LytRect.empty()
-            : resolveStructureLibChannelSliderTrackRect(
-                channels.get(0)
-                    .getChannelId());
-    }
-
-    public int getStructureLibChannelSliderAreaHeightForTesting() {
-        return structureLibChannelSliderAreaHeight();
     }
 
     private void appendStructureLibHatchOverlays(List<InWorldAnnotation> inWorld) {
