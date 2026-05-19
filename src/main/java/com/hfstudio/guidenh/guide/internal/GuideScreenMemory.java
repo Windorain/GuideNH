@@ -5,6 +5,7 @@ import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.guide.PageAnchor;
+import com.hfstudio.guidenh.guide.internal.screen.GuideNavBarState;
 import com.hfstudio.guidenh.guide.internal.search.GuideItemLinksPage;
 import com.hfstudio.guidenh.guide.internal.search.GuideSearchPage;
 
@@ -12,10 +13,17 @@ public class GuideScreenMemory {
 
     @Nullable
     private static GuideScreenViewState lastContentViewState;
+    @Nullable
+    private static GuideNavBarState navigationState;
 
     private GuideScreenMemory() {}
 
     public static void clear() {
+        lastContentViewState = null;
+        navigationState = null;
+    }
+
+    private static void clearContentState() {
         lastContentViewState = null;
     }
 
@@ -38,10 +46,18 @@ public class GuideScreenMemory {
             return null;
         }
         if (!isValidContentRoute(state.route())) {
-            clear();
+            clearContentState();
             return null;
         }
         return state;
+    }
+
+    public static void rememberNavigationState(@Nullable GuideNavBarState state) {
+        navigationState = state;
+    }
+
+    public static GuideNavBarState recallNavigationState() {
+        return navigationState != null ? navigationState : GuideNavBarState.defaultState();
     }
 
     public static boolean isRememberable(@Nullable GuideScreenViewState state) {

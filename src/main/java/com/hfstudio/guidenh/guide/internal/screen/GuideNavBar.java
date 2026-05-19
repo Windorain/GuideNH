@@ -1,7 +1,9 @@
 package com.hfstudio.guidenh.guide.internal.screen;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -136,6 +138,23 @@ public class GuideNavBar {
         }
         int w = currentWidth();
         open = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + height;
+    }
+
+    public GuideNavBarState captureState() {
+        return GuideNavBarState.create(bookmarkGroupExpanded, new LinkedHashSet<ResourceLocation>(expandedPageIds));
+    }
+
+    public void restoreState(GuideNavBarState state, GuideBookmarkState bookmarkState) {
+        GuideNavBarState effectiveState = state != null ? state : GuideNavBarState.defaultState();
+        bookmarkGroupExpanded = effectiveState.bookmarkGroupExpanded();
+        expandedPageIds.clear();
+        expandedPageIds.addAll(
+            effectiveState.expandedPageIds() != null ? effectiveState.expandedPageIds()
+                : Collections.<ResourceLocation>emptySet());
+        lastExpandedStateHash = expandedPageIds.hashCode();
+        if (lastTree != null) {
+            rebuildRows(lastTree, bookmarkState);
+        }
     }
 
     private boolean shouldRebuildRows(@Nullable NavigationTree tree, GuideBookmarkState bookmarkState) {

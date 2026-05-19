@@ -40,6 +40,12 @@ public class ModConfig {
         @DefaultBoolean(false)
         public boolean fullWidth = false;
 
+        @Comment("Side margin ratio applied to each side of guide content while using the optional narrow reading mode "
+            + "in full-width layout. Set to 0 to disable. A value of 0.15 leaves about 15% margin on both sides.")
+        @DefaultFloat(0.0f)
+        @RangeFloat(min = 0.0f, max = 0.45f)
+        public float fullWidthNarrowReadingMarginRatio = 0.0f;
+
         @Comment("Global content zoom factor for the guide screen. "
             + "Individual pages can override this with the 'zoom' frontmatter field. "
             + "Default: 1.0. Range: 0.5 to 3.0.")

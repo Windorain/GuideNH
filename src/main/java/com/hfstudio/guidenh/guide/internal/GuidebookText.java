@@ -247,6 +247,7 @@ public enum GuidebookText implements LocalizationEnum {
     SceneSliderLabelFormat,
     SceneStructureLibTierLabel,
     SceneVisibleLayerLabel,
+    SceneLoading,
     SceneAll,
     SceneNotSet,
     ZoomIn,

@@ -215,6 +215,8 @@ public class GuideScreen extends GuiContainer
     private static final int NON_FULL_WIDTH_DEFAULT_PERCENT = 90;
     private static final int NON_FULL_WIDTH_NEI_DEFAULT_PERCENT = 75;
     private static final int NON_FULL_WIDTH_MIN_SIZE = 100;
+    private static final float NARROW_READING_DISABLED_RATIO = 0.0f;
+    private static final String[] LOADING_DOT_SUFFIXES = { "", ".", "..", "..." };
     private boolean fullWidth;
 
     private final GuideNavBar navBar = new GuideNavBar();
@@ -438,6 +440,7 @@ public class GuideScreen extends GuiContainer
         } catch (Throwable ignored) {
             this.fullWidth = false;
         }
+        navBar.restoreState(GuideScreenMemory.recallNavigationState(), bookmarkState);
     }
 
     public static void open(ResourceLocation guideId, @Nullable PageAnchor anchor) {
@@ -458,6 +461,9 @@ public class GuideScreen extends GuiContainer
             initialState = GuideScreenViewState.home();
         }
         Minecraft mc = Minecraft.getMinecraft();
+        if (mc.currentScreen instanceof GuideScreen currentGuideScreen) {
+            currentGuideScreen.rememberNavigationState();
+        }
         GuiScreen parent = captureParentScreen(mc.currentScreen);
         var screen = new GuideScreen(initialState.route(), initialState, parent);
         screen.guideEditorSuppressTextFocusUntilGuideHotkeyRelease = openedFromGuideHotkey
@@ -638,6 +644,10 @@ public class GuideScreen extends GuiContainer
         GuideScreenMemory.rememberContentState(captureCurrentViewState());
     }
 
+    private void rememberNavigationState() {
+        GuideScreenMemory.rememberNavigationState(navBar.captureState());
+    }
+
     private boolean isHomeRoute() {
         return currentRoute != null && (currentRoute.isHome() || currentRoute.isHomeSearch());
     }
@@ -737,9 +747,12 @@ public class GuideScreen extends GuiContainer
         panelY = fullWidth ? 0 : verticalMargin + Math.max(0, (availableH - panelH) / 2);
         applyNeiContainerBounds();
         int navClosed = GuideNavBar.WIDTH_CLOSED;
-        contentX = panelX + PANEL_PADDING + navClosed;
+        int baseContentX = panelX + PANEL_PADDING + navClosed;
         contentY = panelY + TOOLBAR_H + 2;
-        contentW = Math.max(20, panelW - PANEL_PADDING * 2 - navClosed);
+        int baseContentW = Math.max(20, panelW - PANEL_PADDING * 2 - navClosed);
+        int narrowReadingInset = resolveNarrowReadingInset(baseContentW);
+        contentX = baseContentX + narrowReadingInset;
+        contentW = Math.max(20, baseContentW - narrowReadingInset * 2);
         contentH = Math.max(20, panelH - TOOLBAR_H - PANEL_PADDING - 2);
         if (hasBottomBar()) {
             contentH = Math.max(20, contentH - TOOLBAR_H);
@@ -769,6 +782,31 @@ public class GuideScreen extends GuiContainer
             return 0;
         }
         return PANEL_MARGIN;
+    }
+
+    private int resolveNarrowReadingInset(int baseContentWidth) {
+        if (!isNarrowReadingModeActive()) {
+            return 0;
+        }
+        return computeNarrowReadingInset(baseContentWidth, ModConfig.ui.fullWidthNarrowReadingMarginRatio);
+    }
+
+    private boolean isNarrowReadingModeActive() {
+        return fullWidth && !isHomeRoute()
+            && !isSearchPage()
+            && !isItemLinksPage()
+            && !isGuideEditorActive()
+            && ModConfig.ui.fullWidthNarrowReadingMarginRatio > NARROW_READING_DISABLED_RATIO;
+    }
+
+    private static int computeNarrowReadingInset(int contentWidth, float sideMarginRatio) {
+        if (contentWidth <= 20 || sideMarginRatio <= NARROW_READING_DISABLED_RATIO) {
+            return 0;
+        }
+        float clampedRatio = Math.max(NARROW_READING_DISABLED_RATIO, Math.min(0.45f, sideMarginRatio));
+        int requestedInset = Math.round(contentWidth * clampedRatio);
+        int maxInset = Math.max(0, (contentWidth - 20) / 2);
+        return Math.min(requestedInset, maxInset);
     }
 
     private void applyNeiContainerBounds() {
@@ -4037,21 +4075,22 @@ public class GuideScreen extends GuiContainer
     }
 
     private void drawLoadingMessage() {
-        long tick = mc.theWorld != null ? mc.theWorld.getTotalWorldTime() : Minecraft.getSystemTime() / 100L;
-        int dots = (int) (Math.abs(tick / 8L) % 4L);
-        StringBuilder builder = new StringBuilder("Loading");
-        for (int index = 0; index < dots; index++) {
-            builder.append('.');
-        }
         FontRenderer fr = mc.fontRenderer;
-        int tw = fr.getStringWidth(builder.toString());
+        String message = buildAnimatedLoadingLabel(GuidebookText.SceneLoading.text());
+        int tw = fr.getStringWidth(message);
         int documentY = getDocumentViewportY();
         int documentH = Math.max(0, getDocumentViewportHeight());
         fr.drawStringWithShadow(
-            builder.toString(),
+            message,
             contentX + (contentW - tw) / 2,
             documentY + documentH / 2 - fr.FONT_HEIGHT / 2,
             0xFFCCCCCC);
+    }
+
+    private String buildAnimatedLoadingLabel(String baseText) {
+        long tick = mc.theWorld != null ? mc.theWorld.getTotalWorldTime() : Minecraft.getSystemTime() / 100L;
+        int suffixIndex = (int) (Math.abs(tick / 8L) % LOADING_DOT_SUFFIXES.length);
+        return baseText + LOADING_DOT_SUFFIXES[suffixIndex];
     }
 
     private void updateToolbarButtonState() {
@@ -4911,6 +4950,7 @@ public class GuideScreen extends GuiContainer
             temporaryScreenChangeExpected = false;
             return;
         }
+        rememberNavigationState();
         document = null;
         layoutDocument = null;
         currentPage = null;
