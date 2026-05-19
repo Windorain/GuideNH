@@ -153,13 +153,17 @@ public class MdxMdastExtension {
     public static void enterMdxJsxTagAttribute(MdastContext context, Token token) {
         var tag = getTag(context);
         enterMdxJsxTagAnyAttribute(context, token);
-        tag.attributes.add(new MdxJsxAttribute());
+        var node = new MdxJsxAttribute();
+        node.position = new MdAstPosition().withStart(token.start);
+        tag.attributes.add(node);
     }
 
     public static void enterMdxJsxTagExpressionAttribute(MdastContext context, Token token) {
         var tag = getTag(context);
         enterMdxJsxTagAnyAttribute(context, token);
-        tag.attributes.add(new MdxJsxExpressionAttribute());
+        var node = new MdxJsxExpressionAttribute();
+        node.position = new MdAstPosition().withStart(token.start);
+        tag.attributes.add(node);
         context.buffer();
     }
 
@@ -167,18 +171,27 @@ public class MdxMdastExtension {
         var tag = getTag(context);
         var tail = (MdxJsxExpressionAttribute) tag.attributes.get(tag.attributes.size() - 1);
         tail.value = context.resume();
+        if (tail.position != null) {
+            tail.position.end = token.end;
+        }
     }
 
     public static void exitMdxJsxTagAttributeNamePrimary(MdastContext context, Token token) {
         var tag = getTag(context);
         var node = (MdxJsxAttribute) tag.attributes.get(tag.attributes.size() - 1);
         node.name = context.sliceSerialize(token);
+        if (node.position != null) {
+            node.position.end = token.end;
+        }
     }
 
     public static void exitMdxJsxTagAttributeNameLocal(MdastContext context, Token token) {
         var tag = getTag(context);
         var node = (MdxJsxAttribute) tag.attributes.get(tag.attributes.size() - 1);
         node.name += ':' + context.sliceSerialize(token);
+        if (node.position != null) {
+            node.position.end = token.end;
+        }
     }
 
     public static void exitMdxJsxTagAttributeValueLiteral(MdastContext context, Token token) {
@@ -188,8 +201,14 @@ public class MdxMdastExtension {
         var lastAttr = tag.attributes.get(tag.attributes.size() - 1);
         if (lastAttr instanceof MdxJsxAttribute attribute) {
             attribute.setValue(value);
+            if (attribute.position != null) {
+                attribute.position.end = token.end;
+            }
         } else if (lastAttr instanceof MdxJsxExpressionAttribute attribute) {
             attribute.value = value;
+            if (attribute.position != null) {
+                attribute.position.end = token.end;
+            }
         } else {
             throw new IllegalStateException();
         }
@@ -199,6 +218,9 @@ public class MdxMdastExtension {
         var tag = getTag(context);
         var tail = (MdxJsxAttribute) tag.attributes.get(tag.attributes.size() - 1);
         tail.setExpression(context.resume());
+        if (tail.position != null) {
+            tail.position.end = token.end;
+        }
     }
 
     public static void exitMdxJsxTagSelfClosingMarker(MdastContext context, Token token) {

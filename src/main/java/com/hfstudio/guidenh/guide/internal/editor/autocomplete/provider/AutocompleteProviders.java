@@ -74,7 +74,12 @@ public class AutocompleteProviders {
             return preserveRegistrationOrder(matched);
         }
         if (ctx instanceof TagStartContext) {
+            TagStartContext tagCtx = (TagStartContext) ctx;
             addProviders(matched, AutocompleteKey.MatchType.TAG_NAME, null, null);
+            String parent = tagCtx.getParentTagName();
+            if (parent != null) {
+                addProviders(matched, AutocompleteKey.MatchType.TAG_NAME, parent, null);
+            }
             return preserveRegistrationOrder(matched);
         }
         if (ctx instanceof FenceLanguageContext) {

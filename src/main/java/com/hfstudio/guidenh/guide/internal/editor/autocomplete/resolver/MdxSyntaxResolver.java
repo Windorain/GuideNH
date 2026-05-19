@@ -45,10 +45,45 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
     @Nullable
     private TextSyntaxContext resolveFromAst(MdAstRoot root, String text, int cursorIndex) {
         MdxJsxElementFields element = findEnclosingMdxElement(root, cursorIndex);
+
         if (element != null) {
-            return resolveMdxAttribute(element, text, cursorIndex);
+            TextSyntaxContext result = resolveMdxAttribute(element, text, cursorIndex);
+            if (result != null && result.getElementType() != SyntaxElementType.WORD) {
+                return result;
+            }
         }
+
+        TextSyntaxContext tagStart = resolveTagStart(text, cursorIndex,
+            element != null ? element.name() : null);
+        if (tagStart != null) {
+            return tagStart;
+        }
+
         return resolvePlainTextWord(text, cursorIndex);
+    }
+
+    @Nullable
+    private TextSyntaxContext resolveTagStart(String text, int cursorIndex, @Nullable String parentTagName) {
+        if (cursorIndex < 1 || text.charAt(cursorIndex - 1) != '<') {
+            return null;
+        }
+        if (cursorIndex < text.length()) {
+            char next = text.charAt(cursorIndex);
+            if (next == '/' || next == '!' || next == '?') {
+                return null;
+            }
+        }
+        if (cursorIndex >= 2) {
+            char prev = text.charAt(cursorIndex - 2);
+            if (prev != ' ' && prev != '\n' && prev != '\r' && prev != '>' && prev != '\t') {
+                return null;
+            }
+        }
+        return new TextSyntaxContext(
+            SyntaxElementType.TAG_START,
+            cursorIndex,
+            cursorIndex,
+            new TagStartContext(cursorIndex, cursorIndex, "", parentTagName));
     }
 
     @Nullable
