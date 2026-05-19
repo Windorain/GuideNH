@@ -258,10 +258,15 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
     @Nullable
     private OpenTag findOpenTagBeforeCursor(String text, int cursorIndex) {
         int start = Math.min(cursorIndex, text.length()) - 1;
+        int linesCrossed = 0;
         for (int i = start; i >= 0; i--) {
             char c = text.charAt(i);
             if (c == '\n' || c == '\r') {
-                break;
+                linesCrossed++;
+                if (linesCrossed > 5) {
+                    break;
+                }
+                continue;
             }
             if (c == '>') {
                 break;

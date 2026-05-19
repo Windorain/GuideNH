@@ -276,7 +276,11 @@ public class MdxAttrs {
             return defaultValue;
         }
         try {
-            return Float.parseFloat(attrValue);
+            float value = Float.parseFloat(attrValue);
+            if (Float.isNaN(value) || Float.isInfinite(value)) {
+                throw new AttributeException(name, "Floating point value must be finite: '" + attrValue + "'");
+            }
+            return value;
         } catch (NumberFormatException e) {
             throw new AttributeException(name, "Malformed floating point value: '" + attrValue + "'");
         }
@@ -390,7 +394,11 @@ public class MdxAttrs {
                 cursor++;
             }
             try {
-                values[index] = Float.parseFloat(raw.substring(start, cursor));
+                float value = Float.parseFloat(raw.substring(start, cursor));
+                if (Float.isNaN(value) || Float.isInfinite(value)) {
+                    return null;
+                }
+                values[index] = value;
             } catch (NumberFormatException e) {
                 return null;
             }

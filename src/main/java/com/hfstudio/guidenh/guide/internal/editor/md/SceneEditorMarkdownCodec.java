@@ -1015,6 +1015,10 @@ public class SceneEditorMarkdownCodec {
             if (!(attributeNode instanceof MdxJsxAttribute attribute)) {
                 throw new UnsupportedSubsetException("Spread attributes are not supported on <" + tagName + ">");
             }
+            if (!allowedAttributes.contains(attribute.name)) {
+                throw new UnsupportedSubsetException(
+                    "Unknown attribute '" + attribute.name + "' on <" + tagName + ">");
+            }
         }
     }
 
@@ -1070,7 +1074,11 @@ public class SceneEditorMarkdownCodec {
             return defaultValue;
         }
         try {
-            return Float.parseFloat(rawValue.trim());
+            float value = Float.parseFloat(rawValue.trim());
+            if (Float.isNaN(value) || Float.isInfinite(value)) {
+                throw new InvalidSceneSyntaxException("Attribute '" + name + "' must be a finite number");
+            }
+            return value;
         } catch (NumberFormatException e) {
             throw new InvalidSceneSyntaxException("Attribute '" + name + "' must be a number");
         }
@@ -1262,6 +1270,10 @@ public class SceneEditorMarkdownCodec {
         int braceDepth = 0;
         for (int i = 0; i < rawElement.length(); i++) {
             char ch = rawElement.charAt(i);
+            if ((inSingleQuote || inDoubleQuote) && ch == '\\' && i + 1 < rawElement.length()) {
+                i++;
+                continue;
+            }
             if (ch == '\'' && !inDoubleQuote) {
                 inSingleQuote = !inSingleQuote;
                 continue;
@@ -1404,6 +1416,8 @@ public class SceneEditorMarkdownCodec {
 
     private String escapeAttribute(String value) {
         return value.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
             .replace("\"", "&quot;");
     }
 
