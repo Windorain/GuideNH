@@ -332,6 +332,7 @@ public enum GuidebookText implements LocalizationEnum {
     Blasting,
     ShapelessCrafting,
     Crafting,
+    OpenRecipeInNei,
     FullWidthView,
     CloseFullWidthView,
     MarkdownAlertNote,

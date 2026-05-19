@@ -98,6 +98,7 @@ guideme.gui.config.ui.sceneWheelInteractionDelayMillis.tooltip=控制页面滚�
 guideme.guidebook.Blasting=高炉熔炼
 guideme.guidebook.Close=关闭
 guideme.guidebook.CloseFullWidthView=关闭全宽视图
+guideme.guidebook.OpenRecipeInNei=在 NEI 中打开此配方
 guideme.guidebook.CodeBlockCopy=复制代码
 guideme.guidebook.CodeBlockCopyFailure=复制代码块失败：%s
 guideme.guidebook.CodeBlockCopySuccess=代码块已复制到剪贴板。

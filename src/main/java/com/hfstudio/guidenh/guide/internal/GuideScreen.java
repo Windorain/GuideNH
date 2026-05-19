@@ -61,6 +61,7 @@ import com.hfstudio.guidenh.guide.document.DefaultStyles;
 import com.hfstudio.guidenh.guide.document.LytRect;
 import com.hfstudio.guidenh.guide.document.block.LytDocument;
 import com.hfstudio.guidenh.guide.document.block.LytHeading;
+import com.hfstudio.guidenh.guide.document.block.LytItemImage;
 import com.hfstudio.guidenh.guide.document.block.LytNode;
 import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.document.block.LytSlot;
@@ -3843,6 +3844,47 @@ public class GuideScreen extends GuiContainer
         }
     }
 
+    public @Nullable ItemStack getHoveredNeiQueryStack() {
+        return getHoveredNeiQueryStack(lastMouseX, lastMouseY);
+    }
+
+    public @Nullable ItemStack getHoveredNeiQueryStack(int mouseX, int mouseY) {
+        DocumentInteractionState interaction = getActiveInteractionState(mouseX, mouseY);
+        if (interaction == null || interaction.hit == null) {
+            return null;
+        }
+        return resolveGuideItemStack(interaction);
+    }
+
+    private @Nullable ItemStack resolveGuideItemStack(DocumentInteractionState interaction) {
+        var flowContent = interaction.hit.content();
+        while (flowContent != null) {
+            ItemStack stack = resolveGuideItemStack(flowContent, interaction.docX, interaction.docY);
+            if (stack != null) {
+                return stack;
+            }
+            flowContent = flowContent.getFlowParent();
+        }
+        for (LytNode current = interaction.hit.node(); current != null; current = current.getParent()) {
+            ItemStack stack = resolveGuideItemStack(current, interaction.docX, interaction.docY);
+            if (stack != null) {
+                return stack;
+            }
+        }
+        return null;
+    }
+
+    private @Nullable ItemStack resolveGuideItemStack(Object target, int docX, int docY) {
+        if (target instanceof LytItemImage itemImage) {
+            return itemImage.getStack();
+        }
+        Optional<GuideTooltip> tooltip = tryGetTooltip(target, docX, docY);
+        if (tooltip.isPresent() && tooltip.get() instanceof ItemTooltip itemTooltip) {
+            return itemTooltip.getStack();
+        }
+        return null;
+    }
+
     private void renderItemTooltip(ItemTooltip tooltip, int mouseX, int mouseY,
         @Nullable DocumentInteractionState interaction) {
         ItemStack stack = tooltip.getStack();
@@ -4925,6 +4967,7 @@ public class GuideScreen extends GuiContainer
         if (GuideScreenNeiBridge.keyTyped(this, typedChar, keyCode)) return;
         if (handleSearchFieldKey(typedChar, keyCode)) return;
         if (handleGuideEditorKey(typedChar, keyCode)) return;
+        if (GuideScreenNeiBridge.keyTypedForHoveredGuideItem(this, typedChar, keyCode)) return;
         if (keyCode == Keyboard.KEY_ESCAPE) {
             close();
             return;

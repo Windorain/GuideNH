@@ -48,10 +48,12 @@ Both tags accept a BetterQuesting quest id via `id` and decide their appearance 
 | Hidden | locked plus visibility is HIDDEN or SECRET | italic dark-gray placeholder, no quest details leaked |
 | Missing | quest id does not resolve to any quest in the database | italic red placeholder |
 
-For visible / completed quests, the click target is:
+Locked but non-hidden quests are also clickable. They use the same navigation target rules as visible and completed quests.
+
+For visible / completed / locked quests, the click target is:
 
 - the indexed guide page if the quest id is present in some page's `quest_ids`
-- otherwise BetterQuesting's `GuiQuest` opened on top of the current screen
+- otherwise BetterQuesting's quest-book quest screen, using BetterQuesting's native parent-screen flow
 
 See [Tags Reference](Tags-Reference#questlink) for attribute tables and inline examples.
 
@@ -66,7 +68,7 @@ GuideNH never renders the title or description of a quest whose visibility is `H
 | `guidenh.compat.bq.missing` | `Unknown Quest` |
 | `guidenh.compat.bq.open_in_guide` | `Open in Guide` |
 
-Locked quests still show their description as a hover tooltip on `<QuestLink>` because BetterQuesting itself reveals the description on the locked quest's tooltip; this matches the in-game UX exactly. Hidden quests do not expose any tooltip.
+Locked quests can still show their description as a hover tooltip on `<QuestLink>` and on the clickable title inside `<QuestCard>`, because BetterQuesting itself reveals the description on locked quest tooltips. Set `show_tooltip="false"` (or `showTooltip={false}`) to suppress that tooltip. Hidden quests do not expose any tooltip.
 
 > [!NOTE]
 > Quest state is resolved at page-compile time using the local player's progress. The compiled page is cached per guide; reopening the guide after completing or unlocking a quest re-evaluates the state.

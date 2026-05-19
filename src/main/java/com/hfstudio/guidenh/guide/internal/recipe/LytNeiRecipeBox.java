@@ -14,11 +14,17 @@ import com.hfstudio.guidenh.guide.document.LytRect;
 import com.hfstudio.guidenh.guide.document.block.LytBlock;
 import com.hfstudio.guidenh.guide.document.interaction.GuideTooltip;
 import com.hfstudio.guidenh.guide.document.interaction.InteractiveElement;
+import com.hfstudio.guidenh.guide.document.interaction.TextTooltip;
+import com.hfstudio.guidenh.guide.internal.GuidebookText;
+import com.hfstudio.guidenh.guide.internal.screen.GuideIconButton;
 import com.hfstudio.guidenh.guide.layout.LayoutContext;
 import com.hfstudio.guidenh.guide.render.RenderContext;
 import com.hfstudio.guidenh.guide.render.VanillaRenderContext;
+import com.hfstudio.guidenh.guide.ui.GuideUiHost;
 import com.hfstudio.guidenh.integration.api.GuideNhIntegrationRegistry;
 import com.hfstudio.guidenh.integration.api.RecipeSlot;
+import com.hfstudio.guidenh.integration.nei.GuideScreenNeiBridge.EditorAccess;
+import com.hfstudio.guidenh.integration.nei.NeiGuideNavigation;
 import com.hfstudio.guidenh.integration.neicustomdiagram.NeiCustomDiagramBridge;
 
 /**
@@ -46,10 +52,12 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
     public static final int TITLE_PAD_TOP = 2;
     public static final int TITLE_PAD_BOTTOM = 2;
     public static final int TITLE_GAP_AFTER_ICON = 3;
+    public static final int TITLE_GAP_BEFORE_ACTION = 3;
     public static final int BODY_MARGIN = 2;
     public static final int SLOT_SIZE = 16;
     public static final int DEFAULT_BODY_HEIGHT = 65;
     public static final int FALLBACK_BODY_WIDTH = 166;
+    public static final int ACTION_BUTTON_SIZE = 12;
     private static final String GREGTECH_DEFAULT_NEI_HANDLER = "gregtech.nei.GTNEIDefaultHandler";
     private static final int GREGTECH_WINDOW_TOP_BLEED = 11;
 
@@ -66,6 +74,8 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
     private final int bodyTopInset;
     private final int bodyYShift;
     private final int titleHeight;
+    private final boolean recipeJumpEnabled;
+    private final @Nullable GuideTooltip actionButtonTooltip;
     /**
      * Whether {@code handler.getOtherStacks(recipeIndex)} throws at call-time. When true,
      * {@code drawForeground}/{@code drawExtras} are skipped so that GTNH-NEI's safe-wrapper
@@ -74,8 +84,13 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
     private final boolean otherStacksBroken;
 
     public LytNeiRecipeBox(Object handler, int recipeIndex) {
+        this(handler, recipeIndex, true);
+    }
+
+    public LytNeiRecipeBox(Object handler, int recipeIndex, boolean recipeJumpEnabled) {
         this.handler = handler;
         this.recipeIndex = recipeIndex;
+        this.recipeJumpEnabled = recipeJumpEnabled;
         GuideNhIntegrationRegistry registry = GuideNhIntegrationRegistry.global();
         this.handlerName = stripFormatting(registry.lookupRecipeHandlerName(handler));
         ItemStack stack = registry.lookupRecipeHandlerIcon(handler);
@@ -105,6 +120,7 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
 
         int fh = Minecraft.getMinecraft().fontRenderer.FONT_HEIGHT;
         this.titleHeight = Math.max(ICON_SIZE, fh) + TITLE_PAD_TOP + TITLE_PAD_BOTTOM;
+        this.actionButtonTooltip = recipeJumpEnabled ? new TextTooltip(GuidebookText.OpenRecipeInNei.text()) : null;
         this.otherStacksBroken = registry.recipeOtherStacksThrows(handler, recipeIndex);
     }
 
@@ -122,7 +138,11 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
 
     @Override
     protected LytRect computeLayout(LayoutContext context, int x, int y, int availableWidth) {
-        int innerW = Math.max(bodyWidth, iconSize() + (iconSize() > 0 ? TITLE_GAP_AFTER_ICON : 0) + titleTextWidth());
+        int titleWidth = iconSize() + (iconSize() > 0 ? TITLE_GAP_AFTER_ICON : 0) + titleTextWidth();
+        if (recipeJumpEnabled) {
+            titleWidth += TITLE_GAP_BEFORE_ACTION + ACTION_BUTTON_SIZE;
+        }
+        int innerW = Math.max(bodyWidth, titleWidth);
         int w = FRAME_BORDER + innerW + FRAME_BORDER;
         int h = FRAME_BORDER + titleHeight + BODY_MARGIN + bodyTopInset + bodyHeight + bodyYShift + FRAME_BORDER;
         return new LytRect(x, y, w, h);
@@ -153,6 +173,7 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
         int innerLeft = x + FRAME_BORDER;
         int innerTop = y + FRAME_BORDER;
         int titleRowTop = innerTop + TITLE_PAD_TOP;
+        int innerRight = x + w - FRAME_BORDER;
         int bodyX = innerLeft;
         int bodyY = innerTop + titleHeight + BODY_MARGIN + bodyTopInset;
 
@@ -186,11 +207,12 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
         }
         context.restoreExternalRenderState();
         drawWindowChromeOverlay(context, x, y, w, h, bodyX, bodyY, bodyWidth, bodyHeight);
-        drawTitleRow(context, innerLeft, titleRowTop, fh);
+        drawTitleRow(context, innerLeft, innerRight, titleRowTop, fh);
     }
 
-    private void drawTitleRow(RenderContext context, int innerLeft, int titleRowTop, int fontHeight) {
-        int iconY = titleRowTop + (Math.max(ICON_SIZE, fontHeight) - ICON_SIZE) / 2;
+    private void drawTitleRow(RenderContext context, int innerLeft, int innerRight, int titleRowTop, int fontHeight) {
+        int titleContentHeight = Math.max(ICON_SIZE, fontHeight);
+        int iconY = titleRowTop + (titleContentHeight - ICON_SIZE) / 2;
         if (iconStack != null) {
             drawScaledItem(context, iconStack, innerLeft, iconY, ICON_SIZE);
         } else if (iconImage != null) {
@@ -201,6 +223,22 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
             int textY = titleRowTop + (Math.max(ICON_SIZE, fontHeight) - fontHeight) / 2;
             Minecraft.getMinecraft().fontRenderer.drawString(handlerName, textX, textY, 0xFF000000);
         }
+        if (recipeJumpEnabled) {
+            drawActionButton(
+                innerRight - ACTION_BUTTON_SIZE,
+                titleRowTop + (titleContentHeight - ACTION_BUTTON_SIZE) / 2);
+        }
+    }
+
+    private void drawActionButton(int x, int y) {
+        GuideIconButton.drawIcon(
+            Minecraft.getMinecraft(),
+            GuideIconButton.Role.OPEN_NEI_RECIPE,
+            x,
+            y,
+            ACTION_BUTTON_SIZE,
+            ACTION_BUTTON_SIZE,
+            0xFF00CAF2);
     }
 
     private void drawWindowChromeOverlay(RenderContext context, int windowX, int windowY, int windowW, int windowH,
@@ -299,6 +337,9 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
         if (!registry.isRecipeIntegrationAvailable()) return Optional.empty();
         int px = (int) mx;
         int py = (int) my;
+        if (isActionButtonHit(px, py)) {
+            return Optional.ofNullable(actionButtonTooltip);
+        }
 
         int bodyX = bounds.x() + FRAME_BORDER;
         int bodyTop = bounds.y() + FRAME_BORDER + titleHeight + BODY_MARGIN + bodyTopInset;
@@ -327,6 +368,16 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
         return Optional.of(new NeiItemTooltip(hit, handler, recipeIndex));
     }
 
+    @Override
+    public boolean mouseClicked(GuideUiHost screen, int x, int y, int button, boolean doubleClick) {
+        if (button != 0 || !recipeJumpEnabled || !isActionButtonHit(x, y)) {
+            return false;
+        }
+        EditorAccess editorAccess = screen instanceof EditorAccess access ? access : null;
+        return NeiGuideNavigation
+            .openExactCraftingRecipe(editorAccess, handler, recipeIndex, resolveDisplayedResultStack());
+    }
+
     public static @Nullable ItemStack findSlotHit(List<RecipeSlot> slots, int originX, int originY, int px, int py) {
         for (RecipeSlot s : slots) {
             if (!isOver(originX + s.x(), originY + s.y(), SLOT_SIZE, SLOT_SIZE, px, py)) continue;
@@ -350,6 +401,24 @@ public class LytNeiRecipeBox extends LytBlock implements InteractiveElement {
 
     public static boolean isOver(int x, int y, int w, int h, int px, int py) {
         return px >= x && px < x + w && py >= y && py < y + h;
+    }
+
+    private boolean isActionButtonHit(float x, float y) {
+        if (!recipeJumpEnabled || bounds == null) {
+            return false;
+        }
+        int innerTop = bounds.y() + FRAME_BORDER;
+        int titleContentHeight = Math.max(ICON_SIZE, Minecraft.getMinecraft().fontRenderer.FONT_HEIGHT);
+        int buttonX = bounds.x() + bounds.width() - FRAME_BORDER - ACTION_BUTTON_SIZE;
+        int buttonY = innerTop + TITLE_PAD_TOP + (titleContentHeight - ACTION_BUTTON_SIZE) / 2;
+        return isOver(buttonX, buttonY, ACTION_BUTTON_SIZE, ACTION_BUTTON_SIZE, (int) x, (int) y);
+    }
+
+    private @Nullable ItemStack resolveDisplayedResultStack() {
+        RecipeSlot result = GuideNhIntegrationRegistry.global()
+            .readRecipeResultSlot(handler, recipeIndex);
+        ItemStack stack = pickVisibleStack(result);
+        return stack != null ? stack.copy() : null;
     }
 
     private static int resolveBodyTopInset(String handlerClassName, int bodyYShift) {

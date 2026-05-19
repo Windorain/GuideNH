@@ -112,6 +112,7 @@ public class GuideIconButton extends GuiButton {
     public enum Role {
 
         BACK(GuidebookText.HistoryGoBack, 0, 0),
+        OPEN_NEI_RECIPE(GuidebookText.OpenRecipeInNei, 0, 0),
         FORWARD(GuidebookText.HistoryGoForward, 16, 0),
         CLOSE(GuidebookText.Close, 32, 0),
         SCENE_EDITOR_CLOSE(GuidebookText.SceneEditorClose, 32, 0),

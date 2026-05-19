@@ -31,7 +31,7 @@ This page lists the built-in runtime tags registered by `DefaultExtensions`.
 | `<ItemLink>` | item tooltip + optional navigation link | `id` or `ore`, `linksTo`, `showTooltip`, `noTooltip`, `showIcon` |
 | `<CommandLink>` | clickable chat command link | `command`, `title`, `close` |
 | `<Latex>` | LaTeX math formula; inline in flow context, centered display block in block context | `formula`, `color`, `scale`, `sourceScale`, `tooltip`, `showTooltip` |
-| `<QuestLink>` | BetterQuesting quest link with state-aware styling (compat tag, only registered when BetterQuesting is loaded) | `id`, `text` |
+| `<QuestLink>` | BetterQuesting quest link with state-aware styling (compat tag, only registered when BetterQuesting is loaded) | `id`, `text`, `show_tooltip` |
 
 Inline markdown also supports action links for sound playback:
 
@@ -67,7 +67,7 @@ Inline markdown also supports action links for sound playback:
 | `<Function>` | single-curve shorthand for `<FunctionGraph>` | `expr`, plus all `<FunctionGraph>` panel attributes |
 | `<Recipe>`, `<RecipeFor>`, `<RecipesFor>` | recipe renderers | see [Recipes](Recipes) |
 | `<GameScene>`, `<Scene>` | 3D guide scene | see [GameScene](GameScene) |
-| `<QuestCard>` | block-level BetterQuesting quest summary card (compat tag, only registered when BetterQuesting is loaded) | `id`, `show_desc` |
+| `<QuestCard>` | block-level BetterQuesting quest summary card (compat tag, only registered when BetterQuesting is loaded) | `id`, `show_desc`, `show_tooltip` |
 
 ## Tag Details
 
@@ -717,11 +717,12 @@ Inline link to a BetterQuesting quest. Clicking opens the quest inside the Bette
 | --- | --- |
 | `id` | required BetterQuesting quest id; accepts canonical UUID strings and compact Base64 ids |
 | `text` | optional override for the displayed text |
+| `show_tooltip` | optional boolean (default `true`); set to `false` to suppress the quest-description tooltip. `showTooltip` is accepted as an alias |
 
 Visibility behavior is decided per player at compile time:
 
 - visible / completed quests render as a clickable link (completed quests are tinted green and append a `✓` mark)
-- locked quests render as a non-clickable italic gray placeholder using the `guidenh.compat.bq.locked` translation
+- locked but non-hidden quests still render as clickable quest links so they can open the BetterQuesting quest screen or the indexed guide page
 - hidden / secret quests render as a darker italic placeholder using `guidenh.compat.bq.hidden`
 - unknown quest ids render as a red placeholder using `guidenh.compat.bq.missing`
 
@@ -730,6 +731,7 @@ Example:
 ````md
 See <QuestLink id="01234567-89ab-cdef-0123-456789abcdef" /> for the next step.
 <QuestLink id="01234567-89ab-cdef-0123-456789abcdef" text="Stage 2 quest" />
+<QuestLink id="01234567-89ab-cdef-0123-456789abcdef" show_tooltip="false" />
 See <QuestLink id="AAAAAAAAAAAAAAAAAAAMug==" text="Compact quest id example" /> after that.
 ````
 
@@ -741,13 +743,15 @@ Block-level summary card for a BetterQuesting quest. Renders the quest title wit
 | --- | --- |
 | `id` | required BetterQuesting quest id; accepts canonical UUID strings and compact Base64 ids |
 | `show_desc` | optional boolean (default `true`); set to `false` to suppress the description body |
+| `show_tooltip` | optional boolean (default `true`); set to `false` to suppress the quest-description tooltip on the clickable title. `showTooltip` is accepted as an alias |
 
-The accent color of the card border follows the quest state: green for completed, gray for locked / hidden, red for missing, and the standard link color for visible quests.
+The accent color of the card border follows the quest state: green for completed, gray for locked / hidden, red for missing, and the standard link color for visible quests. The title remains clickable for visible, completed, and locked-but-non-hidden quests.
 
 Example:
 
 ````md
 <QuestCard id="01234567-89ab-cdef-0123-456789abcdef" />
 <QuestCard id="01234567-89ab-cdef-0123-456789abcdef" show_desc="false" />
+<QuestCard id="01234567-89ab-cdef-0123-456789abcdef" show_tooltip="false" />
 <QuestCard id="AAAAAAAAAAAAAAAAAAAMug==" />
 ````

@@ -98,6 +98,7 @@ guideme.gui.config.ui.sceneWheelInteractionDelayMillis.tooltip=Controls how long
 guideme.guidebook.Blasting=Blasting
 guideme.guidebook.Close=Close
 guideme.guidebook.CloseFullWidthView=Close Full Width View
+guideme.guidebook.OpenRecipeInNei=Open This Recipe in NEI
 guideme.guidebook.CodeBlockCopy=Copy code
 guideme.guidebook.CodeBlockCopyFailure=Failed to copy code block: %s
 guideme.guidebook.CodeBlockCopySuccess=Code block copied to clipboard.

@@ -33,7 +33,7 @@
 | `<ItemLink>` | 物品 tooltip + 可选导航链接 | `id` 或 `ore`，`linksTo`，`showTooltip`，`noTooltip`，`showIcon` |
 | `<CommandLink>` | 可点击的聊天命令链接 | `command`, `title`, `close` |
 | `<Latex>` | LaTeX 数学公式；在流式上下文中行内渲染，在块级上下文中居中显示为独立公式块 | `formula`, `color`, `scale`, `sourceScale`, `tooltip`, `showTooltip` |
-| `<QuestLink>` | BetterQuesting 任务链接，按任务状态自动调整样式（兼容标签，仅当 BetterQuesting 已加载时注册） | `id`, `text` |
+| `<QuestLink>` | BetterQuesting 任务链接，按任务状态自动调整样式（兼容标签，仅当 BetterQuesting 已加载时注册） | `id`, `text`, `show_tooltip` |
 
 行内 Markdown 也支持音效动作链接：
 
@@ -69,7 +69,7 @@
 | `<Function>` | 单曲线简写，等价于只含一个 `<Plot>` 的 `<FunctionGraph>` | `expr`，及全部 `<FunctionGraph>` 面板属性 |
 | `<Recipe>`, `<RecipeFor>`, `<RecipesFor>` | 配方渲染器 | 详见 [配方](Recipes-zh-CN) |
 | `<GameScene>`, `<Scene>` | 3D 指南游戏场景 | 详见 [游戏场景](GameScene-zh-CN) |
-| `<QuestCard>` | 块级 BetterQuesting 任务摘要卡片（兼容标签，仅当 BetterQuesting 已加载时注册） | `id`, `show_desc` |
+| `<QuestCard>` | 块级 BetterQuesting 任务摘要卡片（兼容标签，仅当 BetterQuesting 已加载时注册） | `id`, `show_desc`, `show_tooltip` |
 
 ## 标签细节
 
@@ -680,11 +680,12 @@ $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
 | --- | --- |
 | `id` | 必填，BetterQuesting 任务 id；支持标准 UUID 字符串和紧凑 Base64 id |
 | `text` | 可选，覆盖显示文本 |
+| `show_tooltip` | 可选布尔值，默认 `true`；设为 `false` 可关闭任务描述 tooltip。也接受别名 `showTooltip` |
 
 按玩家进度在编译时决定外观：
 
 - 已可见 / 已完成的任务渲染为可点击链接（已完成的会被染为绿色并追加 `✓`）
-- 已锁定的任务渲染为不可点击的斜体灰色占位符，使用本地化键 `guidenh.compat.bq.locked`
+- 已锁定但未隐藏的任务仍会渲染为可点击任务链接，因此仍可打开 BetterQuesting 任务界面或对应的索引指南页
 - 隐藏 / 机密的任务渲染为更深的斜体占位符，使用 `guidenh.compat.bq.hidden`
 - 未知任务 id 渲染为红色占位符，使用 `guidenh.compat.bq.missing`
 
@@ -693,6 +694,7 @@ $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
 ````md
 下一步请参考 <QuestLink id="01234567-89ab-cdef-0123-456789abcdef" />。
 <QuestLink id="01234567-89ab-cdef-0123-456789abcdef" text="第二阶段任务" />
+<QuestLink id="01234567-89ab-cdef-0123-456789abcdef" show_tooltip="false" />
 然后再看 <QuestLink id="AAAAAAAAAAAAAAAAAAAMug==" text="紧凑 quest id 示例" />。
 ````
 
@@ -704,13 +706,15 @@ $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
 | --- | --- |
 | `id` | 必填，BetterQuesting 任务 id；支持标准 UUID 字符串和紧凑 Base64 id |
 | `show_desc` | 可选布尔，默认 `true`；设为 `false` 可隐藏描述正文 |
+| `show_tooltip` | 可选布尔值，默认 `true`；设为 `false` 可关闭可点击标题上的任务描述 tooltip。也接受别名 `showTooltip` |
 
-卡片边框颜色随任务状态变化：已完成绿色、锁定 / 隐藏灰色、缺失红色、可见时使用标准链接色。
+卡片边框颜色随任务状态变化：已完成绿色、锁定 / 隐藏灰色、缺失红色、可见时使用标准链接色。标题在可见、已完成以及锁定但未隐藏时都会保持可点击。
 
 示例：
 
 ````md
 <QuestCard id="01234567-89ab-cdef-0123-456789abcdef" />
 <QuestCard id="01234567-89ab-cdef-0123-456789abcdef" show_desc="false" />
+<QuestCard id="01234567-89ab-cdef-0123-456789abcdef" show_tooltip="false" />
 <QuestCard id="AAAAAAAAAAAAAAAAAAAMug==" />
 ````
