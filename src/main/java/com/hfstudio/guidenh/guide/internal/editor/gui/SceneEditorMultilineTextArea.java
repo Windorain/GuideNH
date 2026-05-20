@@ -14,7 +14,16 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
+import com.hfstudio.guidenh.guide.compiler.GuideMarkdownOptions;
 import com.hfstudio.guidenh.guide.internal.util.DisplayScale;
+import com.hfstudio.guidenh.libs.mdast.MdAst;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstList;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstListContent;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstListItem;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstParent;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstRoot;
+import com.hfstudio.guidenh.libs.unist.UnistNode;
+import com.hfstudio.guidenh.libs.unist.UnistPosition;
 
 public class SceneEditorMultilineTextArea {
 
@@ -596,36 +605,195 @@ public class SceneEditorMultilineTextArea {
     private void applySmartNewline() {
         String text = selectionModel.getText();
         int cursor = selectionModel.getCursorIndex();
-        int lineStart = findLineStart(text, Math.max(0, cursor - 1));
-        int lineEnd = findLineEnd(text, cursor);
-        String line = text.substring(lineStart, lineEnd);
-        MarkdownListMarker marker = parseMarkdownListMarker(line);
-        if (marker != null) {
-            if (line.substring(marker.getContentStart())
-                .trim()
-                .isEmpty()) {
+
+        // 1. Try AST-based list continuation
+        MdAstRoot root = MdAst.fromMarkdown(text, GuideMarkdownOptions.runtime());
+        MdAstListItem item = findEnclosingListItem(root, cursor);
+        if (item != null) {
+            int lineStart = findLineStart(text, cursor - 1);
+            if (isListItemContentEmpty(item, text)) {
                 selectionModel.setSelection(lineStart, cursor);
-                selectionModel.insertText(leadingWhitespace(line));
+                selectionModel.insertText(leadingWhitespace(text.substring(lineStart, findLineEnd(text, cursor))));
                 return;
             }
-            selectionModel.insertText("\n" + marker.nextLinePrefix());
-            return;
+            String nextMarker = resolveNextListMarker(text, item, root);
+            if (nextMarker != null) {
+                selectionModel.insertText("\n" + nextMarker);
+                return;
+            }
         }
-        selectionModel.insertText(createIndentedNewline());
-    }
 
-    private String createIndentedNewline() {
-        String text = selectionModel.getText();
-        int cursor = selectionModel.getCursorIndex();
+        // 2. Fallback: manual list marker continuation (for YAML and non-Markdown lists)
         int lineStart = findLineStart(text, Math.max(0, cursor - 1));
         int lineEnd = findLineEnd(text, cursor);
         String line = text.substring(lineStart, lineEnd);
         String indent = leadingWhitespace(line);
         String trimmed = line.trim();
-        if (shouldIndentAfter(trimmed)) {
-            indent += "    ";
+        String manualMarker = resolveManualListMarker(trimmed);
+        if (manualMarker != null) {
+            int markerLen = manualMarker.length();
+            if (trimmed.length() <= markerLen || (trimmed.length() > markerLen
+                && trimmed.substring(markerLen)
+                    .trim()
+                    .isEmpty())) {
+                // Empty list item: remove marker
+                selectionModel.setSelection(lineStart, cursor);
+                selectionModel.insertText(indent);
+                return;
+            }
+            selectionModel.insertText("\n" + indent + manualMarker);
+            return;
         }
-        return "\n" + indent;
+        selectionModel.insertText("\n" + indent);
+    }
+
+    @Nullable
+    private static String resolveManualListMarker(String trimmed) {
+        if (trimmed.isEmpty()) return null;
+        char first = trimmed.charAt(0);
+        if (first == '-' || first == '*' || first == '+') {
+            if (trimmed.length() >= 2 && trimmed.charAt(1) == ' ') return "- ";
+            if (trimmed.length() == 1) return "- "; // bare marker, empty item
+        }
+        // Ordered list: number. or number)
+        int i = 0;
+        while (i < trimmed.length() && Character.isDigit(trimmed.charAt(i))) i++;
+        if (i > 0 && i + 1 < trimmed.length()
+            && (trimmed.charAt(i) == '.' || trimmed.charAt(i) == ')')
+            && trimmed.charAt(i + 1) == ' ') {
+            int num = Integer.parseInt(trimmed.substring(0, i));
+            return (num + 1) + trimmed.charAt(i) + " ";
+        }
+        return null;
+    }
+
+    @Nullable
+    private static MdAstListItem findEnclosingListItem(
+        UnistNode node, int cursorIndex) {
+        UnistPosition pos = node.position();
+        if (pos != null && pos.start() != null && pos.end() != null) {
+            if (cursorIndex < pos.start().offset() || cursorIndex > pos.end().offset()) {
+                return null;
+            }
+        }
+        if (node instanceof MdAstListItem) {
+            return (MdAstListItem) node;
+        }
+        if (node instanceof MdAstParent) {
+            for (UnistNode child : ((MdAstParent<?>) node)
+                .children()) {
+                MdAstListItem found = findEnclosingListItem(child, cursorIndex);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isListItemContentEmpty(MdAstListItem item,
+        String text) {
+        UnistPosition pos = item.position();
+        if (pos == null || pos.start() == null || pos.end() == null) return false;
+        int start = pos.start().offset();
+        int end = pos.end().offset();
+        if (start >= end || end > text.length()) return false;
+        // Find first newline to get the first line (contains the marker)
+        int firstLineEnd = text.indexOf('\n', start);
+        if (firstLineEnd < 0 || firstLineEnd >= end) firstLineEnd = end;
+        // Skip past the marker: find the first non-digit/non-marker char after indent
+        String firstLine = text.substring(start, firstLineEnd);
+        String trimmed = firstLine.trim();
+        if (trimmed.isEmpty()) return true;
+        // Check if after the marker the content is empty
+        int contentStart = findListContentStart(trimmed);
+        return contentStart >= trimmed.length() || trimmed.substring(contentStart).trim().isEmpty();
+    }
+
+    private static int findListContentStart(String trimmed) {
+        int i = 0;
+        // Unordered: -, *, +
+        if (i < trimmed.length() && (trimmed.charAt(i) == '-' || trimmed.charAt(i) == '*' || trimmed.charAt(i) == '+')) {
+            i++;
+            if (i < trimmed.length() && trimmed.charAt(i) == ' ') return i + 1;
+        }
+        // Ordered: number. or number)
+        while (i < trimmed.length() && Character.isDigit(trimmed.charAt(i))) i++;
+        if (i > 0 && i + 1 < trimmed.length() && (trimmed.charAt(i) == '.' || trimmed.charAt(i) == ')')
+            && trimmed.charAt(i + 1) == ' ') {
+            return i + 2;
+        }
+        return 0;
+    }
+
+    @Nullable
+    private static String resolveNextListMarker(String text, MdAstListItem item,
+        MdAstRoot root) {
+        MdAstList list = findParentList(root, item);
+        if (list == null) return null;
+        // Find the marker from the current item's source text
+        UnistPosition pos = item.position();
+        if (pos == null || pos.start() == null) return null;
+        int itemStart = pos.start().offset();
+        int firstLineEnd = text.indexOf('\n', itemStart);
+        if (firstLineEnd < 0) firstLineEnd = Math.min(itemStart + 80, text.length());
+        String firstLine = text.substring(itemStart, Math.min(firstLineEnd, text.length())).trim();
+        String marker = extractListMarker(firstLine);
+        if (marker == null) return null;
+
+        if (list.ordered) {
+            // Compute next number: find the index of this item in the list's children
+            int index = 0;
+            for (MdAstListContent child : list.children()) {
+                if (child == item) break;
+                if (child instanceof MdAstListItem) index++;
+            }
+            int nextNumber = list.start + index + 1;
+            char delimiter = marker.charAt(marker.length() - 1); // . or )
+            return indentFor(item) + nextNumber + delimiter + " ";
+        }
+        return indentFor(item) + marker;
+    }
+
+    @Nullable
+    private static String extractListMarker(String firstLine) {
+        if (firstLine.isEmpty()) return null;
+        int i = 0;
+        char c = firstLine.charAt(i);
+        if (c == '-' || c == '*' || c == '+') {
+            return i + 1 < firstLine.length() && firstLine.charAt(i + 1) == ' ' ? "- " : null;
+        }
+        while (i < firstLine.length() && Character.isDigit(firstLine.charAt(i))) i++;
+        if (i > 0 && i + 1 < firstLine.length()
+            && (firstLine.charAt(i) == '.' || firstLine.charAt(i) == ')')
+            && firstLine.charAt(i + 1) == ' ') {
+            return firstLine.substring(0, i) + firstLine.charAt(i) + " ";
+        }
+        return null;
+    }
+
+    private static String indentFor(MdAstListItem item) {
+        // Simple: use empty indent (list items are typically left-aligned)
+        return "";
+    }
+
+    @Nullable
+    private static MdAstList findParentList(
+        UnistNode root,
+        MdAstListItem target) {
+        if (!(root instanceof MdAstParent)) return null;
+        for (UnistNode child : ((MdAstParent<?>) root)
+            .children()) {
+            if (child instanceof MdAstList) {
+                for (MdAstListContent item : ((MdAstList) child).children()) {
+                    if (item == target) return (MdAstList) child;
+                }
+                MdAstList found = findParentList(child, target);
+                if (found != null) return found;
+            } else {
+                MdAstList found = findParentList(child, target);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private static int findLineStart(String text, int index) {
@@ -664,19 +832,6 @@ public class SceneEditorMultilineTextArea {
         return line.substring(0, end);
     }
 
-    private static boolean shouldIndentAfter(String trimmedLine) {
-        if (trimmedLine.isEmpty()) {
-            return false;
-        }
-        char last = trimmedLine.charAt(trimmedLine.length() - 1);
-        if (last == '{' || last == '[' || last == '(' || last == ':') {
-            return true;
-        }
-        return trimmedLine.startsWith("<") && !trimmedLine.startsWith("</")
-            && !trimmedLine.endsWith("/>")
-            && !trimmedLine.endsWith("-->");
-    }
-
     private static String normalizeLineEndings(String text) {
         if (text == null || text.isEmpty()) {
             return "";
@@ -702,59 +857,6 @@ public class SceneEditorMultilineTextArea {
             }
         }
         return normalized != null ? normalized.toString() : text;
-    }
-
-    @Nullable
-    private static MarkdownListMarker parseMarkdownListMarker(String line) {
-        String indent = leadingWhitespace(line);
-        int pos = indent.length();
-        if (pos + 2 <= line.length()) {
-            char marker = line.charAt(pos);
-            if ((marker == '-' || marker == '*' || marker == '+') && line.charAt(pos + 1) == ' ') {
-                return new MarkdownListMarker(indent, Character.toString(marker), pos + 2);
-            }
-        }
-        int numberStart = pos;
-        while (pos < line.length() && Character.isDigit(line.charAt(pos))) {
-            pos++;
-        }
-        if (pos > numberStart && pos + 1 < line.length()
-            && (line.charAt(pos) == '.' || line.charAt(pos) == ')')
-            && line.charAt(pos + 1) == ' ') {
-            String numberText = line.substring(numberStart, pos);
-            int number = parseListNumber(numberText);
-            return new MarkdownListMarker(indent, Integer.toString(number + 1) + line.charAt(pos), pos + 2);
-        }
-        return null;
-    }
-
-    private static int parseListNumber(String numberText) {
-        try {
-            return Integer.parseInt(numberText);
-        } catch (NumberFormatException ignored) {
-            return 1;
-        }
-    }
-
-    private static class MarkdownListMarker {
-
-        private final String indent;
-        private final String marker;
-        private final int contentStart;
-
-        private MarkdownListMarker(String indent, String marker, int contentStart) {
-            this.indent = indent;
-            this.marker = marker;
-            this.contentStart = contentStart;
-        }
-
-        private int getContentStart() {
-            return contentStart;
-        }
-
-        private String nextLinePrefix() {
-            return indent + marker + " ";
-        }
     }
 
     public void draw(boolean validationError) {

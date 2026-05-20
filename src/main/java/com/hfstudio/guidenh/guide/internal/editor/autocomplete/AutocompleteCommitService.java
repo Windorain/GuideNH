@@ -3,6 +3,7 @@ package com.hfstudio.guidenh.guide.internal.editor.autocomplete;
 import java.util.List;
 
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.AutocompleteCandidate;
+import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.FrontmatterContext;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxAttrNameContext;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.MdxValueContext;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver.TagStartContext;
@@ -32,6 +33,9 @@ public class AutocompleteCommitService {
         }
         if (context instanceof MdxValueContext) {
             return createAttributeValueReplacement(source, (MdxValueContext) context, replacement);
+        }
+        if (context instanceof FrontmatterContext) {
+            return createFrontmatterReplacement(source, (FrontmatterContext) context, replacement);
         }
         return Replacement.cursorAtEnd(replacement);
     }
@@ -137,6 +141,20 @@ public class AutocompleteCommitService {
             default:
                 return true;
         }
+    }
+
+    private static Replacement createFrontmatterReplacement(String source, FrontmatterContext context,
+        String rawText) {
+        String replacement = rawText != null ? rawText : "";
+        if (!context.isValue()) {
+            replacement += ": ";
+        } else if (!replacement.isEmpty() && replacement.charAt(0) == '\n') {
+            int start = context.replaceStart();
+            if (start > 0 && source.charAt(start - 1) == '\n') {
+                replacement = replacement.substring(1);
+            }
+        }
+        return new Replacement(replacement, replacement.length(), replacement.length());
     }
 
     private static ValueEnvelope findValueEnvelope(String source, int valueStart, int valueEnd) {

@@ -19,6 +19,8 @@ public class FrontmatterValueProvider implements AutocompleteProvider {
         HINTS.put(
             "navigation",
             new String[] { "\n  title:", "\n  parent:", "\n  position:", "\n  icon:", "\n  icon_texture:" });
+        // TODO: integrate with BetterQuesting for dynamic quest UUID lookup
+        HINTS.put("quest_ids", new String[] { "\n  - 00000000-0000-0000-0000-000000000000" });
     }
 
     private static final Set<AutocompleteKey> KEYS = buildKeys();

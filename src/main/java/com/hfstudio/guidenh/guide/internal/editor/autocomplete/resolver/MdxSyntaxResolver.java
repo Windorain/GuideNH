@@ -13,8 +13,11 @@ import com.hfstudio.guidenh.libs.mdast.MdastOptions;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxAttribute;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstCode;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstImage;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstLink;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstParent;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstRoot;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstResource;
 import com.hfstudio.guidenh.libs.unist.UnistNode;
 import com.hfstudio.guidenh.libs.unist.UnistPosition;
 
@@ -62,6 +65,13 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
             if (result != null) return result;
         }
 
+        // 2.5. Markdown link/image URL
+        MdAstResource res = findEnclosingLink(root, cursorIndex);
+        if (res != null) {
+            TextSyntaxContext result = resolveLinkUrl(res, text, cursorIndex);
+            if (result != null) return result;
+        }
+
         // 3. MDX element
         MdxJsxElementFields element = findEnclosingMdxElement(root, cursorIndex);
         if (element != null) {
@@ -88,8 +98,20 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
         String line = getLineAt(text, cursorIndex);
         if (line == null) return resolvePlainTextWord(text, cursorIndex);
 
+        // Empty line: inherit context from preceding indented parent key
+        if (line.trim()
+            .isEmpty()) {
+            return resolveFrontmatterEmptyLine(text, cursorIndex);
+        }
+
         int colonIdx = line.indexOf(':');
-        if (colonIdx < 0) return resolvePlainTextWord(text, cursorIndex);
+        if (colonIdx < 0) {
+            String trimmed = line.trim();
+            if (isYamlListMarker(trimmed)) {
+                return resolveFrontmatterEmptyLine(text, cursorIndex);
+            }
+            return resolvePlainTextWord(text, cursorIndex);
+        }
 
         String key = line.substring(0, colonIdx)
             .trim();
@@ -103,9 +125,6 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
 
         int valueAbsStart = lineStart + valueStart;
         int valueAbsEnd = lineStart + line.length();
-        if (valueAbsEnd < text.length() && text.charAt(valueAbsEnd) == '\n') {
-            valueAbsEnd++;
-        }
 
         // Cursor is on the value
         if (cursorIndex >= valueAbsStart && cursorIndex <= valueAbsEnd) {
@@ -129,6 +148,58 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
         }
 
         return resolvePlainTextWord(text, cursorIndex);
+    }
+
+    @Nullable
+    private TextSyntaxContext resolveFrontmatterEmptyLine(String text, int cursorIndex) {
+        int prevLineEnd = text.lastIndexOf('\n', cursorIndex - 1);
+        if (prevLineEnd < 0) return resolvePlainTextWord(text, cursorIndex);
+        int prevLineStart = text.lastIndexOf('\n', prevLineEnd - 1) + 1;
+        String prevLine = text.substring(prevLineStart, prevLineEnd);
+        String prevTrimmed = prevLine.trim();
+        if (prevTrimmed.isEmpty() || prevTrimmed.startsWith("#")) {
+            return resolvePlainTextWord(text, cursorIndex);
+        }
+
+        int prevColon = prevLine.indexOf(':');
+        if (prevColon < 0) return resolvePlainTextWord(text, cursorIndex);
+
+        String prevKey = prevLine.substring(0, prevColon)
+            .trim();
+        int prevIndent = prevLine.indexOf(prevKey);
+        if (prevIndent == 0) return resolvePlainTextWord(text, cursorIndex); // top-level key, no parent
+
+        // Find parent key at a lower indentation
+        int searchPos = prevLineStart - 1;
+        while (searchPos > 0) {
+            int lineEnd = searchPos;
+            int lineStart = text.lastIndexOf('\n', lineEnd - 1) + 1;
+            String candidate = text.substring(lineStart, lineEnd);
+            int cColon = candidate.indexOf(':');
+            if (cColon >= 0) {
+                String cKey = candidate.substring(0, cColon)
+                    .trim();
+                if (!cKey.isEmpty() && candidate.indexOf(cKey) < prevIndent) {
+                    int valueStart = cursorIndex;
+                    return new TextSyntaxContext(
+                        SyntaxElementType.WORD,
+                        valueStart,
+                        valueStart,
+                        new FrontmatterContext(cKey, true, valueStart, valueStart, ""));
+                }
+            }
+            searchPos = lineStart - 1;
+        }
+        return resolvePlainTextWord(text, cursorIndex);
+    }
+
+    private static boolean isYamlListMarker(String trimmed) {
+        if (trimmed.isEmpty()) return false;
+        char c = trimmed.charAt(0);
+        if ((c == '-' || c == '*' || c == '+') && (trimmed.length() == 1 || trimmed.charAt(1) == ' ')) return true;
+        int i = 0;
+        while (i < trimmed.length() && Character.isDigit(trimmed.charAt(i))) i++;
+        return i > 0 && i < trimmed.length() && (trimmed.charAt(i) == '.' || trimmed.charAt(i) == ')');
     }
 
     // ---- Code fence language ----
@@ -157,6 +228,42 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
             langStart,
             cursorIndex,
             new FenceLanguageContext(langStart, cursorIndex, partial));
+    }
+
+    // ---- Markdown link/image URL ----
+
+    @Nullable
+    private MdAstResource findEnclosingLink(UnistNode node, int cursorIndex) {
+        MdAstLink link = findEnclosingNode(node, cursorIndex, MdAstLink.class);
+        if (link != null) return link;
+        return findEnclosingNode(node, cursorIndex, MdAstImage.class);
+    }
+
+    @Nullable
+    private TextSyntaxContext resolveLinkUrl(MdAstResource resource, String text, int cursorIndex) {
+        UnistPosition pos = ((UnistNode) resource).position();
+        if (pos == null || pos.start() == null || pos.end() == null) return null;
+
+        int nodeStart = pos.start()
+            .offset();
+        int nodeEnd = pos.end()
+            .offset();
+        int parenOpen = text.indexOf('(', nodeStart);
+        if (parenOpen < 0 || parenOpen >= nodeEnd) return null;
+        int parenClose = text.lastIndexOf(')', nodeEnd - 1);
+        if (parenClose < parenOpen) return null;
+
+        int urlStart = parenOpen + 1;
+        int urlEnd = parenClose;
+        if (cursorIndex < urlStart || cursorIndex > urlEnd) return null;
+
+        String tagName = resource instanceof MdAstImage ? "image" : "link";
+        String partial = text.substring(urlStart, cursorIndex);
+        return new TextSyntaxContext(
+            SyntaxElementType.ATTRIBUTE_VALUE,
+            urlStart,
+            urlEnd,
+            new MdxValueContext(tagName, "url", urlStart, urlEnd, partial, '\0'));
     }
 
     // ---- Tag start ----
@@ -243,8 +350,7 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
         if (elemPos != null && elemPos.start() != null && elemPos.end() != null) {
             int tagStart = elemPos.start()
                 .offset();
-            int tagEnd = elemPos.end()
-                .offset();
+            int tagEnd = findOpeningTagEnd(text, tagStart);
             if (cursorIndex > tagStart && cursorIndex < tagEnd) {
                 return resolveAttributeNameFromTag(text, tagName, tagStart, tagEnd, cursorIndex);
             }
@@ -335,6 +441,23 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
     }
 
     // ---- Text scanning helpers ----
+
+    private static int findOpeningTagEnd(String text, int tagStart) {
+        boolean inSingle = false;
+        boolean inDouble = false;
+        int braceDepth = 0;
+        for (int i = tagStart; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if ((inSingle || inDouble) && ch == '\\' && i + 1 < text.length()) { i++; continue; }
+            if (ch == '\'' && !inDouble) { inSingle = !inSingle; continue; }
+            if (ch == '"' && !inSingle) { inDouble = !inDouble; continue; }
+            if (inSingle || inDouble) continue;
+            if (ch == '{') { braceDepth++; continue; }
+            if (ch == '}') { braceDepth = Math.max(0, braceDepth - 1); continue; }
+            if (ch == '>' && braceDepth == 0) return i + 1;
+        }
+        return text.length();
+    }
 
     private static boolean isInsideAnyAttributeValue(String text, int scanStart, int tagEnd, int cursorIndex) {
         int pos = scanStart;

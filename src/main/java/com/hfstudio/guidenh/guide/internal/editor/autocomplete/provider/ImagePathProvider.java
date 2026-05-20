@@ -36,7 +36,9 @@ public class ImagePathProvider implements AutocompleteProvider {
                 AutocompleteKey.forValue("ImportStructure", "src"),
                 AutocompleteKey.forValue("ImportPonder", "src"),
                 AutocompleteKey.forValue("Mermaid", "src"),
-                AutocompleteKey.forValue("CsvTable", "src"))));
+                AutocompleteKey.forValue("CsvTable", "src"),
+                AutocompleteKey.forValue("*", "icon_texture"),
+                AutocompleteKey.forValue("image", "url"))));
 
     private static final String[] EXTENSIONS = { ".png", ".jpg", ".jpeg", ".gif", ".snbt", ".nbt", ".csv", ".json",
         ".mmd", ".md" };

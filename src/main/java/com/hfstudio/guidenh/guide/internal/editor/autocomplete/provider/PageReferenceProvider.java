@@ -24,6 +24,7 @@ public class PageReferenceProvider implements AutocompleteProvider {
         keys.add(AutocompleteKey.forValue("SubPages", "id"));
         keys.add(AutocompleteKey.forValue("ItemLink", "linksTo"));
         keys.add(AutocompleteKey.forValue("*", "parent"));
+        keys.add(AutocompleteKey.forValue("link", "url"));
         return Collections.unmodifiableSet(keys);
     }
 

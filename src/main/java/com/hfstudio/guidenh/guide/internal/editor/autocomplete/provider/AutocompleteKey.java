@@ -25,6 +25,10 @@ public class AutocompleteKey {
         return new AutocompleteKey(MatchType.TAG_NAME, null, null);
     }
 
+    public static AutocompleteKey forTag(String parentTagName) {
+        return new AutocompleteKey(MatchType.TAG_NAME, parentTagName, null);
+    }
+
     public static AutocompleteKey forAttr(String tagName) {
         return new AutocompleteKey(MatchType.ATTR_NAME, Objects.requireNonNull(tagName), null);
     }
