@@ -17,7 +17,7 @@ import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxTextElement;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstNode;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstPosition;
 import com.hfstudio.guidenh.libs.micromark.ListUtils;
-import com.hfstudio.guidenh.libs.micromark.ParseException;
+
 import com.hfstudio.guidenh.libs.micromark.Point;
 import com.hfstudio.guidenh.libs.micromark.Token;
 
@@ -98,11 +98,7 @@ public class MdxMdastExtension {
         var stack = getStack(context);
 
         if (stack.isEmpty()) {
-            throw new ParseException(
-                "Unexpected closing slash `/` in tag, expected an open tag first",
-                token.start,
-                token.end,
-                "mdast-util-mdx-jsx:unexpected-closing-slash");
+            return;
         }
     }
 
@@ -110,11 +106,7 @@ public class MdxMdastExtension {
         var tag = getTag(context);
 
         if (tag.close) {
-            throw new ParseException(
-                "Unexpected attribute in closing tag, expected the end of the tag",
-                token.start,
-                token.end,
-                "mdast-util-mdx-jsx:unexpected-attribute");
+            return;
         }
     }
 
@@ -122,11 +114,7 @@ public class MdxMdastExtension {
         var tag = getTag(context);
 
         if (tag.close) {
-            throw new ParseException(
-                "Unexpected self-closing slash `/` in closing tag, expected the end of the tag",
-                token.start,
-                token.end,
-                "mdast-util-mdx-jsx:unexpected-self-closing-slash");
+            return;
         }
     }
 
@@ -234,17 +222,8 @@ public class MdxMdastExtension {
         var stack = getStack(context);
         var tail = stack.isEmpty() ? null : stack.get(stack.size() - 1);
 
-        if (tag.close && !Objects.equals(tail.name, tag.name)) {
-            throw new ParseException(
-                "Unexpected closing tag `" + serializeAbbreviatedTag(tag)
-                    + "`, expected corresponding closing tag for `"
-                    + serializeAbbreviatedTag(tail)
-                    + "` ("
-                    + MdAstPosition.stringify(tail.position())
-                    + ')',
-                token.start,
-                token.end,
-                "mdast-util-mdx-jsx:end-tag-mismatch");
+        if (tag.close && tail != null && !Objects.equals(tail.name, tag.name)) {
+            // Mismatched closing tag — ignore and continue.
         }
 
         // End of a tag, so drop the buffer.
@@ -271,36 +250,26 @@ public class MdxMdastExtension {
     }
 
     public static void onErrorRightIsTag(MdastContext context, @Nullable Token closing, Token open) {
-        var tag = getTag(context);
-        var place = closing != null ? " before the end of `" + closing.type + '`' : "";
-        MdAstPosition position = null;
+        // Unclosed tag found when a parent (e.g. paragraph) is trying to close.
+        // Recursively unwind the stack: each context.exit(closing) pops one more
+        // mismatched pair, until the correct parent is reached and closed.
         if (closing != null) {
-            position = new MdAstPosition(closing.start, closing.end);
+            context.exit(closing, (ctx, left, right) -> {
+                if (left != null) {
+                    ctx.exit(left);
+                }
+            });
         }
-
-        throw new ParseException(
-            "Expected a closing tag for `" + serializeAbbreviatedTag(
-                tag) + "` (" + MdAstPosition.stringify(open.start, open.end) + ')' + place,
-            position,
-            "mdast-util-mdx-jsx:end-tag-mismatch");
     }
 
     public static void onErrorLeftIsTag(MdastContext context, @Nullable Token a, Token b) {
-        var tag = getTag(context);
-        throw new ParseException(
-            "Expected the closing tag `" + serializeAbbreviatedTag(tag)
-                + "` either after the end of `"
-                + b.type
-                + "` ("
-                + MdAstPosition.stringify(b.end)
-                + ") or another opening tag after the start of `"
-                + b.type
-                + "` ("
-                + MdAstPosition.stringify(b.start)
-                + ')',
-            a != null ? a.start : null,
-            a != null ? a.end : null,
-            "mdast-util-mdx-jsx:end-tag-mismatch");
+        if (a != null) {
+            context.exit(a, (ctx, left, right) -> {
+                if (left != null) {
+                    ctx.exit(left);
+                }
+            });
+        }
     }
 
     /**

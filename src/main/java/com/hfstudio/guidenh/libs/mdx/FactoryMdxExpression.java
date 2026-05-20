@@ -67,7 +67,9 @@ public class FactoryMdxExpression {
 
                 if (now.line() != startPosition.line() && !allowLazy && context.isOnLazyLine()) {
                     effects.exit(type);
+                    effects.enter("mdxExpressionRecovery");
                     effects.consume(code);
+                    effects.exit("mdxExpressionRecovery");
                     return ok;
                 }
 

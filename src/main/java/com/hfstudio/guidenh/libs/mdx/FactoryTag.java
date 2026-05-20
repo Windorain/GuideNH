@@ -6,7 +6,7 @@ import static com.hfstudio.guidenh.libs.mdx.EcmaScriptIdentifiers.isStart;
 import com.hfstudio.guidenh.libs.micromark.Assert;
 import com.hfstudio.guidenh.libs.micromark.CharUtil;
 import com.hfstudio.guidenh.libs.micromark.Construct;
-import com.hfstudio.guidenh.libs.micromark.ParseException;
+
 import com.hfstudio.guidenh.libs.micromark.Point;
 import com.hfstudio.guidenh.libs.micromark.State;
 import com.hfstudio.guidenh.libs.micromark.TokenizeContext;
@@ -536,21 +536,11 @@ public class FactoryTag {
             // Optionally start whitespace.
             State optionalEsWhitespace(int code) {
                 if (CharUtil.markdownLineEnding(code)) {
-                    if (allowLazy) {
-                        effects.enter(Types.lineEnding);
-                        effects.consume(code);
-                        effects.exit(Types.lineEnding);
-                        return FactorySpace
-                            .create(effects, this::optionalEsWhitespace, Types.linePrefix, Constants.tabSize);
-                    }
-
-                    return effects.attempt
-                        .hook(
-                            lazyLineEnd,
-                            FactorySpace
-                                .create(effects, this::optionalEsWhitespace, Types.linePrefix, Constants.tabSize),
-                            this::crashEol)
-                        .step(code);
+                    effects.enter(Types.lineEnding);
+                    effects.consume(code);
+                    effects.exit(Types.lineEnding);
+                    return FactorySpace
+                        .create(effects, this::optionalEsWhitespace, Types.linePrefix, Constants.tabSize);
                 }
 
                 if (CharUtil.markdownSpace(code) || CharUtil.unicodeWhitespace(code)) {
@@ -573,22 +563,22 @@ public class FactoryTag {
                 return this::optionalEsWhitespaceContinue;
             }
 
-            private State crashEol(int code) {
-                throw new ParseException(
-                    "Unexpected lazy line in container, expected line to be prefixed with `>` when in a block quote, whitespace when in a list, etc",
-                    context.now(),
-                    "micromark-extension-mdx-jsx:unexpected-eof");
-            }
-
             // Recover from a nonconforming character: exit any open tokens, close the tag,
             // and return ok so parsing can continue. This makes the tokenizer error-tolerant
             // so autocomplete can always query the AST even for incomplete input.
             private State recover(int code, String... openTokens) {
-                for (int i = openTokens.length - 1; i >= 0; i--) {
-                    effects.exit(openTokens[i]);
+                for (String openToken : openTokens) {
+                    effects.exit(openToken);
                 }
                 effects.exit(tagType);
-                effects.consume(code);
+                if (code == Codes.eof) {
+                    // consume(eof) requires last event to be EXIT, which it is after exiting tagType.
+                    effects.consume(code);
+                } else {
+                    effects.enter("mdxJsxRecovery");
+                    effects.consume(code);
+                    effects.exit("mdxJsxRecovery");
+                }
                 return ok;
             }
         }
