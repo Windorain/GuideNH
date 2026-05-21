@@ -43,6 +43,26 @@ public class GuidePageLanguageIndex {
             .get(key);
     }
 
+    public static boolean isPageLangKey(@Nullable String key) {
+        return key != null && key.startsWith(PAGE_LANG_KEY_PREFIX);
+    }
+
+    public static Map<String, String> readPageKeys(InputStream input) throws IOException {
+        Map<String, String> source = StringTranslate.parseLangFile(input);
+        if (source.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, String> filtered = new LinkedHashMap<>();
+        for (var entry : source.entrySet()) {
+            String key = entry.getKey();
+            if (isPageLangKey(key)) {
+                filtered.put(key, entry.getValue());
+            }
+        }
+        return filtered.isEmpty() ? Collections.emptyMap() : filtered;
+    }
+
     private static Map<String, String> loadLanguage(String normalizedLanguage) {
         Map<String, String> merged = new LinkedHashMap<>();
         for (IResourcePack resourcePack : DataDrivenGuideLoader.getActiveResourcePacks()) {
@@ -147,12 +167,6 @@ public class GuidePageLanguageIndex {
     }
 
     private static void mergePageKeys(InputStream input, Map<String, String> target) throws IOException {
-        Map<String, String> source = StringTranslate.parseLangFile(input);
-        for (var entry : source.entrySet()) {
-            String key = entry.getKey();
-            if (key != null && key.startsWith(PAGE_LANG_KEY_PREFIX)) {
-                target.put(key, entry.getValue());
-            }
-        }
+        target.putAll(readPageKeys(input));
     }
 }

@@ -1176,7 +1176,12 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
             } catch (Exception ignored) {}
         }
         if (source == null) {
-            source = MermaidMindmapNodeContentExtractor.extractDiagramSource(element.children());
+            ParsedGuidePage parsedPage = currentPageId != null ? parsedPagesById.get(currentPageId) : null;
+            source = MermaidMindmapNodeContentExtractor
+                .extractDiagramSource(element, parsedPage != null ? parsedPage.getSource() : null);
+            if (source == null) {
+                source = MermaidMindmapNodeContentExtractor.extractDiagramSource(element.children());
+            }
         }
         source = source != null ? source.trim() : "";
         if (source.isEmpty()) {

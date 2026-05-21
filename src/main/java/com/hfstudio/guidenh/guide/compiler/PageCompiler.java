@@ -1415,28 +1415,16 @@ public class PageCompiler {
     }
 
     private @Nullable BlockTagChildSource extractBlockTagChildrenSource(MdxJsxElementFields element) {
-        UnistPosition position = element.position();
-        if (position == null || position.start() == null || position.end() == null) {
-            return null;
-        }
-
-        int sourceStart = position.start()
-            .offset();
-        int sourceEnd = position.end()
-            .offset();
         String sourceText = getCurrentSourceText();
-        if (sourceStart < 0 || sourceEnd <= sourceStart || sourceEnd > sourceText.length()) {
+        String body = MdxBlockTagSourceExtractor.extractRawBody(element, sourceText);
+        if (body == null && !Objects.equals(sourceText, pageContent)) {
+            body = MdxBlockTagSourceExtractor.extractRawBody(element, pageContent);
+        }
+        if (body == null) {
             return null;
         }
 
-        String raw = sourceText.substring(sourceStart, sourceEnd);
-        int openingTagEnd = raw.indexOf('>');
-        int closingTagStart = raw.lastIndexOf("</");
-        if (openingTagEnd < 0 || closingTagStart < 0 || closingTagStart <= openingTagEnd) {
-            return null;
-        }
-
-        return new BlockTagChildSource(dedentBlockTagBody(raw.substring(openingTagEnd + 1, closingTagStart)));
+        return new BlockTagChildSource(dedentBlockTagBody(body));
     }
 
     private String dedentBlockTagBody(String body) {

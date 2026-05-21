@@ -17,6 +17,7 @@ import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.internal.MutableGuide;
 import com.hfstudio.guidenh.guide.internal.datadriven.DataDrivenGuideLoader;
 import com.hfstudio.guidenh.guide.internal.localization.GuideLocalizedPageSourceResolver;
+import com.hfstudio.guidenh.guide.internal.localization.GuideLocalizedPageSourceResolver.ResolvedGuidePageSource;
 import com.hfstudio.guidenh.guide.internal.resource.GuideResourceAccess;
 
 import cpw.mods.fml.common.FMLLog;
@@ -215,12 +216,14 @@ public class GuideSitePageCollector {
             if (bytes == null) {
                 return Optional.empty();
             }
+            ResolvedGuidePageSource resolvedSource = GuideLocalizedPageSourceResolver
+                .resolve(requestedLanguage, contentRootFolder, pageId, bytes);
             return Optional.of(
                 new LoadedPage(
                     sourceLanguage,
-                    sourceLanguage == null || !requestedLanguage.equals(sourceLanguage),
+                    sourceLanguage == null || !requestedLanguage.equals(sourceLanguage) || resolvedSource.localized(),
                     GuideLocalizedPageSourceResolver
-                        .parse("resources:" + namespace, requestedLanguage, contentRootFolder, pageId, bytes)));
+                        .parse("resources:" + namespace, requestedLanguage, pageId, resolvedSource)));
         } catch (Exception e) {
             return Optional.empty();
         }

@@ -102,6 +102,11 @@ public class MermaidCompiler extends BlockTagCompiler {
             .isEmpty()) {
             return loadSource(compiler, src.trim());
         }
+        String rawTagBodySource = compiler.getBlockTagChildrenSource(el);
+        if (rawTagBodySource != null && !rawTagBodySource.trim()
+            .isEmpty()) {
+            return MermaidMindmapNodeContentExtractor.stripExplicitNodeContentBlocks(rawTagBodySource);
+        }
         return MermaidMindmapNodeContentExtractor.extractDiagramSource(el.children());
     }
 

@@ -32,6 +32,11 @@ public class GuideLocalizedPageSourceResolver {
             resolve(language, contentRootFolder, pageId, fileBytes, localizedSourceOverride).source());
     }
 
+    public static ParsedGuidePage parse(String sourcePack, String language, ResourceLocation pageId,
+        ResolvedGuidePageSource resolvedSource) {
+        return PageCompiler.parse(sourcePack, language, pageId, resolvedSource.source());
+    }
+
     public static ResolvedGuidePageSource resolve(String language, String contentRootFolder, ResourceLocation pageId,
         byte[] fileBytes) {
         return resolve(language, contentRootFolder, pageId, fileBytes, null);

@@ -15,6 +15,8 @@ import org.jetbrains.annotations.Nullable;
 import com.hfstudio.guidenh.guide.PageAnchor;
 import com.hfstudio.guidenh.guide.compiler.IdUtils;
 
+import cpw.mods.fml.common.FMLLog;
+
 public class GuideSiteHrefResolver {
 
     private static final ThreadLocal<ExportContext> EXPORT_CONTEXT = new ThreadLocal<>();
@@ -56,7 +58,13 @@ public class GuideSiteHrefResolver {
             ResourceLocation targetPageId = target.isEmpty() ? currentPageId
                 : IdUtils.resolveLink(target, currentPageId);
             return resolvePageAnchor(currentPageId, new PageAnchor(targetPageId, fragment));
-        } catch (IllegalArgumentException ignored) {
+        } catch (IllegalArgumentException e) {
+            FMLLog.getLogger()
+                .debug(
+                    "[GuideNH] [GuideSiteHrefResolver] Failed to resolve href {} from page {}",
+                    href,
+                    currentPageId,
+                    e);
             return href;
         }
     }
