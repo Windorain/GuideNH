@@ -346,6 +346,7 @@ public class GuideScreen extends GuiContainer
     private URI pendingExternalUri;
 
     private final Set<LytGuidebookScene> registeredScenes = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<String> registeredSceneLabels = new LinkedHashSet<>();
     private int lastMouseX;
     private int lastMouseY;
     private int guideMouseEventButton = -1;
@@ -2292,16 +2293,17 @@ public class GuideScreen extends GuiContainer
         var scenes = currentPage.scenes();
         for (int i = 0; i < scenes.size(); i++) {
             var scene = scenes.get(i);
-            if (!registeredScenes.add(scene)) continue;
+            registeredScenes.add(scene);
             var level = scene.getLevel();
             if (level.isEmpty()) continue;
             int[] bounds = level.getBounds();
             int sizeX = bounds[3] - bounds[0] + 1;
             int sizeY = bounds[4] - bounds[1] + 1;
             int sizeZ = bounds[5] - bounds[2] + 1;
-            String label = currentAnchor != null
-                ? currentAnchor.pageId() + "@" + System.identityHashCode(currentPage) + "#" + i
-                : "scene@" + System.identityHashCode(currentPage) + "#" + i;
+            String label = buildSceneRegistrationLabel(currentPage, i);
+            if (!registeredSceneLabels.add(label)) {
+                continue;
+            }
             GuideNhClientBridgeController bridgeController = GuideNhClientBridgeController.getInstance();
             if (bridgeController.hasRememberedScene(label)) {
                 continue;
@@ -2312,6 +2314,13 @@ public class GuideScreen extends GuiContainer
                 bridgeController.rememberScene(label, structureData);
             }
         }
+    }
+
+    private String buildSceneRegistrationLabel(GuidePage page, int sceneIndex) {
+        if (hasContentRoute()) {
+            return guide.getId() + "|" + page.sourcePack() + "|" + page.id() + "#" + sceneIndex;
+        }
+        return "scene|" + page.sourcePack() + "|" + page.id() + "#" + sceneIndex;
     }
 
     private void schedulePendingContentPageLoad() {
@@ -5106,6 +5115,7 @@ public class GuideScreen extends GuiContainer
         history.clear();
         forwardHistory.clear();
         registeredScenes.clear();
+        registeredSceneLabels.clear();
         guideEditorPreviewPage = null;
         guideEditorDraftPage = null;
         guideEditorDraftSource = null;
