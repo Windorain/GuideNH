@@ -240,7 +240,6 @@ public class GuideScreen extends GuiContainer
         LightDarkMode.LIGHT_MODE,
         LytRect.empty(),
         0);
-
     // Reuse rect records on hot render paths when geometry has not changed.
     @Nullable
     private LytRect cachedViewportRect;
@@ -277,7 +276,6 @@ public class GuideScreen extends GuiContainer
     private int cachedTitleLayoutWidth = -1;
     @Nullable
     private LytDocument layoutDocument;
-    @Nullable
     private String cachedBottomBarText;
     @Nullable
     private GuidePage cachedBottomBarPage;
@@ -4148,21 +4146,18 @@ public class GuideScreen extends GuiContainer
         if (activeDocument == null || documentH <= 0) {
             return;
         }
-        int documentRenderY = getDocumentRenderY(activeDocument);
-
+        var interaction = getDocumentInteractionState(mouseX, mouseY);
+        activeDocument.setHoveredElement(interaction != null ? interaction.hit : null);
         var ctx = reusableRenderCtx;
         ctx.setLightDarkMode(LightDarkMode.LIGHT_MODE);
         cachedViewportRect = cachedRect(cachedViewportRect, 0, scrollY, contentW, documentH);
         cachedScissorRect = cachedRect(cachedScissorRect, contentX, documentY, contentW, documentH);
         ctx.setViewport(cachedViewportRect);
         ctx.setScreenHeight(this.height);
+        int documentRenderY = getDocumentRenderY(activeDocument);
         ctx.setDocumentOrigin(contentX, documentRenderY);
         ctx.setScrollOffsetY(scrollY);
         ctx.setZoom(currentZoom);
-
-        var interaction = getDocumentInteractionState(mouseX, mouseY);
-        activeDocument.setHoveredElement(interaction != null ? interaction.hit : null);
-
         ctx.pushScissor(cachedScissorRect);
         GL11.glPushMatrix();
         GL11.glTranslatef(contentX, documentRenderY, 0f);

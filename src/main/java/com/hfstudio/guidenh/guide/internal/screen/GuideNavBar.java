@@ -263,15 +263,15 @@ public class GuideNavBar {
                 return;
             }
 
-            int sf = DisplayScale.scaleFactor();
+            int scaleFactor = DisplayScale.scaleFactor();
             GL11.glEnable(GL11.GL_SCISSOR_TEST);
-            setScissor(mc, x, bodyY, w, bodyHeight, sf);
+            setScissor(mc, x, bodyY, w, bodyHeight, scaleFactor);
 
-            FontRenderer fr = mc.fontRenderer;
-            StickyStack stickyStack = computeStickyStack(bodyY);
+            FontRenderer fontRenderer = mc.fontRenderer;
+            StickyStack stickyRows = computeStickyStack(bodyY);
             int firstVisibleRow = getFirstVisibleRowIndex();
             int stickyPointer = 0;
-            int nextStickyRowIndex = stickyStack.size() > 0 ? stickyStack.rowIndexAt(0) : Integer.MAX_VALUE;
+            int nextStickyRowIndex = stickyRows.size() > 0 ? stickyRows.rowIndexAt(0) : Integer.MAX_VALUE;
             boolean titleScrollActive = false;
             for (int rowIndex = firstVisibleRow; rowIndex < rows.size(); rowIndex++) {
                 Row row = rows.get(rowIndex);
@@ -281,13 +281,13 @@ public class GuideNavBar {
                 }
                 if (rowIndex == nextStickyRowIndex) {
                     stickyPointer++;
-                    nextStickyRowIndex = stickyPointer < stickyStack.size() ? stickyStack.rowIndexAt(stickyPointer)
+                    nextStickyRowIndex = stickyPointer < stickyRows.size() ? stickyRows.rowIndexAt(stickyPointer)
                         : Integer.MAX_VALUE;
                     continue;
                 }
                 titleScrollActive |= renderRow(
                     mc,
-                    fr,
+                    fontRenderer,
                     row,
                     rowY,
                     mouseX,
@@ -300,15 +300,15 @@ public class GuideNavBar {
                     bookmarkState,
                     bookmarkActionLeft,
                     bookmarkIconX,
-                    sf,
+                    scaleFactor,
                     false);
             }
-            for (int stackIndex = 0; stackIndex < stickyStack.size(); stackIndex++) {
+            for (int stackIndex = 0; stackIndex < stickyRows.size(); stackIndex++) {
                 titleScrollActive |= renderRow(
                     mc,
-                    fr,
-                    stickyStack.rowAt(stackIndex),
-                    stickyStack.rowYAt(stackIndex),
+                    fontRenderer,
+                    stickyRows.rowAt(stackIndex),
+                    stickyRows.rowYAt(stackIndex),
                     mouseX,
                     mouseY,
                     rowRight,
@@ -319,7 +319,7 @@ public class GuideNavBar {
                     bookmarkState,
                     bookmarkActionLeft,
                     bookmarkIconX,
-                    sf,
+                    scaleFactor,
                     true);
             }
             if (!titleScrollActive) {

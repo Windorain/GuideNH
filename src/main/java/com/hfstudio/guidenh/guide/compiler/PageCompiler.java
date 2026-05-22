@@ -164,6 +164,7 @@ public class PageCompiler {
     // Data associated with the current page being compiled, this is used by
     // compilers to communicate with each other within the current page.
     private final Map<State<?>, Object> compilerState = new IdentityHashMap<>();
+    private final Map<MdxJsxElementFields, BlockTagChildrenCacheEntry> blockTagChildrenCache = new IdentityHashMap<>();
 
     public PageCompiler(PageCollection pages, ExtensionCollection extensions, String sourcePack,
         ResourceLocation pageId, String pageContent) {
@@ -459,17 +460,24 @@ public class PageCompiler {
     }
 
     public void compileBlockTagChildren(MdxJsxElementFields element, LytBlockContainer layoutParent) {
-        BlockTagChildSource reparsed = extractBlockTagChildrenSource(element);
-        if (reparsed == null) {
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.source() == null || cachedChildren.parsedPage() == null) {
             compileBlockContextInSourceContext(element.children(), layoutParent);
             return;
         }
 
-        ParsedGuidePage parsed = parse(sourcePack, "en_us", pageId, reparsed.source());
         Map<String, MdAstDefinition> previousDefinitions = new HashMap<>(definitions);
-        definitions.putAll(GuideMarkdownDefinitions.collect(parsed.getAstRoot()));
+        definitions.putAll(
+            GuideMarkdownDefinitions.collect(
+                cachedChildren.parsedPage()
+                    .getAstRoot()));
         try {
-            withSourceSlice(reparsed.source(), () -> compileBlockContext(parsed.getAstRoot(), layoutParent));
+            withSourceSlice(
+                cachedChildren.source(),
+                () -> compileBlockContext(
+                    cachedChildren.parsedPage()
+                        .getAstRoot(),
+                    layoutParent));
         } finally {
             definitions.clear();
             definitions.putAll(previousDefinitions);
@@ -477,12 +485,12 @@ public class PageCompiler {
     }
 
     public List<? extends MdAstAnyContent> reparseBlockTagChildren(MdxJsxElementFields element) {
-        String sourceText = getBlockTagChildrenSource(element);
-        if (sourceText == null) {
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.parsedPage() == null) {
             return element.children();
         }
-        ParsedGuidePage parsed = parse(sourcePack, "en_us", pageId, sourceText);
-        return parsed.getAstRoot()
+        return cachedChildren.parsedPage()
+            .getAstRoot()
             .children();
     }
 
@@ -492,9 +500,9 @@ public class PageCompiler {
      * Useful for tag compilers whose body is parsed by a non-Markdown grammar (file trees, etc.).
      */
     public @Nullable String getBlockTagChildrenSource(MdxJsxElementFields element) {
-        BlockTagChildSource reparsed = extractBlockTagChildrenSource(element);
-        if (reparsed != null) {
-            return reparsed.source();
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.source() != null) {
+            return cachedChildren.source();
         }
         return sourceForChildren(element.children());
     }
@@ -536,9 +544,9 @@ public class PageCompiler {
     }
 
     public void withBlockTagChildrenSourceContext(MdxJsxElementFields element, Runnable action) {
-        BlockTagChildSource reparsed = extractBlockTagChildrenSource(element);
-        if (reparsed != null) {
-            withSourceSlice(reparsed.source(), action);
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.source() != null) {
+            withSourceSlice(cachedChildren.source(), action);
             return;
         }
         withChildrenSourceContext(element.children(), action);
@@ -1473,6 +1481,24 @@ public class PageCompiler {
         return new BlockTagChildSource(dedentBlockTagBody(body));
     }
 
+    private BlockTagChildrenCacheEntry getBlockTagChildrenCacheEntry(MdxJsxElementFields element) {
+        BlockTagChildrenCacheEntry cachedEntry = blockTagChildrenCache.get(element);
+        if (cachedEntry != null) {
+            return cachedEntry;
+        }
+
+        BlockTagChildSource extractedSource = extractBlockTagChildrenSource(element);
+        if (extractedSource == null) {
+            cachedEntry = new BlockTagChildrenCacheEntry(null, null);
+        } else {
+            cachedEntry = new BlockTagChildrenCacheEntry(
+                extractedSource.source(),
+                parse(sourcePack, "en_us", pageId, extractedSource.source()));
+        }
+        blockTagChildrenCache.put(element, cachedEntry);
+        return cachedEntry;
+    }
+
     private String dedentBlockTagBody(String body) {
         String normalized = normalizeLineEndings(body);
         if (normalized.isEmpty()) {
@@ -1827,6 +1853,9 @@ public class PageCompiler {
 
     @Desugar
     private record BlockTagChildSource(String source) {}
+
+    @Desugar
+    private record BlockTagChildrenCacheEntry(@Nullable String source, @Nullable ParsedGuidePage parsedPage) {}
 
     @Desugar
     private record SourceSlice(String source) {}

@@ -22,6 +22,15 @@ import com.hfstudio.guidenh.integration.structurelib.StructureLibSceneMetadata;
 public class GuideSceneStructureCacheEntry implements Serializable {
 
     private static final long serialVersionUID = 1L;
+    private static final int MAX_DECODED_ITEM_STACK_CACHE_SIZE = 512;
+    private static final Map<String, ItemStack> DECODED_ITEM_STACK_CACHE = Collections
+        .synchronizedMap(new LinkedHashMap<String, ItemStack>(256, 0.75f, true) {
+
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, ItemStack> eldest) {
+                return size() > MAX_DECODED_ITEM_STACK_CACHE_SIZE;
+            }
+        });
 
     private final GuideSceneStructureSnapshot levelSnapshot;
     private final List<StructureLibBindingEntry> structureLibBindings;
@@ -349,8 +358,16 @@ public class GuideSceneStructureCacheEntry implements Serializable {
         if (encoded == null || encoded.isEmpty()) {
             return null;
         }
+        ItemStack cached = DECODED_ITEM_STACK_CACHE.get(encoded);
+        if (cached != null) {
+            return cached.copy();
+        }
         try {
-            return ItemStack.loadItemStackFromNBT(GuideTextNbtCodec.readTextSafeCompound(encoded));
+            ItemStack stack = ItemStack.loadItemStackFromNBT(GuideTextNbtCodec.readTextSafeCompound(encoded));
+            if (stack != null) {
+                DECODED_ITEM_STACK_CACHE.put(encoded, stack.copy());
+            }
+            return stack;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to decode cached StructureLib item stack", e);
         }
