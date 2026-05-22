@@ -108,7 +108,7 @@ public class MermaidCompiler extends BlockTagCompiler {
         if (rawSource != null) {
             return MermaidMindmapParser.normalize(stripNodeContentBlocks(rawSource));
         }
-        return MermaidMindmapParser.normalize(MermaidMindmapNodeContentExtractor.extractDiagramSource(el.children()));
+        return MermaidMindmapNodeContentExtractor.extractDiagramSource(el.children());
     }
 
     private String resolveSource(IndexingContext indexer, MdxJsxElementFields el) {
