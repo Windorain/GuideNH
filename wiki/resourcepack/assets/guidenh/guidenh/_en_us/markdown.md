@@ -473,11 +473,16 @@ Fixed runtime Mermaid viewport size:
 
 Mindmap with rich labels and explicit node content:
 
-<Mermaid width="340" height="240">
+<Mermaid width="420" height="300">
 mindmap
   root["**GuideNH** [Index](./index.md)"]
     runtime["Runtime blocks"]
     preview["Scene preview"]
+    scene["Game scene"]
+    code["Code block"]
+    mark["Marked text"]
+    recipe["Recipe box"]
+    latex["LaTeX block"]
 
 <NodeContent id="runtime">
 Runtime nodes can mix normal text with embedded guide blocks.
@@ -487,6 +492,32 @@ Runtime nodes can mix normal text with embedded guide blocks.
 
 <NodeContent id="preview">
 <BlockImage id="minecraft:diamond_block" scale={2} />
+</NodeContent>
+
+<NodeContent id="scene">
+<GameScene width="96" height="72" zoom={5} interactive={false}>
+  <Block id="minecraft:diamond_block" />
+  <Block id="minecraft:glass" x="1" />
+</GameScene>
+</NodeContent>
+
+<NodeContent id="code">
+```lua
+local value = 42
+print(value)
+```
+</NodeContent>
+
+<NodeContent id="mark">
+<mark color="#8A6A00">Golden highlight</mark> with **bold** text.
+</NodeContent>
+
+<NodeContent id="recipe">
+<RecipeFor id="minecraft:crafting_table" />
+</NodeContent>
+
+<NodeContent id="latex">
+<Latex formula="\int_0^1 x^2\,dx = \frac{1}{3}" color="#D9A11E" showTooltip={true} />
 </NodeContent>
 </Mermaid>
 

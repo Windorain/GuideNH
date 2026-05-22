@@ -460,11 +460,16 @@ mindmap
 
 带有富文本标签和显式节点内容的思维导图：
 
-<Mermaid width="340" height="240">
+<Mermaid width="420" height="300">
 mindmap
   root["**GuideNH** [首页](./index.md)"]
     runtime["运行时块"]
     preview["场景预览"]
+    scene["游戏场景"]
+    code["代码块"]
+    mark["高亮文本"]
+    recipe["配方框"]
+    latex["LaTeX 公式"]
 
 <NodeContent id="runtime">
 运行时节点里可以混排普通文本与指南块内容。
@@ -474,6 +479,32 @@ mindmap
 
 <NodeContent id="preview">
 <BlockImage id="minecraft:diamond_block" scale={2} />
+</NodeContent>
+
+<NodeContent id="scene">
+<GameScene width="96" height="72" zoom={5} interactive={false}>
+  <Block id="minecraft:diamond_block" />
+  <Block id="minecraft:glass" x="1" />
+</GameScene>
+</NodeContent>
+
+<NodeContent id="code">
+```lua
+local value = 42
+print(value)
+```
+</NodeContent>
+
+<NodeContent id="mark">
+<mark color="#8A6A00">暗金色高亮</mark> 与 **粗体** 文本。
+</NodeContent>
+
+<NodeContent id="recipe">
+<RecipeFor id="minecraft:crafting_table" />
+</NodeContent>
+
+<NodeContent id="latex">
+<Latex formula="\int_0^1 x^2\,dx = \frac{1}{3}" color="#D9A11E" showTooltip={true} />
 </NodeContent>
 </Mermaid>
 
