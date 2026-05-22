@@ -165,6 +165,7 @@ public class PageCompiler {
     // compilers to communicate with each other within the current page.
     private final Map<State<?>, Object> compilerState = new IdentityHashMap<>();
     private final Map<MdxJsxElementFields, BlockTagChildrenCacheEntry> blockTagChildrenCache = new IdentityHashMap<>();
+    private final Map<String, ParsedGuidePage> inlineMarkdownParseCache = new HashMap<>();
 
     public PageCompiler(PageCollection pages, ExtensionCollection extensions, String sourcePack,
         ResourceLocation pageId, String pageContent) {
@@ -517,7 +518,11 @@ public class PageCompiler {
         if (source == null || source.isEmpty()) {
             return;
         }
-        ParsedGuidePage parsed = parse(sourcePack, "en_us", pageId, source);
+        ParsedGuidePage parsed = inlineMarkdownParseCache.get(source);
+        if (parsed == null) {
+            parsed = parse(sourcePack, "en_us", pageId, source);
+            inlineMarkdownParseCache.put(source, parsed);
+        }
         compileInlineFragment(
             parsed.getAstRoot()
                 .children(),
