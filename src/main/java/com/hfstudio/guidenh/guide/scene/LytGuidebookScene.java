@@ -386,6 +386,7 @@ public class LytGuidebookScene extends LytBlock {
     private boolean blockStatsEnabled = false;
     @Getter
     private boolean blockStatsVisible = false;
+    private boolean initialBlockStatsVisible = false;
     private boolean blockStatsButtonEnabled = false;
     private BlockStatsMode blockStatsMode = BlockStatsMode.AUTO;
     private BlockStatsCorner blockStatsCorner = BlockStatsCorner.TOP_RIGHT;
@@ -561,6 +562,7 @@ public class LytGuidebookScene extends LytBlock {
         }
         initialStructureLibHatchHighlightEnabled = structureLibHatchHighlightEnabled;
         initialGridVisible = gridVisible;
+        initialBlockStatsVisible = blockStatsVisible;
     }
 
     public void captureInitialStructureStateIfAbsent() {
@@ -605,6 +607,7 @@ public class LytGuidebookScene extends LytBlock {
             bindPrimaryStructureLibState(getPrimaryStructureLibBinding());
             structureLibHatchHighlightEnabled = initialStructureLibHatchHighlightEnabled;
             gridVisible = initialGridVisible;
+            resetBlockStatsInteractiveState();
         }
         if (ponderSceneData != null) {
             ponderCurrentTick = 0;
@@ -617,6 +620,21 @@ public class LytGuidebookScene extends LytBlock {
         clearCachedTierSliderRects();
         clearCachedChannelSliderRects();
         resetViewToInitialCamera();
+    }
+
+    private void resetBlockStatsInteractiveState() {
+        boolean restoredVisible = blockStatsEnabled && initialBlockStatsVisible;
+        boolean visibilityChanged = blockStatsVisible != restoredVisible;
+        boolean scrollChanged = blockStatsScrollX != 0 || blockStatsScrollY != 0;
+        boolean selectionChanged = selectedBlockStatsKey != null;
+        blockStatsVisible = restoredVisible;
+        blockStatsScrollX = 0;
+        blockStatsScrollY = 0;
+        selectedBlockStatsKey = null;
+        if (visibilityChanged || scrollChanged || selectionChanged) {
+            clearBlockStatsGeometry();
+            invalidateDocumentLayout();
+        }
     }
 
     public int getSceneWidth() {
