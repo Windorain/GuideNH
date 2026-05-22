@@ -110,6 +110,8 @@ GuideNH runtime Mermaid support is currently focused on `mindmap` diagrams:
 - auto-detected mermaid code fences whose content starts with `mindmap`
 - explicit `<Mermaid>...</Mermaid>` tags
 - explicit `<Mermaid src="./diagram.mmd" />` imports
+- rich inline markdown labels inside Mermaid node text
+- optional `<NodeContent id="...">...</NodeContent>` children for arbitrary runtime blocks inside matching nodes
 - whole-diagram drag-to-pan interaction in the in-game viewer
 - `layout: tidy-tree` frontmatter inside Mermaid source
 - common mindmap node shapes such as square, rounded, circle, bang, cloud, and hexagon
@@ -129,6 +131,23 @@ mindmap
 ```
 
 <Mermaid src="./markdown-mindmap.mmd" />
+
+<Mermaid width="340" height="240">
+mindmap
+  root["**GuideNH** [Index](./index.md)"]
+    runtime["Runtime blocks"]
+    export["Site export"]
+
+<NodeContent id="runtime">
+Runtime nodes can mix text, links, and blocks.
+
+<ItemImage id="minecraft:diamond" />
+</NodeContent>
+
+<NodeContent id="export">
+![Machine Diagram](./resourcepack/assets/guidenh/guidenh/_en_us/test1.png)
+</NodeContent>
+</Mermaid>
 ````
 
 Mermaid diagrams that are not supported at runtime yet still fall back to regular Mermaid-labeled code blocks.
@@ -278,7 +297,7 @@ GuideNH reads the first YAML frontmatter block and parses these known keys:
 | --- | --- | --- | --- |
 | `title` | yes | string | Display name in navigation and search title fallback |
 | `parent` | no | page id | Parent page id; omitted means top-level node |
-| `position` | no | integer | Sibling sort order; default `0` |
+| `position` | no | integer | Sibling sort order; default `0`, larger values appear earlier |
 | `priority` | no | integer | Load priority for same-path page overrides; default `0`, higher wins, equal priority lets the later resource pack entry win |
 | `icon` | no | item id | Item icon shown in navigation/search. Accepts `modid:name`, `modid:name:meta` (colon-separated damage/subtype), `<modid:name:meta>` (strict form; meta `32767` matches all subtypes), or `modid:name meta` (space-separated, filter-expression style). |
 | `icons` | no | list of item ids | List of item icons for animated cycling (one per second). Each entry uses the same syntax as `icon`. When present takes priority over `icon`. |

@@ -3,7 +3,7 @@ item_ids:
   - guidenh:guide
 navigation:
   title: GuideNH Examples
-  position: 0
+  position: 200
   recommend: 3
 author: GuideNH
 date: 2024-01-01
@@ -18,6 +18,8 @@ Welcome to the GuideNH demo guide. This showcases the rendering, layout, and sce
 <CategoryIndex category="markdown"></CategoryIndex>
 
 ## Scenes
+
+Featured scene docs: [Scene Particles](./scene-particles.md)
 
 <CategoryIndex category="scenes"></CategoryIndex>
 

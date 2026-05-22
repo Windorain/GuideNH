@@ -62,12 +62,14 @@ import com.hfstudio.guidenh.guide.scene.element.ImportPonderElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.ImportStructureElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.ImportStructureLibElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.IsometricCameraElementCompiler;
+import com.hfstudio.guidenh.guide.scene.element.ParticleElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.PlaceBlockElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.PlaySoundElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.RemoveBlocksElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.ReplaceBlockElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.SceneElementTagCompiler;
 import com.hfstudio.guidenh.guide.scene.element.TextAnnotationElementCompiler;
+import com.hfstudio.guidenh.guide.scene.element.WeatherElementCompiler;
 import com.hfstudio.guidenh.integration.api.GuideNhIntegrationRegistry;
 import com.hfstudio.guidenh.integration.api.TagCompilerProvider;
 
@@ -159,6 +161,8 @@ public class DefaultExtensions {
             new DiamondAnnotationElementCompiler(),
             new BlockAnnotationTemplateElementCompiler(),
             new TextAnnotationElementCompiler(),
+            new ParticleElementCompiler(),
+            new WeatherElementCompiler(),
             new PlaySoundElementCompiler(),
             new RemoveBlocksElementCompiler(),
             new ReplaceBlockElementCompiler(),

@@ -32,6 +32,7 @@ import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.compiler.tags.CommandLinkCompiler;
 import com.hfstudio.guidenh.guide.compiler.tags.ItemImageCompiler;
 import com.hfstudio.guidenh.guide.compiler.tags.KeyBindTagCompiler;
+import com.hfstudio.guidenh.guide.compiler.tags.MdxAttrs;
 import com.hfstudio.guidenh.guide.compiler.tags.StructureViewCompiler;
 import com.hfstudio.guidenh.guide.compiler.tags.SubPagesCompiler;
 import com.hfstudio.guidenh.guide.compiler.tags.chart.ChartAttrParser;
@@ -55,6 +56,8 @@ import com.hfstudio.guidenh.guide.internal.markdown.FileTreeParser.FileTreeIcon;
 import com.hfstudio.guidenh.guide.internal.markdown.FileTreeParser.FileTreeModel;
 import com.hfstudio.guidenh.guide.internal.markdown.FileTreeParser.SlotKind;
 import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapDocument;
+import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapNode;
+import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapNodeContentExtractor;
 import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapParser;
 import com.hfstudio.guidenh.guide.internal.util.GuideStringLines;
 import com.hfstudio.guidenh.guide.navigation.NavigationNode;
@@ -209,7 +212,7 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
                 + "</div>";
         }
         if ("Mermaid".equals(name)) {
-            return renderMermaid(element, currentPageId);
+            return renderMermaid(element, defaultNamespace, currentPageId, templates, sceneResolver, compiler);
         }
         if ("CsvTable".equals(name)) {
             return renderCsvTable(element, currentPageId);
@@ -484,12 +487,15 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
             return renderFallbackItemLabel(itemId, currentPageId, templates, inline, readFloat(element, "scale"));
         }
 
-        boolean noTooltip = ItemImageCompiler.parseBool(readOptional(element, "noTooltip"));
-        String showTooltipRaw = readOptional(element, "showTooltip");
-        boolean includeTooltip = showTooltipRaw != null ? ItemImageCompiler.parseBool(showTooltipRaw) : !noTooltip;
+        MdxJsxAttribute noTooltipAttribute = element.getAttribute("noTooltip");
+        MdxJsxAttribute showTooltipAttribute = element.getAttribute("showTooltip");
+        boolean noTooltip = readBoolean(noTooltipAttribute, "noTooltip", false);
+        boolean includeTooltip = showTooltipAttribute != null ? readBoolean(showTooltipAttribute, "showTooltip", true)
+            : !noTooltip;
 
-        String showIconRaw = readOptional(element, "showIcon");
-        boolean showIcon = showIconRaw == null || ItemImageCompiler.parseBool(showIconRaw);
+        MdxJsxAttribute showIconAttribute = element.getAttribute("showIcon");
+        String showIconRaw = readOptional(showIconAttribute);
+        boolean showIcon = showIconRaw == null || readBoolean(showIconAttribute, "showIcon", true);
 
         String labelRaw = readOptional(element, "label");
         String labelPosition = ItemImageCompiler.resolveLabelPosition(labelRaw);
@@ -811,12 +817,14 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
             : GuideSiteItemSupport.unresolved(itemId);
 
         // showTooltip — default true for ItemLink
-        boolean noTooltip = ItemImageCompiler.parseBool(readOptional(element, "noTooltip"));
-        String showTooltipRaw = readOptional(element, "showTooltip");
-        boolean showTooltip = showTooltipRaw != null ? ItemImageCompiler.parseBool(showTooltipRaw) : !noTooltip;
+        MdxJsxAttribute noTooltipAttribute = element.getAttribute("noTooltip");
+        MdxJsxAttribute showTooltipAttribute = element.getAttribute("showTooltip");
+        boolean noTooltip = readBoolean(noTooltipAttribute, "noTooltip", false);
+        boolean showTooltip = showTooltipAttribute != null ? readBoolean(showTooltipAttribute, "showTooltip", true)
+            : !noTooltip;
 
         // showIcon — null/falsy = no icon; "left", "right", or any truthy = icon at that side
-        String iconPosition = ItemImageCompiler.resolveLabelPosition(readOptional(element, "showIcon"));
+        String iconPosition = ItemImageCompiler.resolveLabelPosition(readOptional(element.getAttribute("showIcon")));
 
         String templateId = null;
         if (showTooltip) {
@@ -1153,7 +1161,9 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
             currentPageId);
     }
 
-    private String renderMermaid(MdxJsxElementFields element, @Nullable ResourceLocation currentPageId) {
+    private String renderMermaid(MdxJsxElementFields element, String defaultNamespace,
+        @Nullable ResourceLocation currentPageId, GuideSiteTemplateRegistry templates,
+        GuideSiteHtmlCompiler.SceneResolver sceneResolver, GuideSiteHtmlCompiler compiler) {
         String src = readOptional(element, "src");
         String source = null;
         if (src != null && !src.isEmpty() && currentPageId != null) {
@@ -1161,14 +1171,17 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
                 ResourceLocation assetId = IdUtils.resolveLink(src, currentPageId);
                 byte[] data = guide.loadAsset(assetId);
                 if (data != null) {
-                    source = new String(data, StandardCharsets.UTF_8);
+                    source = MermaidMindmapParser.normalize(new String(data, StandardCharsets.UTF_8));
                 }
             } catch (Exception ignored) {}
         }
         if (source == null) {
-            StringBuilder text = new StringBuilder();
-            collectStructureText(text, element.children());
-            source = text.toString();
+            ParsedGuidePage parsedPage = currentPageId != null ? parsedPagesById.get(currentPageId) : null;
+            source = MermaidMindmapNodeContentExtractor
+                .extractDiagramSource(element, parsedPage != null ? parsedPage.getSource() : null);
+            if (source == null) {
+                source = MermaidMindmapNodeContentExtractor.extractDiagramSource(element.children());
+            }
         }
         source = source != null ? source.trim() : "";
         if (source.isEmpty()) {
@@ -1176,10 +1189,73 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
         }
         try {
             MermaidMindmapDocument doc = MermaidMindmapParser.parse(source);
-            return GuideSiteGraphRenderer.renderMermaidTree(doc);
+            return GuideSiteGraphRenderer.renderMermaidTree(
+                doc,
+                compileMermaidNodeHtml(
+                    element,
+                    currentPageId,
+                    doc,
+                    defaultNamespace,
+                    templates,
+                    sceneResolver,
+                    compiler));
         } catch (Exception ex) {
             return "<pre><code class=\"language-mermaid\">" + escapeHtml(source) + "</code></pre>";
         }
+    }
+
+    private Map<String, String> compileMermaidNodeHtml(MdxJsxElementFields element,
+        @Nullable ResourceLocation currentPageId, MermaidMindmapDocument doc, String defaultNamespace,
+        GuideSiteTemplateRegistry templates, GuideSiteHtmlCompiler.SceneResolver sceneResolver,
+        GuideSiteHtmlCompiler compiler) {
+        Map<String, MermaidMindmapNode> nodesById = new LinkedHashMap<>();
+        collectMermaidNodes(nodesById, doc.getRoot());
+        Map<String, String> nodeHtml = new LinkedHashMap<>();
+        for (MdxJsxFlowElement nodeContent : MermaidMindmapNodeContentExtractor
+            .collectNodeContentElements(element.children())) {
+            String id = MermaidMindmapNodeContentExtractor.readNodeContentId(nodeContent);
+            if (id == null || !nodesById.containsKey(id) || nodeHtml.containsKey(id)) {
+                continue;
+            }
+            nodeHtml.put(
+                id,
+                compiler.compileFragment(
+                    nodeContent.children(),
+                    templates,
+                    defaultNamespace,
+                    sceneResolver,
+                    currentPageId));
+        }
+        for (MermaidMindmapNode node : nodesById.values()) {
+            if (nodeHtml.containsKey(node.getId()) || !shouldCompileMermaidRichLabel(node)) {
+                continue;
+            }
+            ParsedGuidePage parsed = PageCompiler
+                .parse(resolveSourcePack(currentPageId), "en_us", currentPageId, node.getLabelSource());
+            nodeHtml.put(
+                node.getId(),
+                compiler.compileInlineFragment(
+                    parsed.getAstRoot()
+                        .children(),
+                    templates,
+                    defaultNamespace,
+                    sceneResolver,
+                    currentPageId));
+        }
+        return nodeHtml;
+    }
+
+    private void collectMermaidNodes(Map<String, MermaidMindmapNode> nodesById, MermaidMindmapNode node) {
+        nodesById.putIfAbsent(node.getId(), node);
+        for (MermaidMindmapNode child : node.getChildren()) {
+            collectMermaidNodes(nodesById, child);
+        }
+    }
+
+    private boolean shouldCompileMermaidRichLabel(MermaidMindmapNode node) {
+        String labelSource = node.getLabelSource();
+        return labelSource != null && !labelSource.trim()
+            .isEmpty() && !labelSource.equals(node.getText());
     }
 
     private String renderCsvTable(MdxJsxElementFields element, @Nullable ResourceLocation currentPageId) {
@@ -2316,7 +2392,11 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
 
     @Nullable
     private String readOptional(MdxJsxElementFields element, String name) {
-        MdxJsxAttribute attribute = element.getAttribute(name);
+        return readOptional(element.getAttribute(name));
+    }
+
+    @Nullable
+    private String readOptional(@Nullable MdxJsxAttribute attribute) {
         if (attribute == null) {
             return null;
         }
@@ -2330,19 +2410,15 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
     }
 
     private boolean readBoolean(MdxJsxElementFields element, String name, boolean fallback) {
-        MdxJsxAttribute attribute = element.getAttribute(name);
-        if (attribute == null) {
+        return readBoolean(element.getAttribute(name), name, fallback);
+    }
+
+    private boolean readBoolean(@Nullable MdxJsxAttribute attribute, String name, boolean fallback) {
+        try {
+            return MdxAttrs.getBoolean(MdxAttrs.parseOptionalBoolean(attribute, name), fallback);
+        } catch (MdxAttrs.AttributeException ignored) {
             return fallback;
         }
-        String value = attribute.hasExpressionValue() ? attribute.getExpressionValue()
-            : attribute.hasStringValue() ? attribute.getStringValue() : "";
-        if ("true".equalsIgnoreCase(value)) {
-            return true;
-        }
-        if ("false".equalsIgnoreCase(value)) {
-            return false;
-        }
-        return fallback;
     }
 
     private int readInt(MdxJsxElementFields element, String name, int fallback) {

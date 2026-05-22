@@ -3,7 +3,7 @@ item_ids:
   - guidenh:guide
 navigation:
   title: GuideNH 示例
-  position: 0
+  position: 200
   recommend: 3
 author: GuideNH
 date: 2024-01-01
@@ -44,3 +44,5 @@ date: 2024-01-01
 <BlockImage id="minecraft:crafting_table" />
 
 <ItemLink id="minecraft:stick" />
+
+场景补充页：[场景粒子](./scene-particles.md)

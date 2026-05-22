@@ -17,6 +17,7 @@ import org.jetbrains.annotations.Nullable;
 import com.hfstudio.guidenh.config.ModConfig;
 import com.hfstudio.guidenh.guide.compiler.IdUtils;
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
+import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.compiler.tags.BlockTagCompiler;
 import com.hfstudio.guidenh.guide.compiler.tags.MdxAttrs;
 import com.hfstudio.guidenh.guide.document.LytErrorSink;
@@ -42,9 +43,34 @@ import com.hfstudio.guidenh.libs.unist.UnistParent;
 public class SceneTagCompiler extends BlockTagCompiler {
 
     public static final LytErrorSink NOOP_ERROR_SINK = (compiler, text, node) -> {};
+    private static final String[] SCENE_ROOT_TAG_NAMES = { "GameScene", "Scene" };
+    private static final String[] SCENE_HEAVY_TAG_NAMES = { "ImportStructure", "ImportStructureLib", "PlaceBlock",
+        "RemoveBlocks", "ReplaceBlock", "Block", "Entity" };
+    private static final int SCENE_HEAVY_ELEMENT_THRESHOLD = 8;
 
     private Map<String, SceneElementTagCompiler> elementCompilers = Collections.emptyMap();
     private final GuideSceneStructureFingerprintResolver structureFingerprintResolver = new GuideSceneStructureFingerprintResolver();
+
+    public static boolean likelyHasHeavySceneWork(@Nullable ParsedGuidePage parsedPage) {
+        return parsedPage != null && likelyHasHeavySceneWork(parsedPage.getSource());
+    }
+
+    public static boolean likelyHasHeavySceneWork(@Nullable String sourceText) {
+        if (sourceText == null || sourceText.isEmpty()) {
+            return false;
+        }
+
+        int sceneRootCount = countTags(sourceText, SCENE_ROOT_TAG_NAMES);
+        if (sceneRootCount <= 0) {
+            return false;
+        }
+        if (sceneRootCount > 1) {
+            return true;
+        }
+
+        // Keep this source-only heuristic narrow so warmup can prioritize obvious scene-heavy pages cheaply.
+        return countTags(sourceText, SCENE_HEAVY_TAG_NAMES) >= SCENE_HEAVY_ELEMENT_THRESHOLD;
+    }
 
     @Override
     public Set<String> getTagNames() {
@@ -674,5 +700,34 @@ public class SceneTagCompiler extends BlockTagCompiler {
                 .isEmpty();
         }
         return false;
+    }
+
+    private static int countTags(String sourceText, String[] tagNames) {
+        int count = 0;
+        for (String tagName : tagNames) {
+            count += countTag(sourceText, tagName);
+        }
+        return count;
+    }
+
+    private static int countTag(String sourceText, String tagName) {
+        int count = 0;
+        String opening = "<" + tagName;
+        for (int searchIndex = 0; searchIndex >= 0 && searchIndex < sourceText.length();) {
+            int matchIndex = sourceText.indexOf(opening, searchIndex);
+            if (matchIndex < 0) {
+                return count;
+            }
+            int boundaryIndex = matchIndex + opening.length();
+            if (boundaryIndex >= sourceText.length() || isTagNameBoundary(sourceText.charAt(boundaryIndex))) {
+                count++;
+            }
+            searchIndex = matchIndex + opening.length();
+        }
+        return count;
+    }
+
+    private static boolean isTagNameBoundary(char value) {
+        return Character.isWhitespace(value) || value == '/' || value == '>';
     }
 }
