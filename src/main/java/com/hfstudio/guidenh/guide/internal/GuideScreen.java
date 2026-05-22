@@ -11,7 +11,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -341,12 +340,14 @@ public class GuideScreen extends GuiContainer
     public static final String ASCII_ELLIPSIS = "...";
     public static final int SEARCH_TOOLBAR_FIELD_Y_OFFSET = 5;
     private static final int EXTERNAL_LINK_CONFIRM_ID = 1;
+    private static final long SCENE_REGISTRATION_BUDGET_NANOS = 1_000_000L;
 
     @Nullable
     private URI pendingExternalUri;
 
-    private final Set<LytGuidebookScene> registeredScenes = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<String> registeredSceneLabels = new LinkedHashSet<>();
+    private final Deque<PendingSceneRegistration> pendingSceneRegistrations = new ArrayDeque<>();
+    private final Set<String> queuedSceneRegistrationLabels = new LinkedHashSet<>();
     private int lastMouseX;
     private int lastMouseY;
     private int guideMouseEventButton = -1;
@@ -362,6 +363,19 @@ public class GuideScreen extends GuiContainer
         private SceneButtonHit(LytGuidebookScene scene, GuideIconButton.Role role) {
             this.scene = scene;
             this.role = role;
+        }
+    }
+
+    private static class PendingSceneRegistration {
+
+        private final GuidePage page;
+        private final int sceneIndex;
+        private final String label;
+
+        private PendingSceneRegistration(GuidePage page, int sceneIndex, String label) {
+            this.page = page;
+            this.sceneIndex = sceneIndex;
+            this.label = label;
         }
     }
 
@@ -703,11 +717,10 @@ public class GuideScreen extends GuiContainer
     @Override
     public void updateScreen() {
         completePendingContentPageLoadIfNeeded();
+        processPendingSceneRegistrations();
         GuideScreenNeiBridge.tick(this);
         updateGuideEditorHotkeyFocusSuppression();
-        for (LytGuidebookScene scene : registeredScenes) {
-            scene.ponderTick();
-        }
+        tickCurrentPageScenes();
         tickGuideEditorPreviewScenes();
         updateGuideEditorNavigationRefresh();
         updateGuideEditorAutosave();
@@ -2256,6 +2269,7 @@ public class GuideScreen extends GuiContainer
     private void loadCurrentPage() {
         clearInteractionState();
         closeGuideEditorContextMenu();
+        resetPendingSceneRegistrations();
         layoutDocument = null;
         lastLayoutWidth = -1;
         cachedBottomBarText = null;
@@ -2288,31 +2302,19 @@ public class GuideScreen extends GuiContainer
         updateToolbarButtonState();
     }
 
-    private void registerPageScenes() {
-        if (currentPage == null) return;
-        var scenes = currentPage.scenes();
+    private void queuePageSceneRegistrations(GuidePage page) {
+        var scenes = page.scenes();
         for (int i = 0; i < scenes.size(); i++) {
             var scene = scenes.get(i);
-            registeredScenes.add(scene);
             var level = scene.getLevel();
-            if (level.isEmpty()) continue;
-            int[] bounds = level.getBounds();
-            int sizeX = bounds[3] - bounds[0] + 1;
-            int sizeY = bounds[4] - bounds[1] + 1;
-            int sizeZ = bounds[5] - bounds[2] + 1;
-            String label = buildSceneRegistrationLabel(currentPage, i);
-            if (!registeredSceneLabels.add(label)) {
+            if (level.isEmpty()) {
                 continue;
             }
-            GuideNhClientBridgeController bridgeController = GuideNhClientBridgeController.getInstance();
-            if (bridgeController.hasRememberedScene(label)) {
+            String label = buildSceneRegistrationLabel(page, i);
+            if (registeredSceneLabels.contains(label) || !queuedSceneRegistrationLabels.add(label)) {
                 continue;
             }
-            GuideStructureData structureData = RegionWandItem
-                .exportRegionAsStructureData(level, bounds[0], bounds[1], bounds[2], sizeX, sizeY, sizeZ);
-            if (structureData != null) {
-                bridgeController.rememberScene(label, structureData);
-            }
+            pendingSceneRegistrations.offerLast(new PendingSceneRegistration(page, i, label));
         }
     }
 
@@ -2321,6 +2323,59 @@ public class GuideScreen extends GuiContainer
             return guide.getId() + "|" + page.sourcePack() + "|" + page.id() + "#" + sceneIndex;
         }
         return "scene|" + page.sourcePack() + "|" + page.id() + "#" + sceneIndex;
+    }
+
+    private void processPendingSceneRegistrations() {
+        if (pendingSceneRegistrations.isEmpty()) {
+            return;
+        }
+        long deadline = System.nanoTime() + SCENE_REGISTRATION_BUDGET_NANOS;
+        GuideNhClientBridgeController bridgeController = GuideNhClientBridgeController.getInstance();
+        while (!pendingSceneRegistrations.isEmpty() && System.nanoTime() < deadline) {
+            PendingSceneRegistration registration = pendingSceneRegistrations.pollFirst();
+            if (registration == null) {
+                return;
+            }
+            queuedSceneRegistrationLabels.remove(registration.label);
+            if (registration.page != currentPage || bridgeController.hasRememberedScene(registration.label)) {
+                registeredSceneLabels.add(registration.label);
+                continue;
+            }
+            var scenes = registration.page.scenes();
+            if (registration.sceneIndex < 0 || registration.sceneIndex >= scenes.size()) {
+                continue;
+            }
+            LytGuidebookScene scene = scenes.get(registration.sceneIndex);
+            var level = scene.getLevel();
+            if (level.isEmpty()) {
+                registeredSceneLabels.add(registration.label);
+                continue;
+            }
+            int[] bounds = level.getBounds();
+            int sizeX = bounds[3] - bounds[0] + 1;
+            int sizeY = bounds[4] - bounds[1] + 1;
+            int sizeZ = bounds[5] - bounds[2] + 1;
+            GuideStructureData structureData = RegionWandItem
+                .exportRegionAsStructureData(level, bounds[0], bounds[1], bounds[2], sizeX, sizeY, sizeZ);
+            registeredSceneLabels.add(registration.label);
+            if (structureData != null) {
+                bridgeController.rememberScene(registration.label, structureData);
+            }
+        }
+    }
+
+    private void resetPendingSceneRegistrations() {
+        pendingSceneRegistrations.clear();
+        queuedSceneRegistrationLabels.clear();
+    }
+
+    private void tickCurrentPageScenes() {
+        if (currentPage == null || !pendingSceneRegistrations.isEmpty()) {
+            return;
+        }
+        for (LytGuidebookScene scene : currentPage.scenes()) {
+            scene.ponderTick();
+        }
     }
 
     private void schedulePendingContentPageLoad() {
@@ -2353,7 +2408,7 @@ public class GuideScreen extends GuiContainer
         currentPage = loadedPage;
         document = loadedPage != null ? loadedPage.document() : null;
         if (loadedPage != null) {
-            registerPageScenes();
+            queuePageSceneRegistrations(loadedPage);
         }
         pageLoadInProgress = false;
         refreshCurrentPageTitle();
@@ -5114,8 +5169,8 @@ public class GuideScreen extends GuiContainer
         cachedBottomBarPage = null;
         history.clear();
         forwardHistory.clear();
-        registeredScenes.clear();
         registeredSceneLabels.clear();
+        resetPendingSceneRegistrations();
         guideEditorPreviewPage = null;
         guideEditorDraftPage = null;
         guideEditorDraftSource = null;

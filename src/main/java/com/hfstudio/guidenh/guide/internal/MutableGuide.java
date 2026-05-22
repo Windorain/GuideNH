@@ -52,6 +52,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
     public static final String ACTIVE_CLIENT_WORLD_REQUIRED_MESSAGE = "active client world";
     private static final int MAX_STRONG_RUNTIME_PAGES = 48;
     private static final long DEVELOPMENT_VALIDATION_INTERVAL_TICKS = 10L;
+    private static final long NORMAL_HEAVY_PAGE_WARMUP_DELAY_TICKS = 8L;
 
     private final ResourceLocation id;
     private final String defaultNamespace;
@@ -760,7 +761,9 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide {
         try {
             if (item.stepIndex() == 0 && SceneTagCompiler.likelyHasHeavySceneWork(parsedPage)) {
                 item.advanceStep();
-                item.setNextEligibleTick(nowTick + 1L);
+                item.setNextEligibleTick(
+                    nowTick + (item.kind() == GuideWarmupWorkItem.Kind.HIGH_PRIORITY_PAGE ? 1L
+                        : NORMAL_HEAVY_PAGE_WARMUP_DELAY_TICKS));
                 return false;
             }
             if (!warmPage(pageId, parsedPage)) {

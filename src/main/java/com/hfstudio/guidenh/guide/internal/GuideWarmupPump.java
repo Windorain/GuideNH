@@ -1,5 +1,7 @@
 package com.hfstudio.guidenh.guide.internal;
 
+import com.hfstudio.guidenh.guide.internal.search.GuideSearch;
+
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
@@ -29,6 +31,6 @@ public class GuideWarmupPump {
         SCHEDULER.processTick(currentTick);
 
         GuideME.getSearch()
-            .processWork();
+            .processWork(GuideSearch.BACKGROUND_TIME_PER_TICK);
     }
 }

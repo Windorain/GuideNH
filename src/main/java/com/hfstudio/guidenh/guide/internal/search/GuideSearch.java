@@ -55,8 +55,10 @@ import cpw.mods.fml.common.FMLLog;
  */
 public class GuideSearch implements AutoCloseable {
 
-    /** Maximum indexing time budget per tick. */
-    public static final long TIME_PER_TICK = TimeUnit.MILLISECONDS.toNanos(5);
+    /** Small background budget to avoid guide indexing from competing with gameplay-critical work. */
+    public static final long BACKGROUND_TIME_PER_TICK = TimeUnit.MILLISECONDS.toNanos(1);
+    /** Default budget used when indexing can make stronger forward progress. */
+    public static final long DEFAULT_TIME_PER_TICK = TimeUnit.MILLISECONDS.toNanos(5);
 
     private final ByteBuffersDirectory directory = new ByteBuffersDirectory();
 
@@ -135,6 +137,10 @@ public class GuideSearch implements AutoCloseable {
     }
 
     public void processWork() {
+        processWork(DEFAULT_TIME_PER_TICK);
+    }
+
+    public void processWork(long budgetNanos) {
         if (pendingTasks.isEmpty()) {
             return;
         }
@@ -143,7 +149,7 @@ public class GuideSearch implements AutoCloseable {
 
         var guideTaskIt = pendingTasks.iterator();
         while (guideTaskIt.hasNext()) {
-            if (isTimeElapsed(start)) {
+            if (isTimeElapsed(start, budgetNanos)) {
                 return;
             }
 
@@ -152,7 +158,7 @@ public class GuideSearch implements AutoCloseable {
 
             var pageIt = guideTask.pendingPages.iterator();
             while (pageIt.hasNext()) {
-                if (isTimeElapsed(start)) {
+                if (isTimeElapsed(start, budgetNanos)) {
                     return;
                 }
 
@@ -196,12 +202,12 @@ public class GuideSearch implements AutoCloseable {
 
     public void processAllWork() {
         while (!pendingTasks.isEmpty()) {
-            processWork();
+            processWork(DEFAULT_TIME_PER_TICK);
         }
     }
 
-    private boolean isTimeElapsed(long start) {
-        return System.nanoTime() - start >= TIME_PER_TICK;
+    private boolean isTimeElapsed(long start, long budgetNanos) {
+        return System.nanoTime() - start >= budgetNanos;
     }
 
     private void refreshIndexReader() throws IOException {
