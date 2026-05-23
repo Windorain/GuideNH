@@ -340,6 +340,10 @@ date: 2024-01-15
 updated: 2024-06-01
 ```
 
+`categories` 既支持普通分类名，也支持 `分类名|排序名` 形式。
+可以使用 `<Category name="examples" rows="3" />` 渲染分类列表块，
+并使用 `<Special name="SpecialPages" rows="3" />` 嵌入自动生成的 MediaWiki 风格特殊页索引。
+
 对于 BetterQuesting 集成，`quest_ids` 支持两种格式：
 
 - 标准 UUID 字符串，例如 `01234567-89ab-cdef-0123-456789abcdef`

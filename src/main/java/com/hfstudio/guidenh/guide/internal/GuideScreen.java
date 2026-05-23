@@ -110,7 +110,9 @@ import com.hfstudio.guidenh.guide.internal.tooltip.GuideItemTooltipRenderSupport
 import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.guide.layout.LayoutContext;
 import com.hfstudio.guidenh.guide.layout.MinecraftFontMetrics;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiExternalLinkSupport;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiPageIds;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialCatalog;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialGeneratedBlock;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialPageIds;
 import com.hfstudio.guidenh.guide.navigation.NavigationNode;
@@ -262,6 +264,8 @@ public class GuideScreen extends GuiContainer
 
     @Nullable
     private GuiTextField searchField;
+    @Nullable
+    private GuiTextField specialSearchField;
     @Nullable
     private LytDocument searchDocument;
     @Nullable
@@ -2311,13 +2315,16 @@ public class GuideScreen extends GuiContainer
             document = null;
             searchDocument = null;
             searchField = null;
+            specialSearchField = null;
         } else if (isSearchPage()) {
             currentPage = null;
             document = null;
+            specialSearchField = null;
             rebuildSearchDocumentIfNeeded(true);
         } else if (isItemLinksPage()) {
             currentPage = null;
             searchField = null;
+            specialSearchField = null;
             ItemStack stack = GuideItemLinksPage.stackFromAnchor(currentAnchor);
             document = buildItemLinksDocument(stack);
         } else {
@@ -2622,7 +2629,7 @@ public class GuideScreen extends GuiContainer
             layoutDocument = null;
             lastLayoutWidth = -1;
         }
-        ensureSearchField();
+        ensureSearchFields();
         rebuildSearchDocumentIfNeeded(false);
         currentZoom = resolveCurrentZoom();
         ensureLayout();
@@ -2682,6 +2689,9 @@ public class GuideScreen extends GuiContainer
         drawPageTitle();
         if (searchField != null) {
             drawSearchField();
+        }
+        if (specialSearchField != null) {
+            drawSpecialSearchField();
         }
 
         drawGuideButtons(contentMouseX, contentMouseY);
@@ -4244,7 +4254,9 @@ public class GuideScreen extends GuiContainer
     }
 
     private void drawSearchField() {
-        if (searchField == null) return;
+        if (searchField == null) {
+            return;
+        }
 
         searchField.drawTextBox();
         if (shouldDrawSearchPlaceholder()) {
@@ -4257,9 +4269,30 @@ public class GuideScreen extends GuiContainer
         }
     }
 
+    private void drawSpecialSearchField() {
+        if (specialSearchField == null) {
+            return;
+        }
+
+        specialSearchField.drawTextBox();
+        if (shouldDrawSpecialSearchPlaceholder()) {
+            drawString(
+                fontRendererObj,
+                GuidebookText.SearchPlaceholder.text(),
+                specialSearchField.xPosition,
+                specialSearchField.yPosition,
+                0xFF666666);
+        }
+    }
+
     private boolean shouldDrawSearchPlaceholder() {
         return searchField != null && searchField.getText()
             .isEmpty() && !searchField.isFocused();
+    }
+
+    private boolean shouldDrawSpecialSearchPlaceholder() {
+        return specialSearchField != null && specialSearchField.getText()
+            .isEmpty() && !specialSearchField.isFocused();
     }
 
     private boolean isCenteredSearchStateDocument(@Nullable LytDocument activeDocument) {
@@ -4615,6 +4648,20 @@ public class GuideScreen extends GuiContainer
                     } else if (isSpecialPageWithSearchField()) {
                         updateSpecialPageQuery("");
                     }
+                }
+                return;
+            }
+        }
+        if (specialSearchField != null) {
+            boolean insideField = isInsideSpecialSearchField(mouseX, mouseY);
+            if (button == 0) {
+                specialSearchField.mouseClicked(mouseX, mouseY, button);
+            }
+            if (insideField) {
+                if (button == 1) {
+                    specialSearchField.setFocused(true);
+                    specialSearchField.setText("");
+                    updateSpecialPageQuery("");
                 }
                 return;
             }
@@ -5182,22 +5229,11 @@ public class GuideScreen extends GuiContainer
     protected void keyTyped(char typedChar, int keyCode) {
         if (GuideScreenNeiBridge.keyTyped(this, typedChar, keyCode)) return;
         if (handleSearchFieldKey(typedChar, keyCode)) return;
+        if (handleSpecialSearchFieldKey(typedChar, keyCode)) return;
         if (handleGuideEditorKey(typedChar, keyCode)) return;
         if (GuideScreenNeiBridge.keyTypedForHoveredGuideItem(this, typedChar, keyCode)) return;
         if (keyCode == Keyboard.KEY_ESCAPE) {
             close();
-            return;
-        }
-        if (keyCode == Keyboard.KEY_BACK) {
-            if (!history.isEmpty()) {
-                confirmGuideEditorDirtyBefore(() -> {
-                    rememberCurrentContentStateIfEligible();
-                    forwardHistory.push(captureCurrentViewState());
-                    var prev = history.pop();
-                    restoreViewState(prev);
-                    rebuildToolbar();
-                });
-            }
             return;
         }
         if (keyCode == Keyboard.KEY_HOME) {
@@ -5232,6 +5268,9 @@ public class GuideScreen extends GuiContainer
     // GuideUiHost
     @Override
     public void navigateTo(PageAnchor anchor) {
+        if (tryOpenDirectSpecialPage(anchor)) {
+            return;
+        }
         if (anchor == null || anchor.equals(currentAnchor) && hasContentRoute()) return;
         confirmGuideEditorDirtyBefore(() -> {
             suppressGuideEditorTextFocusUntilGuideHotkeyRelease();
@@ -5252,6 +5291,9 @@ public class GuideScreen extends GuiContainer
         if (anchor == null) {
             return;
         }
+        if (tryOpenDirectSpecialPage(anchor)) {
+            return;
+        }
         confirmGuideEditorDirtyBefore(() -> {
             suppressGuideEditorTextFocusUntilGuideHotkeyRelease();
             rememberCurrentContentStateIfEligible();
@@ -5260,6 +5302,25 @@ public class GuideScreen extends GuiContainer
             restoreViewState(GuideScreenViewState.of(GuideScreenRoute.content(guideId, anchor), 0));
             rebuildToolbar();
         });
+    }
+
+    private boolean tryOpenDirectSpecialPage(@Nullable PageAnchor anchor) {
+        if (anchor == null || anchor.pageId() == null || !MediaWikiPageIds.isSpecialPage(anchor.pageId())) {
+            return false;
+        }
+        String specialName = MediaWikiPageIds.specialPageName(anchor.pageId());
+        if (!MediaWikiSpecialPageIds.DOWNLOAD_GUIDENH_EXTENSION.equalsIgnoreCase(specialName)) {
+            return false;
+        }
+        var definition = MediaWikiSpecialCatalog.findByName(specialName);
+        if (definition == null || definition.externalUrl() == null
+            || definition.externalUrl()
+                .trim()
+                .isEmpty()) {
+            return false;
+        }
+        openExternalUrl(MediaWikiExternalLinkSupport.resolveExternalUri(definition.externalUrl()));
+        return true;
     }
 
     @Override
@@ -5397,17 +5458,22 @@ public class GuideScreen extends GuiContainer
         return GuideItemLinksPage.isItemLinksAnchor(currentAnchor);
     }
 
+    private void ensureSearchFields() {
+        ensureSearchField();
+        ensureSpecialSearchField();
+    }
+
     private void ensureSearchField() {
-        if (!isSearchPage() && !isSpecialPageWithSearchField()) {
+        if (!isSearchPage()) {
             searchField = null;
             return;
         }
-
         int fieldX = getSearchToolbarFieldX();
         int fieldY = panelY + SEARCH_TOOLBAR_FIELD_Y_OFFSET;
         int fieldW = getSearchToolbarFieldWidth(fieldX);
         boolean focused = searchField != null && searchField.isFocused();
-        String currentText = searchField != null ? searchField.getText() : queryFromCurrentAnchor();
+        String currentText = searchField != null ? searchField.getText()
+            : GuideSearchPage.queryFromAnchor(currentAnchor);
         if (searchField == null || searchField.xPosition != fieldX
             || searchField.yPosition != fieldY
             || searchField.width != fieldW) {
@@ -5418,14 +5484,45 @@ public class GuideScreen extends GuiContainer
             searchField.setFocused(focused || currentText.isEmpty());
         }
 
-        String query = queryFromCurrentAnchor();
+        String query = GuideSearchPage.queryFromAnchor(currentAnchor);
         if (!Objects.equals(searchField.getText(), query)) {
             searchField.setText(query);
         }
     }
 
+    private void ensureSpecialSearchField() {
+        if (!isSpecialPageWithSearchField()) {
+            specialSearchField = null;
+            return;
+        }
+        int fieldX = getSearchToolbarFieldX();
+        int fieldY = panelY + SEARCH_TOOLBAR_FIELD_Y_OFFSET;
+        int fieldW = getSearchToolbarFieldWidth(fieldX);
+        boolean focused = specialSearchField != null && specialSearchField.isFocused();
+        String currentText = specialSearchField != null ? specialSearchField.getText() : queryFromCurrentAnchor();
+        if (specialSearchField == null || specialSearchField.xPosition != fieldX
+            || specialSearchField.yPosition != fieldY
+            || specialSearchField.width != fieldW) {
+            specialSearchField = new GuiTextField(this.fontRendererObj, fieldX, fieldY, fieldW, SEARCH_FIELD_H);
+            specialSearchField.setMaxStringLength(SEARCH_MAX_QUERY_LENGTH);
+            specialSearchField.setEnableBackgroundDrawing(false);
+            specialSearchField.setText(currentText);
+            specialSearchField.setFocused(focused || currentText.isEmpty());
+        }
+
+        String query = queryFromCurrentAnchor();
+        if (!Objects.equals(specialSearchField.getText(), query)) {
+            specialSearchField.setText(query);
+        }
+    }
+
+    private void syncSearchFieldsToCurrentRoute() {
+        syncSearchFieldsToCurrentRoute();
+        syncSpecialSearchFieldToCurrentRoute();
+    }
+
     private void syncSearchFieldToCurrentRoute() {
-        if (!isSearchPage() && !isSpecialPageWithSearchField()) {
+        if (!isSearchPage()) {
             searchField = null;
             return;
         }
@@ -5433,12 +5530,27 @@ public class GuideScreen extends GuiContainer
         if (searchField == null) {
             return;
         }
-        String query = queryFromCurrentAnchor();
+        String query = GuideSearchPage.queryFromAnchor(currentAnchor);
         if (!Objects.equals(searchField.getText(), query)) {
             searchField.setText(query);
         }
-        if (!isSearchPage() && query.isEmpty()) {
-            searchField.setFocused(false);
+    }
+
+    private void syncSpecialSearchFieldToCurrentRoute() {
+        if (!isSpecialPageWithSearchField()) {
+            specialSearchField = null;
+            return;
+        }
+        ensureSpecialSearchField();
+        if (specialSearchField == null) {
+            return;
+        }
+        String query = queryFromCurrentAnchor();
+        if (!Objects.equals(specialSearchField.getText(), query)) {
+            specialSearchField.setText(query);
+        }
+        if (query.isEmpty()) {
+            specialSearchField.setFocused(false);
         }
     }
 
@@ -5500,7 +5612,7 @@ public class GuideScreen extends GuiContainer
     }
 
     private void focusSearchField() {
-        ensureSearchField();
+        ensureSearchFields();
         if (searchField != null) {
             searchField.setFocused(true);
         }
@@ -5805,15 +5917,17 @@ public class GuideScreen extends GuiContainer
 
     private int getDocumentRenderOffsetY(LytDocument activeDocument) {
         if (!GuideSearchResultDocumentBuilder.isCenteredStateDocument(activeDocument)) {
-            return 0;
+            int searchInset = (isSearchPage() || isSpecialPageWithSearchField()) ? SEARCH_FIELD_H + 14 : 0;
+            return searchInset;
         }
         // Use layout-unit viewport height so centering is correct under any zoom level.
-        return Math.max(0, (getDocumentViewportHeight() - activeDocument.getContentHeight()) / 2);
+        int searchInset = (isSearchPage() || isSpecialPageWithSearchField()) ? SEARCH_FIELD_H + 14 : 0;
+        return searchInset
+            + Math.max(0, (getDocumentViewportHeight() - searchInset - activeDocument.getContentHeight()) / 2);
     }
 
     private boolean handleSearchFieldKey(char typedChar, int keyCode) {
-        if ((!isSearchPage() && !isSpecialPageWithSearchField()) || searchField == null
-            || keyCode == Keyboard.KEY_ESCAPE) {
+        if (!isSearchPage() || searchField == null || keyCode == Keyboard.KEY_ESCAPE) {
             return false;
         }
 
@@ -5840,6 +5954,30 @@ public class GuideScreen extends GuiContainer
         return !focused || shouldConsumeFocusedSearchKey(typedChar, keyCode, before, after);
     }
 
+    private boolean handleSpecialSearchFieldKey(char typedChar, int keyCode) {
+        if (!isSpecialPageWithSearchField() || specialSearchField == null || keyCode == Keyboard.KEY_ESCAPE) {
+            return false;
+        }
+
+        boolean focused = specialSearchField.isFocused();
+        if (!focused && !isSearchTypingKey(typedChar, keyCode)) {
+            return false;
+        }
+
+        if (!focused) {
+            specialSearchField.setFocused(true);
+        }
+
+        String before = specialSearchField.getText();
+        specialSearchField.textboxKeyTyped(typedChar, keyCode);
+        String after = specialSearchField.getText();
+        if (!Objects.equals(before, after)) {
+            updateSpecialPageQuery(after);
+        }
+
+        return !focused || shouldConsumeFocusedSearchKey(typedChar, keyCode, before, after);
+    }
+
     private void updateSearchQuery(String query) {
         var nextAnchor = GuideSearchPage.anchorForQuery(query);
         if (nextAnchor.equals(currentAnchor)) {
@@ -5861,7 +5999,7 @@ public class GuideScreen extends GuiContainer
         rebuildSearchDocumentIfNeeded(true);
         scrollY = 0;
         rebuildToolbar();
-        syncSearchFieldToCurrentRoute();
+        syncSearchFieldsToCurrentRoute();
     }
 
     private void updateSpecialPageQuery(String query) {
@@ -5927,6 +6065,13 @@ public class GuideScreen extends GuiContainer
             && mouseX < searchField.xPosition + searchField.width
             && mouseY >= searchField.yPosition
             && mouseY < searchField.yPosition + SEARCH_FIELD_H;
+    }
+
+    private boolean isInsideSpecialSearchField(int mouseX, int mouseY) {
+        return specialSearchField != null && mouseX >= specialSearchField.xPosition
+            && mouseX < specialSearchField.xPosition + specialSearchField.width
+            && mouseY >= specialSearchField.yPosition
+            && mouseY < specialSearchField.yPosition + SEARCH_FIELD_H;
     }
 
     public static boolean shouldConsumeFocusedSearchKey(char typedChar, int keyCode, String before, String after) {

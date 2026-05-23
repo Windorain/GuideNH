@@ -154,25 +154,4 @@ public class GuideScopedView implements Guide, MediaWikiListContextProvider {
             return mediaWikiListContext;
         }
     }
-
-    private void requestMediaWikiContextWarmup(long revision) {
-        PageIndex categoryIndexOverride = getIndex(CategoryIndex.class);
-        if (!(categoryIndexOverride instanceof CategoryIndex categoryIndex)) {
-            return;
-        }
-        Map<ResourceLocation, ParsedGuidePage> pagesSnapshot = new LinkedHashMap<>(parsedPagesById);
-        mediaWikiRefreshController.requestRefresh(revision, () -> {
-            MediaWikiSpecialDataIndex specialDataIndex = new MediaWikiSpecialDataIndexer()
-                .build(this, pagesSnapshot.values(), categoryIndex);
-            MediaWikiListContext context = MediaWikiListContext
-                .create(this, pagesSnapshot.values(), navigationTree, categoryIndex, specialDataIndex);
-            synchronized (this) {
-                if (!mediaWikiRefreshController.isCurrent(revision)) {
-                    return;
-                }
-                mediaWikiListContext = context;
-                mediaWikiListContextRevision = revision;
-            }
-        });
-    }
 }

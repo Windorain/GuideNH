@@ -22,6 +22,7 @@ import com.hfstudio.guidenh.guide.document.block.LytBlock;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowContent;
 import com.hfstudio.guidenh.guide.document.interaction.GuideTooltip;
 import com.hfstudio.guidenh.guide.document.interaction.InteractiveElement;
+import com.hfstudio.guidenh.guide.document.interaction.TextTooltip;
 import com.hfstudio.guidenh.guide.internal.GuidebookText;
 import com.hfstudio.guidenh.guide.layout.LayoutContext;
 import com.hfstudio.guidenh.guide.render.RenderContext;
@@ -31,6 +32,7 @@ import com.hfstudio.guidenh.guide.ui.GuideUiHost;
 
 public class MediaWikiSpecialGeneratedBlock extends LytBlock implements InteractiveElement {
 
+    private static final int SPECIAL_PAGES_GROUP_COLUMNS = 2;
     private static final int TOP_PADDING = 6;
     private static final int BOTTOM_PADDING = 6;
     private static final int SIDE_PADDING = 2;
@@ -38,12 +40,15 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
     private static final int GROUP_MARGIN = 6;
     private static final int HEADER_HEIGHT = 20;
     private static final int ENTRY_HEIGHT = 20;
-    private static final int ENTRY_HEIGHT_WITH_SUBTITLE = 30;
+    private static final int ENTRY_HEIGHT_WITH_SUBTITLE = 32;
     private static final int ENTRY_GAP = 2;
     private static final int ICON_SIZE = 16;
     private static final int ICON_GAP = 4;
     private static final int LIST_MARKER_SIZE = 3;
     private static final int LIST_MARKER_GAP = 6;
+    private static final int TITLE_SUBTITLE_GAP = 3;
+    private static final int HEADER_MARGIN_TOP = 5;
+    private static final int HEADER_MARGIN_BOTTOM = 5;
     private static final int LOAD_MORE_HEIGHT = 18;
     private static final int LOAD_MORE_MARGIN_TOP = 2;
     private static final ConstantColor LIST_MARKER_COLOR = ConstantColor.WHITE;
@@ -149,9 +154,9 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
                 if (group.title() != null) {
                     rowLayouts.add(
                         new RowLayout(
-                            new LytRect(columnX, columnY, columnWidth, HEADER_HEIGHT),
+                            new LytRect(columnX, columnY + HEADER_MARGIN_TOP, columnWidth, HEADER_HEIGHT),
                             new RenderRow(group.title(), "", null, null, null, null, true, false)));
-                    columnY += HEADER_HEIGHT;
+                    columnY += HEADER_MARGIN_TOP + HEADER_HEIGHT + HEADER_MARGIN_BOTTOM;
                 }
                 for (MediaWikiSpecialListEntry entry : group.entries()) {
                     int entryHeight = entry.subtitle() != null && !entry.subtitle()
@@ -265,22 +270,15 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
             ResolvedTextStyle rowStyle = rowLayout == hoveredRow ? HOVER_LINK_STYLE : LINK_STYLE;
             int markerX = rowLayout.bounds()
                 .x();
-            int markerY = rowLayout.bounds()
-                .y()
-                + (rowLayout.bounds()
-                    .height() - LIST_MARKER_SIZE) / 2;
+            int contentTop = rowLayout.bounds()
+                .y() + rowContentTop(context, rowStyle, row.subtitle());
+            int contentHeight = rowContentHeight(context, rowStyle, row.subtitle());
+            int markerY = contentTop + Math.max(0, (contentHeight - LIST_MARKER_SIZE) / 2);
             context.fillRect(markerX, markerY, LIST_MARKER_SIZE, LIST_MARKER_SIZE, LIST_MARKER_COLOR);
 
             int textX = markerX + LIST_MARKER_SIZE + LIST_MARKER_GAP;
             if (row.icon() != null) {
-                renderIcon(
-                    context,
-                    row.icon(),
-                    textX,
-                    rowLayout.bounds()
-                        .y()
-                        + (rowLayout.bounds()
-                            .height() - ICON_SIZE) / 2);
+                renderIcon(context, row.icon(), textX, contentTop + Math.max(0, (contentHeight - ICON_SIZE) / 2));
                 textX += ICON_SIZE + ICON_GAP;
             }
             String renderedTitle = clipToWidth(
@@ -291,15 +289,18 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
                     rowLayout.bounds()
                         .right() - textX),
                 rowStyle);
-            int titleY = rowLayout.bounds()
-                .y()
-                + verticalCenterOffset(
-                    context,
-                    rowStyle,
-                    row.subtitle() != null && !row.subtitle()
-                        .isEmpty() ? ENTRY_HEIGHT
-                            : rowLayout.bounds()
-                                .height());
+            String fullTitle = row.title() != null ? row.title() : "";
+            boolean titleClipped = isClipped(renderedTitle, fullTitle);
+            String fullSubtitle = row.subtitle() != null ? row.subtitle() : "";
+            boolean hasSubtitle = !fullSubtitle.isEmpty();
+            int titleY = hasSubtitle ? contentTop
+                : rowLayout.bounds()
+                    .y()
+                    + verticalCenterOffset(
+                        context,
+                        rowStyle,
+                        rowLayout.bounds()
+                            .height());
             context.drawText(renderedTitle, textX, titleY, rowStyle);
 
             int clickableWidth = textX - rowLayout.bounds()
@@ -318,25 +319,22 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
                         rowLayout.bounds()
                             .right() - textX),
                     SUBTITLE_STYLE);
+                boolean subtitleClipped = isClipped(subtitle, fullSubtitle);
                 context.drawText(
                     subtitle,
                     textX,
-                    rowLayout.bounds()
-                        .y() + context.getLineHeight(rowStyle)
-                        + 1,
+                    contentTop + context.getLineHeight(rowStyle) + TITLE_SUBTITLE_GAP,
                     SUBTITLE_STYLE);
+                rowLayout.setTooltip(
+                    titleClipped || subtitleClipped ? new TextTooltip(fullTitle + "\n" + fullSubtitle)
+                        : titleClipped ? new TextTooltip(fullTitle)
+                            : subtitleClipped ? new TextTooltip(fullSubtitle) : null);
+            } else {
+                rowLayout.setTooltip(titleClipped ? new TextTooltip(fullTitle) : null);
             }
 
             rowLayout.setClickableBounds(
-                row.pageId() != null || row.externalUrl() != null ? new LytRect(
-                    rowLayout.bounds()
-                        .x(),
-                    rowLayout.bounds()
-                        .y(),
-                    Math.max(0, clickableWidth),
-                    rowLayout.bounds()
-                        .height())
-                    : LytRect.empty());
+                row.pageId() != null || row.externalUrl() != null ? rowLayout.bounds() : LytRect.empty());
         }
     }
 
@@ -386,11 +384,18 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
     @Override
     public Optional<GuideTooltip> getTooltip(float x, float y) {
         hoveredRow = findClickableRow((int) x, (int) y);
-        return Optional.empty();
+        return hoveredRow != null ? Optional.ofNullable(hoveredRow.tooltip()) : Optional.empty();
     }
 
     private int resolveColumnCount(MediaWikiSpecialPageResult visibleResult) {
-        if (visibleResult.kind() == MediaWikiSpecialPageKind.GROUPED) {
+        if (visibleResult.kind() == MediaWikiSpecialPageKind.GROUP_INDEX && visibleResult.definition() != null
+            && MediaWikiSpecialPageIds.SPECIAL_PAGES.equals(
+                visibleResult.definition()
+                    .name())) {
+            return SPECIAL_PAGES_GROUP_COLUMNS;
+        }
+        if (visibleResult.kind() == MediaWikiSpecialPageKind.GROUPED
+            || visibleResult.kind() == MediaWikiSpecialPageKind.GROUP_INDEX) {
             return 1;
         }
         if (visibleResult.definition() != null && (MediaWikiSpecialPageIds.ALL_TRANSLATIONS.equals(
@@ -562,7 +567,7 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
     }
 
     private int estimateHeight(GroupLayout group) {
-        int height = group.title() != null ? HEADER_HEIGHT : 0;
+        int height = group.title() != null ? HEADER_MARGIN_TOP + HEADER_HEIGHT + HEADER_MARGIN_BOTTOM : 0;
         for (MediaWikiSpecialListEntry entry : group.entries()) {
             height += entry.subtitle() != null && !entry.subtitle()
                 .isEmpty() ? ENTRY_HEIGHT_WITH_SUBTITLE : ENTRY_HEIGHT;
@@ -584,6 +589,21 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
 
     private int verticalCenterOffset(RenderContext context, ResolvedTextStyle style, int boxHeight) {
         return Math.max(0, (boxHeight - context.getLineHeight(style)) / 2);
+    }
+
+    private int rowContentTop(RenderContext context, ResolvedTextStyle style, @Nullable String subtitle) {
+        if (subtitle == null || subtitle.isEmpty()) {
+            return 0;
+        }
+        int contentHeight = rowContentHeight(context, style, subtitle);
+        return Math.max(0, (ENTRY_HEIGHT_WITH_SUBTITLE - contentHeight) / 2);
+    }
+
+    private int rowContentHeight(RenderContext context, ResolvedTextStyle style, @Nullable String subtitle) {
+        if (subtitle == null || subtitle.isEmpty()) {
+            return Math.max(context.getLineHeight(style), ICON_SIZE);
+        }
+        return context.getLineHeight(style) + TITLE_SUBTITLE_GAP + context.getLineHeight(SUBTITLE_STYLE);
     }
 
     private void renderIcon(RenderContext context, GuidePageIcon icon, int x, int y) {
@@ -622,6 +642,13 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
         return end <= 0 ? "..." : text.substring(0, end) + "...";
     }
 
+    private boolean isClipped(String rendered, String original) {
+        if (original == null || original.isEmpty()) {
+            return false;
+        }
+        return rendered != null && rendered.endsWith("...") && !rendered.equals(original);
+    }
+
     @Desugar
     private record GroupLayout(@Nullable String title, List<MediaWikiSpecialListEntry> entries) {}
 
@@ -652,11 +679,14 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
         @Nullable
         private final RenderRow row;
         private LytRect clickableBounds;
+        @Nullable
+        private GuideTooltip tooltip;
 
         private RowLayout(LytRect bounds, @Nullable RenderRow row) {
             this.bounds = bounds;
             this.row = row;
             this.clickableBounds = LytRect.empty();
+            this.tooltip = null;
         }
 
         private LytRect bounds() {
@@ -676,9 +706,18 @@ public class MediaWikiSpecialGeneratedBlock extends LytBlock implements Interact
             this.clickableBounds = clickableBounds != null ? clickableBounds : LytRect.empty();
         }
 
+        private @Nullable GuideTooltip tooltip() {
+            return tooltip;
+        }
+
+        private void setTooltip(@Nullable GuideTooltip tooltip) {
+            this.tooltip = tooltip;
+        }
+
         private RowLayout move(int deltaX, int deltaY) {
             RowLayout moved = new RowLayout(bounds.move(deltaX, deltaY), row);
             moved.setClickableBounds(clickableBounds.move(deltaX, deltaY));
+            moved.setTooltip(tooltip);
             return moved;
         }
     }

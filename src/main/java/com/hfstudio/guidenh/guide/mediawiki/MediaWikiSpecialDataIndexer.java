@@ -2,6 +2,7 @@ package com.hfstudio.guidenh.guide.mediawiki;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -18,10 +19,16 @@ import java.util.zip.ZipFile;
 import net.minecraft.client.resources.IResourcePack;
 import net.minecraft.util.ResourceLocation;
 
+import org.jetbrains.annotations.Nullable;
+
+import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.guide.Guide;
 import com.hfstudio.guidenh.guide.compiler.IdUtils;
+import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.indices.CategoryIndex;
+import com.hfstudio.guidenh.guide.internal.GuidebookText;
+import com.hfstudio.guidenh.guide.internal.MutableGuide;
 import com.hfstudio.guidenh.guide.internal.datadriven.DataDrivenGuideLoader;
 import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.integration.betterquesting.QuestIndex;
@@ -30,8 +37,10 @@ import com.hfstudio.guidenh.libs.unist.UnistPoint;
 public class MediaWikiSpecialDataIndexer {
 
     private static final Pattern EXTERNAL_LINK_PATTERN = Pattern.compile("https?://[^\\s)>\\]]+");
-    private static final Pattern RESOURCE_REFERENCE_PATTERN = Pattern
+    private static final Pattern ATTRIBUTE_RESOURCE_REFERENCE_PATTERN = Pattern
         .compile("(?:src|texture|image|csv|sound|file)\\s*=\\s*[\"']([^\"'#?][^\"']*)[\"']");
+    private static final Pattern MARKDOWN_RESOURCE_REFERENCE_PATTERN = Pattern
+        .compile("!?\\[[^\\]]*\\]\\(([^)#?\\s][^)]*)\\)");
     private static final String[] ASSET_EXTENSIONS = { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".csv",
         ".json", ".mcmeta", ".txt", ".lang", ".ogg", ".mp3", ".wav", ".mermaid" };
 
@@ -46,8 +55,8 @@ public class MediaWikiSpecialDataIndexer {
                 normalPages.put(page.getId(), page);
             }
         }
-        Map<String, List<ResourceLocation>> fileUsageByPath = buildFileUsage(normalPages.values());
         Map<ResourceLocation, Long> assetSizesById = buildAssetSizes(guide);
+        Map<String, List<ResourceLocation>> fileUsageByPath = buildFileUsage(normalPages.values());
 
         return new MediaWikiSpecialDataIndex(
             Collections.unmodifiableMap(normalPages),
@@ -57,9 +66,9 @@ public class MediaWikiSpecialDataIndexer {
             Collections.unmodifiableMap(buildPageSizes(normalPages.values())),
             Collections.unmodifiableMap(assetSizesById),
             Collections.unmodifiableMap(fileUsageByPath),
-            Collections.unmodifiableMap(buildLintIssues(normalPages.values())),
+            Collections.unmodifiableMap(buildLintIssues(guide, normalPages.values(), assetSizesById.keySet())),
             Collections.unmodifiableMap(buildAmbiguousItemBindings(normalPages.values())),
-            Collections.unmodifiableMap(buildOverrides(normalPages.values())),
+            Collections.unmodifiableMap(buildOverrides(guide, normalPages.values())),
             Collections.unmodifiableSet(buildUnusedFiles(assetSizesById.keySet(), fileUsageByPath.keySet())));
     }
 
@@ -193,7 +202,8 @@ public class MediaWikiSpecialDataIndexer {
         } catch (IOException ignored) {}
     }
 
-    private Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> buildLintIssues(Collection<ParsedGuidePage> pages) {
+    private Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> buildLintIssues(Guide guide,
+        Collection<ParsedGuidePage> pages, Set<ResourceLocation> knownAssets) {
         LinkedHashMap<ResourceLocation, List<MediaWikiSpecialLintIssue>> issues = new LinkedHashMap<>();
         for (ParsedGuidePage page : pages) {
             if (page != null && page.hasParseFailure()) {
@@ -204,8 +214,25 @@ public class MediaWikiSpecialDataIndexer {
                             page.getParseFailureMessage(),
                             resolveLineNumber(page.getParseFailureFrom()))));
             }
+            appendAssetReferenceIssues(issues, page, knownAssets);
+        }
+        if (guide instanceof MutableGuide mutableGuide) {
+            appendCompileFailures(issues, mutableGuide);
         }
         return issues;
+    }
+
+    private void appendCompileFailures(Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> issues,
+        MutableGuide mutableGuide) {
+        for (Map.Entry<ResourceLocation, MutableGuide.GuidePageFailureView> entry : mutableGuide.getPageFailureViews()
+            .entrySet()) {
+            MutableGuide.GuidePageFailureView failure = entry.getValue();
+            if (failure == null || failure.parseFailure()) {
+                continue;
+            }
+            issues.computeIfAbsent(entry.getKey(), ignored -> new ArrayList<>())
+                .add(new MediaWikiSpecialLintIssue(failure.headingText() + ": " + failure.errorText(), null));
+        }
     }
 
     private Integer resolveLineNumber(UnistPoint point) {
@@ -221,8 +248,9 @@ public class MediaWikiSpecialDataIndexer {
             if (page == null) {
                 continue;
             }
-            appendBindings(bindings, page, "item:", readStringList(page, "item_ids"));
-            appendBindings(bindings, page, "ore:", readStringList(page, "ore_ids"));
+            appendBindings(bindings, page, "item:", readStringValues(page, "item_ids", "item_id"));
+            appendBindings(bindings, page, "ore:", readStringValues(page, "ore_ids", "ore_id"));
+            appendBindings(bindings, page, "quest:", readStringValues(page, "quest_ids", "quest_id"));
             appendQuestBindings(bindings, page);
         }
 
@@ -236,18 +264,15 @@ public class MediaWikiSpecialDataIndexer {
     private Map<String, List<ResourceLocation>> buildFileUsage(Collection<ParsedGuidePage> pages) {
         LinkedHashMap<String, List<ResourceLocation>> usage = new LinkedHashMap<>();
         for (ParsedGuidePage page : pages) {
-            if (page == null || page.getSource() == null
-                || page.getSource()
-                    .isEmpty()) {
+            if (page == null) {
                 continue;
             }
             LinkedHashSet<String> pageAssets = new LinkedHashSet<>();
-            Matcher matcher = RESOURCE_REFERENCE_PATTERN.matcher(page.getSource());
-            while (matcher.find()) {
-                String rawPath = matcher.group(1);
-                ResourceLocation assetId = resolveAssetId(page, rawPath);
-                if (assetId != null) {
-                    pageAssets.add(assetId.toString());
+            for (AssetReference reference : collectAssetReferences(page)) {
+                if (reference.assetId() != null) {
+                    pageAssets.add(
+                        reference.assetId()
+                            .toString());
                 }
             }
             for (String assetKey : pageAssets) {
@@ -258,35 +283,119 @@ public class MediaWikiSpecialDataIndexer {
         return usage;
     }
 
-    private Map<ResourceLocation, List<String>> buildOverrides(Collection<ParsedGuidePage> pages) {
-        LinkedHashMap<ResourceLocation, List<String>> overridesByPage = new LinkedHashMap<>();
-        LinkedHashMap<String, List<ParsedGuidePage>> pagesBySourcePath = new LinkedHashMap<>();
+    private Map<ResourceLocation, List<MediaWikiSpecialOverrideEntry>> buildOverrides(Guide guide,
+        Collection<ParsedGuidePage> pages) {
+        LinkedHashMap<ResourceLocation, List<MediaWikiSpecialOverrideEntry>> overridesByPage = new LinkedHashMap<>();
+        List<IResourcePack> activeResourcePacks = DataDrivenGuideLoader.getActiveResourcePacks();
+        String defaultLanguage = resolveDefaultLanguage(guide);
+        LinkedHashMap<ResourceLocation, List<PageSourceCandidate>> candidateCache = new LinkedHashMap<>();
         for (ParsedGuidePage page : pages) {
             if (page == null) {
                 continue;
             }
-            pagesBySourcePath.computeIfAbsent(
-                page.getId()
-                    .toString(),
-                ignored -> new ArrayList<>())
-                .add(page);
-        }
-
-        for (List<ParsedGuidePage> variants : pagesBySourcePath.values()) {
-            if (variants.size() < 2) {
+            PageSourceSelection selection = resolveSelectedPageSource(
+                guide,
+                page,
+                defaultLanguage,
+                activeResourcePacks,
+                candidateCache);
+            if (selection == null || selection.candidates()
+                .size() < 2) {
                 continue;
             }
-            variants.sort((left, right) -> Integer.compare(resolveLoadPriority(right), resolveLoadPriority(left)));
-            for (ParsedGuidePage page : variants) {
-                ArrayList<String> descriptions = new ArrayList<>(variants.size());
-                for (ParsedGuidePage variant : variants) {
-                    descriptions.add(
-                        resolveLoadPriority(variant) + " | " + variant.getSourcePack() + " | " + variant.getLanguage());
-                }
-                overridesByPage.put(page.getId(), descriptions);
+            ArrayList<MediaWikiSpecialOverrideEntry> descriptions = new ArrayList<>(
+                selection.candidates()
+                    .size());
+            for (PageSourceCandidate candidate : selection.candidates()) {
+                descriptions.add(
+                    new MediaWikiSpecialOverrideEntry(
+                        candidate.priority(),
+                        candidate.sourcePack(),
+                        selection.sourceLanguage(),
+                        selection.sourceId()
+                            .toString()));
             }
+            overridesByPage.put(page.getId(), descriptions);
         }
         return overridesByPage;
+    }
+
+    private @Nullable PageSourceSelection resolveSelectedPageSource(Guide guide, ParsedGuidePage page,
+        String defaultLanguage, List<IResourcePack> resourcePacks,
+        Map<ResourceLocation, List<PageSourceCandidate>> candidateCache) {
+        if (guide == null || page == null) {
+            return null;
+        }
+        String requestedLanguage = page.getLanguage() != null && !page.getLanguage()
+            .trim()
+            .isEmpty() ? page.getLanguage() : defaultLanguage;
+        for (PageSourceLookup lookup : buildPageSourceLookups(guide, page, requestedLanguage, defaultLanguage)) {
+            List<PageSourceCandidate> candidates = candidateCache
+                .computeIfAbsent(lookup.sourceId(), sourceId -> collectPageSourceCandidates(sourceId, resourcePacks));
+            if (!candidates.isEmpty()) {
+                return new PageSourceSelection(lookup.sourceId(), lookup.sourceLanguage(), candidates);
+            }
+        }
+        return null;
+    }
+
+    private List<PageSourceLookup> buildPageSourceLookups(Guide guide, ParsedGuidePage page, String requestedLanguage,
+        String defaultLanguage) {
+        ArrayList<PageSourceLookup> lookups = new ArrayList<>(3);
+        String pagePath = page.getId()
+            .getResourcePath();
+        String namespace = page.getId()
+            .getResourceDomain();
+        String folder = guide.getContentRootFolder();
+        appendPageSourceLookup(lookups, namespace, folder, requestedLanguage, pagePath);
+        if (defaultLanguage != null && !defaultLanguage.isEmpty()
+            && !defaultLanguage.equalsIgnoreCase(requestedLanguage)) {
+            appendPageSourceLookup(lookups, namespace, folder, defaultLanguage, pagePath);
+        }
+        lookups.add(new PageSourceLookup(new ResourceLocation(namespace, folder + "/" + pagePath), "raw"));
+        return lookups;
+    }
+
+    private void appendPageSourceLookup(List<PageSourceLookup> lookups, String namespace, String folder,
+        String language, String pagePath) {
+        if (language == null || language.trim()
+            .isEmpty()) {
+            return;
+        }
+        lookups.add(
+            new PageSourceLookup(new ResourceLocation(namespace, folder + "/_" + language + "/" + pagePath), language));
+    }
+
+    private List<PageSourceCandidate> collectPageSourceCandidates(ResourceLocation sourceId,
+        List<IResourcePack> resourcePacks) {
+        ArrayList<PageSourceCandidate> candidates = new ArrayList<>();
+        int order = 0;
+        for (IResourcePack resourcePack : resourcePacks) {
+            byte[] bytes = DataDrivenGuideLoader.readBytes(resourcePack, sourceId);
+            if (bytes == null) {
+                continue;
+            }
+            candidates
+                .add(new PageSourceCandidate(resourcePack.getPackName(), readLoadPriority(sourceId, bytes), order++));
+        }
+        candidates.sort(
+            (left, right) -> left.priority() != right.priority() ? Integer.compare(right.priority(), left.priority())
+                : Integer.compare(right.order(), left.order()));
+        return candidates;
+    }
+
+    private int readLoadPriority(ResourceLocation sourceId, byte[] bytes) {
+        String source = new String(bytes, StandardCharsets.UTF_8);
+        var navigation = PageCompiler.parseFrontmatterFromSource(sourceId, PageCompiler.normalizeLineEndings(source))
+            .navigationEntry();
+        return navigation != null ? navigation.loadPriority() : 0;
+    }
+
+    private String resolveDefaultLanguage(Guide guide) {
+        if (guide instanceof MutableGuide mutableGuide) {
+            return mutableGuide.getDefaultLanguage();
+        }
+        return "en_us";
     }
 
     private Set<String> buildUnusedFiles(Set<ResourceLocation> assets, Set<String> usedAssetKeys) {
@@ -324,24 +433,45 @@ public class MediaWikiSpecialDataIndexer {
         }
     }
 
-    private List<String> readStringList(ParsedGuidePage page, String key) {
-        Object value = page.getFrontmatter()
-            .additionalProperties()
-            .get(key);
-        if (!(value instanceof List<?>values)) {
+    private List<String> readStringValues(ParsedGuidePage page, String... keys) {
+        if (page.getFrontmatter() == null || keys == null || keys.length == 0) {
             return Collections.emptyList();
         }
-        ArrayList<String> result = new ArrayList<>(values.size());
-        for (Object entry : values) {
-            if (entry instanceof String text && !text.trim()
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        for (String key : keys) {
+            if (key == null || key.trim()
+                .isEmpty()) {
+                continue;
+            }
+            Object value = page.getFrontmatter()
+                .additionalProperties()
+                .get(key);
+            if (value instanceof List<?>values) {
+                for (Object entry : values) {
+                    if (entry instanceof String text && !text.trim()
+                        .isEmpty()) {
+                        result.add(text.trim());
+                    }
+                }
+                continue;
+            }
+            if (value instanceof String text && !text.trim()
                 .isEmpty()) {
                 result.add(text.trim());
             }
         }
-        return result;
+        return result.isEmpty() ? Collections.<String>emptyList() : new ArrayList<>(result);
     }
 
     private ResourceLocation resolveAssetId(ParsedGuidePage page, String rawPath) {
+        try {
+            return tryResolveAssetId(page, rawPath);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private @Nullable ResourceLocation tryResolveAssetId(ParsedGuidePage page, String rawPath) {
         if (rawPath == null) {
             return null;
         }
@@ -354,11 +484,7 @@ public class MediaWikiSpecialDataIndexer {
         if (!shouldIndexAsset(trimmed)) {
             return null;
         }
-        try {
-            return IdUtils.resolveLink(trimmed, page.getId());
-        } catch (IllegalArgumentException ignored) {
-            return null;
-        }
+        return IdUtils.resolveLink(trimmed, page.getId());
     }
 
     private boolean shouldIndexAsset(String path) {
@@ -380,5 +506,114 @@ public class MediaWikiSpecialDataIndexer {
         return page.getFrontmatter()
             .navigationEntry()
             .loadPriority();
+    }
+
+    private void appendAssetReferenceIssues(Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> issues,
+        ParsedGuidePage page, Set<ResourceLocation> knownAssets) {
+        if (page == null || knownAssets == null) {
+            return;
+        }
+        LinkedHashSet<String> reported = new LinkedHashSet<>();
+        for (AssetReference reference : collectAssetReferences(page)) {
+            if (!reported.add(reference.uniqueKey())) {
+                continue;
+            }
+            if (reference.assetId() == null) {
+                appendLintIssue(
+                    issues,
+                    page.getId(),
+                    GuidebookText.MediaWikiLintInvalidAssetReference.text(reference.rawPath()),
+                    reference.lineNumber());
+                continue;
+            }
+            if (!knownAssets.contains(reference.assetId())) {
+                appendLintIssue(
+                    issues,
+                    page.getId(),
+                    GuidebookText.MediaWikiLintMissingAssetFile.text(reference.assetId()),
+                    reference.lineNumber());
+            }
+        }
+    }
+
+    private void appendLintIssue(Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> issues, ResourceLocation pageId,
+        String message, @Nullable Integer lineNumber) {
+        issues.computeIfAbsent(pageId, ignored -> new ArrayList<>())
+            .add(new MediaWikiSpecialLintIssue(message, lineNumber));
+    }
+
+    private List<AssetReference> collectAssetReferences(ParsedGuidePage page) {
+        if (page == null || page.getSource() == null
+            || page.getSource()
+                .isEmpty()) {
+            return Collections.emptyList();
+        }
+        ArrayList<AssetReference> references = new ArrayList<>();
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        collectAssetReferences(page, page.getSource(), ATTRIBUTE_RESOURCE_REFERENCE_PATTERN, references, seen);
+        collectAssetReferences(page, page.getSource(), MARKDOWN_RESOURCE_REFERENCE_PATTERN, references, seen);
+        return references;
+    }
+
+    private void collectAssetReferences(ParsedGuidePage page, String source, Pattern pattern,
+        List<AssetReference> references, Set<String> seen) {
+        Matcher matcher = pattern.matcher(source);
+        while (matcher.find()) {
+            String rawPath = matcher.group(1);
+            if (rawPath == null) {
+                continue;
+            }
+            String trimmed = rawPath.trim();
+            if (trimmed.isEmpty() || trimmed.startsWith("http://")
+                || trimmed.startsWith("https://")
+                || trimmed.startsWith("#")
+                || !shouldIndexAsset(trimmed)) {
+                continue;
+            }
+            Integer lineNumber = resolveLineNumber(source, matcher.start(1));
+            ResourceLocation assetId = null;
+            boolean valid = true;
+            try {
+                assetId = tryResolveAssetId(page, trimmed);
+            } catch (IllegalArgumentException ignored) {
+                valid = false;
+            }
+            String dedupeKey = (assetId != null ? assetId.toString() : trimmed) + "@" + lineNumber;
+            if (seen.add(dedupeKey)) {
+                references.add(new AssetReference(trimmed, assetId, lineNumber, valid));
+            }
+        }
+    }
+
+    private @Nullable Integer resolveLineNumber(String source, int offset) {
+        if (source == null || offset < 0 || offset > source.length()) {
+            return null;
+        }
+        int line = 1;
+        for (int i = 0; i < offset; i++) {
+            if (source.charAt(i) == '\n') {
+                line++;
+            }
+        }
+        return line;
+    }
+
+    @Desugar
+    private record PageSourceLookup(ResourceLocation sourceId, String sourceLanguage) {}
+
+    @Desugar
+    private record PageSourceCandidate(String sourcePack, int priority, int order) {}
+
+    @Desugar
+    private record PageSourceSelection(ResourceLocation sourceId, String sourceLanguage,
+        List<PageSourceCandidate> candidates) {}
+
+    @Desugar
+    private record AssetReference(String rawPath, @Nullable ResourceLocation assetId, @Nullable Integer lineNumber,
+        boolean valid) {
+
+        private String uniqueKey() {
+            return (assetId != null ? assetId.toString() : rawPath) + "#" + lineNumber + "#" + valid;
+        }
     }
 }

@@ -351,6 +351,10 @@ date: 2024-01-15
 updated: 2024-06-01
 ```
 
+`categories` accepts either plain category names or `category|sort key` entries.
+Use `<Category name="examples" rows="3" />` to render a category listing block, and
+`<Special name="SpecialPages" rows="3" />` to embed the generated MediaWiki-style special-page index.
+
 For BetterQuesting integration, `quest_ids` accepts either of these formats:
 
 - canonical UUID strings such as `01234567-89ab-cdef-0123-456789abcdef`

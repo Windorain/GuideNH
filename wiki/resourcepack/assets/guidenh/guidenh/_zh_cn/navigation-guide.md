@@ -152,8 +152,10 @@ categories:
 ```
 
 在父页面中使用 `<Category name="markdown" rows="3" />` 即可自动生成该分类下所有页面的列表。
-每个分类还会自动生成一个隐藏可搜索页面，例如 `Category:markdown`。
-GuideNH 还提供隐藏可搜索的特殊页面 `Special:AllPages` 与 `Special:Categories`，可分别通过 `<Special name="AllPages" rows="3" />` 和 `<Special name="Categories" rows="3" />` 嵌入。
+每个分类还会自动生成一个隐藏但可搜索的页面，例如 `Category:markdown`。
+GuideNH 还提供隐藏的特殊页面，例如 `Special:SpecialPages`、`Special:AllPages` 与 `Special:Categories`。
+可分别通过 `<Special name="SpecialPages" rows="3" />`、`<Special name="AllPages" rows="3" />` 和 `<Special name="Categories" rows="3" />` 直接嵌入。
+所有 `Special:*` 页面都不会进入普通指南搜索，而 `Category:*` 页面仍然可被搜索到。
 
 ### `item_ids`
 

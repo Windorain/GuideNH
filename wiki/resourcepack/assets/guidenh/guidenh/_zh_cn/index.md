@@ -31,6 +31,15 @@ date: 2024-01-01
 
 <Category name="other" rows="3" />
 
+## 隐藏的 MediaWiki 页面
+
+可以直接体验这些自动生成的 MediaWiki 风格页面：
+
+- [Special:SpecialPages](Special:SpecialPages)
+- [Special:AllPages](Special:AllPages)
+- [Special:Categories](Special:Categories)
+- [Category:markdown](Category:markdown)
+
 ## 行内元素
 
 <Recipe id="missingrecipe" fallbackText="该物品无法合成。" />

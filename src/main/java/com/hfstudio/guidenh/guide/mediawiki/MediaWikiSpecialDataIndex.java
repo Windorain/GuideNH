@@ -16,5 +16,5 @@ public record MediaWikiSpecialDataIndex(Map<ResourceLocation, ParsedGuidePage> n
     Map<ResourceLocation, Long> pageSizesById, Map<ResourceLocation, Long> assetSizesById,
     Map<String, List<ResourceLocation>> fileUsageByPath,
     Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> lintIssuesByPage,
-    Map<String, List<ResourceLocation>> ambiguousItemBindings, Map<ResourceLocation, List<String>> overridesByPage,
-    Set<String> unusedFiles) {}
+    Map<String, List<ResourceLocation>> ambiguousItemBindings,
+    Map<ResourceLocation, List<MediaWikiSpecialOverrideEntry>> overridesByPage, Set<String> unusedFiles) {}

@@ -25,6 +25,7 @@ import net.minecraft.util.ResourceLocation;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.guide.Guide;
 import com.hfstudio.guidenh.guide.GuideItemSettings;
 import com.hfstudio.guidenh.guide.GuidePage;
@@ -295,6 +296,20 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
     @Override
     public boolean isPageFailed(ResourceLocation pageId) {
         return pageFailures.containsKey(pageId);
+    }
+
+    public Map<ResourceLocation, GuidePageFailureView> getPageFailureViews() {
+        LinkedHashMap<ResourceLocation, GuidePageFailureView> snapshot = new LinkedHashMap<>();
+        for (Map.Entry<ResourceLocation, GuidePageFailure> entry : pageFailures.entrySet()) {
+            GuidePageFailure failure = entry.getValue();
+            if (failure == null) {
+                continue;
+            }
+            snapshot.put(
+                entry.getKey(),
+                new GuidePageFailureView(failure.headingText, failure.errorText, failure.parseFailure));
+        }
+        return Collections.unmodifiableMap(snapshot);
     }
 
     /**
@@ -991,7 +1006,6 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
         mediaWikiSpecialDataIndex = null;
         mediaWikiListContextRevision = nextRevision;
         mediaWikiSpecialDataIndexRevision = nextRevision;
-        requestMediaWikiDerivedCacheWarmup(nextRevision);
     }
 
     @Override
@@ -1122,4 +1136,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
             return new GuidePageFailure("COMPILATION ERROR", errorText, false);
         }
     }
+
+    @Desugar
+    public record GuidePageFailureView(String headingText, String errorText, boolean parseFailure) {}
 }

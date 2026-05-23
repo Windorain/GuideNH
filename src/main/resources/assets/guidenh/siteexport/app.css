@@ -886,6 +886,9 @@ p {
 .guide-mediawiki-special-search {
     display: flex;
     justify-content: center;
+    padding: calc(6px * var(--gui-scale)) calc(8px * var(--gui-scale));
+    background: rgba(0, 0, 0, 0.28);
+    border: calc(1px * var(--gui-scale)) solid rgba(180, 180, 180, 0.28);
     margin-bottom: calc(4px * var(--gui-scale));
 }
 
@@ -905,10 +908,19 @@ p {
     gap: calc(6px * var(--gui-scale));
 }
 
+.guide-mediawiki-special-groups-index {
+    gap: calc(12px * var(--gui-scale));
+}
+
 .guide-mediawiki-special-group {
     border-top: calc(1px * var(--gui-scale)) solid rgba(210, 210, 210, 0.45);
     border-bottom: calc(1px * var(--gui-scale)) solid rgba(210, 210, 210, 0.45);
     padding: calc(3px * var(--gui-scale)) 0;
+}
+
+.guide-mediawiki-special-groups-index > .guide-mediawiki-special-group {
+    display: block;
+    padding: calc(6px * var(--gui-scale)) 0 calc(8px * var(--gui-scale));
 }
 
 .guide-mediawiki-special-group-title {
@@ -916,6 +928,10 @@ p {
     font-size: 1.3rem;
     line-height: 1.15;
     margin: 0 0 calc(4px * var(--gui-scale));
+}
+
+.guide-mediawiki-special-groups-index .guide-mediawiki-special-group-title {
+    margin-bottom: calc(8px * var(--gui-scale));
 }
 
 .guide-mediawiki-special-group-summary {
@@ -934,6 +950,11 @@ p {
 
 .guide-mediawiki-special-flat {
     grid-template-columns: minmax(0, 1fr);
+}
+
+.guide-mediawiki-special-multi-column-flat {
+    grid-template-columns: repeat(var(--guide-mediawiki-columns, 2), minmax(0, 1fr));
+    align-items: start;
 }
 
 .guide-mediawiki-special-entry {

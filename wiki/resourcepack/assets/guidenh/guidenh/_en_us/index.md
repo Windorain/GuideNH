@@ -31,6 +31,15 @@ Featured scene docs: [Scene Particles](./scene-particles.md)
 
 <Category name="other" rows="3" />
 
+## Hidden MediaWiki Pages
+
+Explore the generated MediaWiki-style pages:
+
+- [Special:SpecialPages](Special:SpecialPages)
+- [Special:AllPages](Special:AllPages)
+- [Special:Categories](Special:Categories)
+- [Category:markdown](Category:markdown)
+
 ## Inline Elements
 
 <Recipe id="missingrecipe" fallbackText="The recipe for special item is disabled." />
