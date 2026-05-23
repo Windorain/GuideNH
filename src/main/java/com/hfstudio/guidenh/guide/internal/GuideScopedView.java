@@ -1,5 +1,6 @@
 package com.hfstudio.guidenh.guide.internal;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -17,12 +18,15 @@ import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.extensions.ExtensionCollection;
 import com.hfstudio.guidenh.guide.indices.CategoryIndex;
 import com.hfstudio.guidenh.guide.indices.PageIndex;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiGuideAggregator;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListContext;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListContextProvider;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialDataIndex;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialDataIndexer;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialPageRefreshController;
 import com.hfstudio.guidenh.guide.navigation.NavigationTree;
+
+import cpw.mods.fml.common.FMLLog;
 
 public class GuideScopedView implements Guide, MediaWikiListContextProvider {
 
@@ -45,7 +49,6 @@ public class GuideScopedView implements Guide, MediaWikiListContextProvider {
         this.navigationTree = navigationTree != null ? navigationTree : new NavigationTree();
         this.indexOverrides = indexOverrides != null ? new LinkedHashMap<>(indexOverrides) : Collections.emptyMap();
         this.mediaWikiListContext = mediaWikiListContext;
-        requestMediaWikiContextWarmup(mediaWikiRefreshController.currentRevision());
     }
 
     public static GuideScopedView create(Guide delegate, Map<ResourceLocation, ParsedGuidePage> parsedPagesById,
@@ -142,16 +145,48 @@ public class GuideScopedView implements Guide, MediaWikiListContextProvider {
             if (mediaWikiListContext != null && mediaWikiListContextRevision == currentRevision) {
                 return mediaWikiListContext;
             }
-            PageIndex categoryIndexOverride = getIndex(CategoryIndex.class);
-            if (!(categoryIndexOverride instanceof CategoryIndex categoryIndex)) {
-                return null;
+            long startNanos = System.nanoTime();
+            MediaWikiGuideAggregator aggregatedGuide = MediaWikiGuideAggregator.create(delegate);
+            LinkedHashMap<ResourceLocation, ParsedGuidePage> mergedPagesById = new LinkedHashMap<>();
+            for (ParsedGuidePage page : aggregatedGuide.getPages()) {
+                if (page != null) {
+                    mergedPagesById.put(page.getId(), page);
+                }
             }
+            mergedPagesById.putAll(parsedPagesById);
+
+            ArrayList<ParsedGuidePage> categoryIndexedPages = new ArrayList<>();
+            for (ParsedGuidePage page : mergedPagesById.values()) {
+                if (page == null) {
+                    continue;
+                }
+                if (NavigationTree.areModRequirementsMet(
+                    page.getFrontmatter() != null ? page.getFrontmatter()
+                        .navigationEntry() : null)) {
+                    categoryIndexedPages.add(page);
+                }
+            }
+            CategoryIndex categoryIndex = new CategoryIndex();
+            categoryIndex.rebuild(categoryIndexedPages);
             MediaWikiSpecialDataIndex specialDataIndex = new MediaWikiSpecialDataIndexer()
-                .build(this, parsedPagesById.values(), categoryIndex);
-            mediaWikiListContext = MediaWikiListContext
-                .create(this, parsedPagesById.values(), navigationTree, categoryIndex, specialDataIndex);
+                .build(aggregatedGuide, mergedPagesById.values(), categoryIndex);
+            mediaWikiListContext = MediaWikiListContext.create(
+                aggregatedGuide,
+                mergedPagesById.values(),
+                aggregatedGuide.getNavigationTree(),
+                categoryIndex,
+                specialDataIndex);
             mediaWikiListContextRevision = currentRevision;
+            FMLLog.getLogger()
+                .info(
+                    "[GuideNH] [GuideScopedView] Built preview MediaWikiListContext in {} ms for guide {}",
+                    nanosToMillis(System.nanoTime() - startNanos),
+                    delegate.getId());
             return mediaWikiListContext;
         }
+    }
+
+    private long nanosToMillis(long nanos) {
+        return nanos / 1_000_000L;
     }
 }

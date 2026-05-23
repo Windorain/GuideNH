@@ -47,7 +47,9 @@ public class SpecialCompiler extends BlockTagCompiler {
         MediaWikiSpecialPageQuery specialQuery = MediaWikiTagCompilerSupport.readSpecialQuery(el);
         MediaWikiSpecialPageResult result = resolver
             .resolve(context, specialName, specialQuery.withVisibleCount(Integer.MAX_VALUE));
-        parent.append(MediaWikiTagCompilerSupport.createSpecialBlock(result, MediaWikiTagCompilerSupport.readRows(el)));
+        parent.append(
+            MediaWikiTagCompilerSupport
+                .createSpecialBlock(result, MediaWikiTagCompilerSupport.readRows(el), context, specialQuery, resolver));
     }
 
     @Override

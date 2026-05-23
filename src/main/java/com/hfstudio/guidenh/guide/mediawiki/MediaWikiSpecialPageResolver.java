@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
 
 import net.minecraft.util.ResourceLocation;
 
@@ -18,7 +19,9 @@ import org.jetbrains.annotations.Nullable;
 import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.guide.GuidePageIcon;
 import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
+import com.hfstudio.guidenh.guide.internal.GuideLightweightReloadService;
 import com.hfstudio.guidenh.guide.internal.GuidebookText;
+import com.hfstudio.guidenh.guide.internal.MutableGuide;
 import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.guide.internal.util.NavigationUtil;
 
@@ -108,13 +111,13 @@ public class MediaWikiSpecialPageResolver {
             case MediaWikiSpecialPageIds.ALL_TRANSLATIONS -> MediaWikiSpecialPageModels
                 .grouped(definition, buildAllTranslations(context, effectiveQuery), effectiveQuery);
             case MediaWikiSpecialPageIds.LANGUAGE_STATISTICS -> MediaWikiSpecialPageModels
-                .info(definition, buildLanguageStatisticsMessage(context));
+                .grouped(definition, buildLanguageStatisticsGroups(context), effectiveQuery);
             case MediaWikiSpecialPageIds.PAGE_TRANSLATION -> MediaWikiSpecialPageModels
                 .grouped(definition, buildPageTranslationGroups(context, effectiveQuery), effectiveQuery);
             case MediaWikiSpecialPageIds.SEARCH_TRANSLATIONS -> MediaWikiSpecialPageModels
                 .grouped(definition, buildLanguageSearchGroups(context, effectiveQuery), effectiveQuery);
             case MediaWikiSpecialPageIds.TRANSLATION_STATISTICS -> MediaWikiSpecialPageModels
-                .info(definition, buildTranslationStatisticsMessage(context));
+                .grouped(definition, buildLanguageStatisticsGroups(context), effectiveQuery);
             case MediaWikiSpecialPageIds.CONTRIBUTE -> MediaWikiSpecialPageModels
                 .flat(definition, buildContributorEntries(context), effectiveQuery);
             default -> MediaWikiSpecialPageModels
@@ -638,49 +641,40 @@ public class MediaWikiSpecialPageResolver {
         MediaWikiSpecialPageQuery query) {
         String pageQuery = firstNonBlank(query.parameter(MediaWikiSpecialPageQuery.PARAM_PAGE), query.searchText());
         String normalizedQuery = MediaWikiSpecialSearchSupport.normalize(pageQuery);
+        MediaWikiTranslationStats.TranslationSnapshot snapshot = MediaWikiTranslationStats.scan(context.guide());
         ArrayList<MediaWikiSpecialGroupedEntry> groups = new ArrayList<>();
-        for (Map.Entry<ResourceLocation, List<ResourceLocation>> entry : context.specialDataIndex()
-            .translationsBySourcePage()
-            .entrySet()) {
-            ParsedGuidePage sourcePage = findSourcePage(context, entry.getKey(), entry.getValue());
-            String sourceTitle = sourcePage != null ? resolvePageTitle(context, sourcePage)
-                : entry.getKey()
-                    .toString();
-            if (!normalizedQuery.isEmpty()
-                && !matchesSourceTranslationQuery(normalizedQuery, entry.getKey(), sourcePage, sourceTitle)) {
+        for (ResourceLocation sourcePageId : collectTranslationSourcePageIds(context, snapshot)) {
+            ParsedGuidePage sourcePage = findSourcePage(
+                context,
+                sourcePageId,
+                context.specialDataIndex()
+                    .translationsBySourcePage()
+                    .get(sourcePageId),
+                snapshot);
+            String sourceTitle = sourcePage != null ? resolvePageTitle(context, sourcePage) : sourcePageId.toString();
+            if (!normalizedQuery.isEmpty() && !matchesPageTranslationSelector(
+                context,
+                sourcePageId,
+                sourcePage,
+                sourceTitle,
+                normalizedQuery,
+                snapshot)) {
                 continue;
             }
-            ArrayList<MediaWikiSpecialListEntry> children = new ArrayList<>();
-            for (ResourceLocation pageId : entry.getValue()) {
-                ParsedGuidePage page = context.specialDataIndex()
-                    .normalPagesById()
-                    .get(pageId);
-                if (page == null) {
-                    continue;
-                }
-                children.add(
-                    new MediaWikiSpecialListEntry(
-                        page.getLanguage(),
-                        resolvePageTitle(context, page),
-                        sourceTitle + " "
-                            + page.getLanguage()
-                            + " "
-                            + page.getId()
-                            + " "
-                            + resolvePageTitle(context, page),
-                        pageId,
-                        null,
-                        pageIcon(page)));
-            }
+            ArrayList<MediaWikiSpecialListEntry> children = buildTranslationVariantEntries(
+                context,
+                sourcePageId,
+                sourceTitle,
+                snapshot);
             if (children.isEmpty()) {
                 continue;
             }
+            children.sort(this::compareEntries);
             groups.add(
                 new MediaWikiSpecialGroupedEntry(
                     sourceTitle,
-                    entry.getKey()
-                        .toString(),
-                    sourceTitle + " " + entry.getKey(),
+                    sourcePageId.toString(),
+                    sourceTitle + " " + sourcePageId,
                     children));
         }
         groups.sort(Comparator.comparing(MediaWikiSpecialGroupedEntry::title, String.CASE_INSENSITIVE_ORDER));
@@ -694,35 +688,31 @@ public class MediaWikiSpecialPageResolver {
             return Collections.emptyList();
         }
         String normalizedSelector = MediaWikiSpecialSearchSupport.normalize(pageSelector);
+        MediaWikiTranslationStats.TranslationSnapshot snapshot = MediaWikiTranslationStats.scan(context.guide());
         ArrayList<MediaWikiSpecialGroupedEntry> groups = new ArrayList<>();
-        for (Map.Entry<ResourceLocation, List<ResourceLocation>> entry : context.specialDataIndex()
-            .translationsBySourcePage()
-            .entrySet()) {
-            ParsedGuidePage sourcePage = findSourcePage(context, entry.getKey(), entry.getValue());
-            String sourceTitle = sourcePage != null ? resolvePageTitle(context, sourcePage)
-                : entry.getKey()
-                    .toString();
-            if (!matchesPageTranslationSelector(context, entry.getKey(), sourcePage, sourceTitle, normalizedSelector)) {
+        for (ResourceLocation sourcePageId : collectTranslationSourcePageIds(context, snapshot)) {
+            ParsedGuidePage sourcePage = findSourcePage(
+                context,
+                sourcePageId,
+                context.specialDataIndex()
+                    .translationsBySourcePage()
+                    .get(sourcePageId),
+                snapshot);
+            String sourceTitle = sourcePage != null ? resolvePageTitle(context, sourcePage) : sourcePageId.toString();
+            if (!matchesPageTranslationSelector(
+                context,
+                sourcePageId,
+                sourcePage,
+                sourceTitle,
+                normalizedSelector,
+                snapshot)) {
                 continue;
             }
-            ArrayList<MediaWikiSpecialListEntry> children = new ArrayList<>();
-            for (ResourceLocation pageId : entry.getValue()) {
-                ParsedGuidePage page = context.specialDataIndex()
-                    .normalPagesById()
-                    .get(pageId);
-                if (page == null) {
-                    continue;
-                }
-                String title = resolvePageTitle(context, page);
-                children.add(
-                    new MediaWikiSpecialListEntry(
-                        page.getLanguage(),
-                        title,
-                        sourceTitle + " " + page.getLanguage() + " " + page.getId() + " " + title,
-                        pageId,
-                        null,
-                        pageIcon(page)));
-            }
+            ArrayList<MediaWikiSpecialListEntry> children = buildTranslationVariantEntries(
+                context,
+                sourcePageId,
+                sourceTitle,
+                snapshot);
             if (children.isEmpty()) {
                 continue;
             }
@@ -730,9 +720,8 @@ public class MediaWikiSpecialPageResolver {
             groups.add(
                 new MediaWikiSpecialGroupedEntry(
                     sourceTitle,
-                    entry.getKey()
-                        .toString(),
-                    sourceTitle + " " + entry.getKey(),
+                    sourcePageId.toString(),
+                    sourceTitle + " " + sourcePageId,
                     children));
         }
         groups.sort(Comparator.comparing(MediaWikiSpecialGroupedEntry::title, String.CASE_INSENSITIVE_ORDER));
@@ -747,16 +736,20 @@ public class MediaWikiSpecialPageResolver {
         if (explicitLanguage != null) {
             languageQuery = new LanguageScopedQuery(explicitLanguage, languageQuery.pageQuery());
         }
+        MediaWikiTranslationStats.TranslationSnapshot snapshot = MediaWikiTranslationStats.scan(context.guide());
         ArrayList<MediaWikiSpecialGroupedEntry> groups = new ArrayList<>();
-        for (String language : collectLanguages(context)) {
+        for (String language : snapshot.languages()) {
             if (languageQuery.languageFilter() != null && !language.equalsIgnoreCase(languageQuery.languageFilter())) {
                 continue;
             }
             ArrayList<MediaWikiSpecialListEntry> children = new ArrayList<>();
-            for (ParsedGuidePage page : context.specialDataIndex()
-                .normalPagesById()
-                .values()) {
-                if (language.equalsIgnoreCase(page.getLanguage())) {
+            for (String pagePath : snapshot.pagePathsForLanguage(language)) {
+                ResourceLocation sourcePageId = new ResourceLocation(
+                    context.guide()
+                        .getDefaultNamespace(),
+                    pagePath);
+                ParsedGuidePage page = loadTranslatedPage(context, sourcePageId, language);
+                if (page != null) {
                     String title = resolvePageTitle(context, page);
                     children.add(pageEntry(page, title, language + " " + page.getId() + " " + title));
                 }
@@ -776,68 +769,119 @@ public class MediaWikiSpecialPageResolver {
         return groups;
     }
 
-    private String buildLanguageStatisticsMessage(MediaWikiListContext context) {
+    private List<MediaWikiSpecialGroupedEntry> buildLanguageStatisticsGroups(MediaWikiListContext context) {
         MediaWikiTranslationStats.TranslationSnapshot snapshot = MediaWikiTranslationStats.scan(context.guide());
-        StringBuilder message = new StringBuilder(
-            GuidebookText.MediaWikiLanguageCoverageSummary.text(
-                snapshot.languages()
-                    .size(),
-                snapshot.sourcePageCount()));
+        String currentLanguage = LangUtil.getCurrentLanguage();
+        Set<String> baselinePages = snapshot.pagePathsForLanguage(currentLanguage);
+        int baselinePageCount = baselinePages.size();
+        ArrayList<MediaWikiSpecialGroupedEntry> groups = new ArrayList<>();
         for (String language : snapshot.languages()) {
-            int languagePageCount = snapshot.pageCountForLanguage(language);
-            int percentage = snapshot.sourcePageCount() <= 0 ? 0
-                : Math.round(languagePageCount * 100f / snapshot.sourcePageCount());
-            message.append("\n")
-                .append(
-                    GuidebookText.MediaWikiLanguageCoverageLine
-                        .text(language, percentage, languagePageCount, snapshot.sourcePageCount()));
-            ArrayList<String> samplePages = new ArrayList<>(snapshot.pagePathsForLanguage(language));
-            samplePages.sort(String.CASE_INSENSITIVE_ORDER);
-            if (!samplePages.isEmpty()) {
-                int previewCount = Math.min(5, samplePages.size());
-                message.append("\n  ")
-                    .append(String.join(", ", samplePages.subList(0, previewCount)));
-                if (samplePages.size() > previewCount) {
-                    message.append(", ...");
-                }
+            List<String> languagePages = sanitizeLanguagePages(snapshot.pagePathsForLanguage(language));
+            int languagePageCount = languagePages.size();
+            int percentage = baselinePageCount <= 0 ? 0 : Math.round(languagePageCount * 100f / baselinePageCount);
+            ArrayList<MediaWikiSpecialListEntry> entries = new ArrayList<>();
+            for (String pagePath : languagePages) {
+                ResourceLocation sourcePageId = new ResourceLocation(
+                    context.guide()
+                        .getDefaultNamespace(),
+                    pagePath);
+                ParsedGuidePage page = loadTranslatedPage(context, sourcePageId, language);
+                String title = page != null ? resolvePageTitle(context, page) : pagePath;
+                entries.add(
+                    new MediaWikiSpecialListEntry(
+                        title,
+                        pagePath,
+                        language + " " + percentage + " " + title + " " + pagePath,
+                        page != null ? page.getId() : sourcePageId,
+                        null,
+                        pageIcon(page)));
             }
+            groups.add(
+                new MediaWikiSpecialGroupedEntry(
+                    GuidebookText.MediaWikiLanguageCoverageLine
+                        .text(language, percentage, languagePageCount, baselinePageCount),
+                    GuidebookText.MediaWikiLanguageCoverageSummary.text(
+                        snapshot.languages()
+                            .size(),
+                        baselinePageCount),
+                    language,
+                    entries));
         }
-        return message.toString();
+        if (groups.isEmpty()) {
+            groups.add(
+                new MediaWikiSpecialGroupedEntry(
+                    GuidebookText.MediaWikiNoPages.text(),
+                    "",
+                    "",
+                    Collections.<MediaWikiSpecialListEntry>emptyList()));
+        }
+        return groups;
     }
 
-    private String buildTranslationStatisticsMessage(MediaWikiListContext context) {
-        MediaWikiTranslationStats.TranslationSnapshot snapshot = MediaWikiTranslationStats.scan(context.guide());
-        StringBuilder message = new StringBuilder(
-            GuidebookText.MediaWikiTranslationCoverageSummary.text(
-                snapshot.translatedSourcePageCount(),
-                snapshot.fullyTranslatedSourcePageCount(),
-                snapshot.sourcePageCount()));
-        for (String language : snapshot.languages()) {
-            int languagePageCount = snapshot.pageCountForLanguage(language);
-            int percentage = snapshot.sourcePageCount() <= 0 ? 0
-                : Math.round(languagePageCount * 100f / snapshot.sourcePageCount());
-            message.append("\n")
-                .append(
-                    GuidebookText.MediaWikiLanguageCoverageLine
-                        .text(language, percentage, languagePageCount, snapshot.sourcePageCount()));
+    private List<ResourceLocation> collectTranslationSourcePageIds(MediaWikiListContext context,
+        MediaWikiTranslationStats.TranslationSnapshot snapshot) {
+        LinkedHashSet<ResourceLocation> sourcePageIds = new LinkedHashSet<>(
+            context.specialDataIndex()
+                .translationsBySourcePage()
+                .keySet());
+        for (String pagePath : snapshot.allPagePaths()) {
+            if (pagePath == null || pagePath.trim()
+                .isEmpty()) {
+                continue;
+            }
+            sourcePageIds.add(
+                new ResourceLocation(
+                    context.guide()
+                        .getDefaultNamespace(),
+                    pagePath));
         }
-        return message.toString();
+        return new ArrayList<>(sourcePageIds);
+    }
+
+    private List<String> sanitizeLanguagePages(Set<String> pages) {
+        ArrayList<String> sanitized = new ArrayList<>();
+        if (pages == null) {
+            return sanitized;
+        }
+        for (String page : pages) {
+            if (page == null) {
+                continue;
+            }
+            String normalized = page.replace("\r", "")
+                .replace("\n", "")
+                .trim();
+            if (!normalized.isEmpty()) {
+                sanitized.add(normalized);
+            }
+        }
+        sanitized.sort(String.CASE_INSENSITIVE_ORDER);
+        return sanitized;
+    }
+
+    private String joinWrappedLanguagePages(List<String> pages, int maxPerLine) {
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < pages.size(); index += maxPerLine) {
+            if (builder.length() > 0) {
+                builder.append("\n");
+            }
+            StringJoiner joiner = new StringJoiner(", ");
+            int endExclusive = Math.min(pages.size(), index + maxPerLine);
+            for (int pageIndex = index; pageIndex < endExclusive; pageIndex++) {
+                joiner.add(pages.get(pageIndex));
+            }
+            builder.append(joiner);
+        }
+        return builder.toString();
     }
 
     private List<MediaWikiSpecialListEntry> buildContributorEntries(MediaWikiListContext context) {
         ArrayList<MediaWikiSpecialListEntry> entries = new ArrayList<>();
         for (MediaWikiSpecialContributors.ContributorEntry contributor : contributors.load(context.guide())) {
-            String role = contributor.role() != null ? contributor.role() : "";
+            String name = contributors.resolveName(contributor);
+            String role = contributors.resolveRole(contributor);
             String link = contributor.link() != null ? contributor.link() : "";
-            entries.add(
-                new MediaWikiSpecialListEntry(
-                    contributor.name(),
-                    role,
-                    contributor.name() + " " + role + " " + link,
-                    null,
-                    null,
-                    null,
-                    link));
+            entries
+                .add(new MediaWikiSpecialListEntry(name, role, name + " " + role + " " + link, null, null, null, link));
         }
         entries.sort(this::compareEntries);
         return entries;
@@ -980,7 +1024,7 @@ public class MediaWikiSpecialPageResolver {
     }
 
     private ParsedGuidePage findSourcePage(MediaWikiListContext context, ResourceLocation sourcePageId,
-        List<ResourceLocation> variants) {
+        List<ResourceLocation> variants, MediaWikiTranslationStats.TranslationSnapshot snapshot) {
         ParsedGuidePage sourcePage = context.specialDataIndex()
             .normalPagesById()
             .get(sourcePageId);
@@ -1006,6 +1050,23 @@ public class MediaWikiSpecialPageResolver {
                 fallback = variant;
             }
         }
+        if (fallback != null) {
+            return fallback;
+        }
+        List<String> languages = snapshot
+            .languagesForPagePath(sourcePageId != null ? sourcePageId.getResourcePath() : "");
+        for (String language : languages) {
+            ParsedGuidePage page = loadTranslatedPage(context, sourcePageId, language);
+            if (page == null) {
+                continue;
+            }
+            if (currentLanguage.equalsIgnoreCase(page.getLanguage())) {
+                return page;
+            }
+            if (fallback == null) {
+                fallback = page;
+            }
+        }
         return fallback;
     }
 
@@ -1019,19 +1080,15 @@ public class MediaWikiSpecialPageResolver {
     }
 
     private boolean matchesPageTranslationSelector(MediaWikiListContext context, ResourceLocation sourcePageId,
-        ParsedGuidePage sourcePage, String sourceTitle, String normalizedSelector) {
+        ParsedGuidePage sourcePage, String sourceTitle, String normalizedSelector,
+        MediaWikiTranslationStats.TranslationSnapshot snapshot) {
         if (normalizedSelector == null || normalizedSelector.isEmpty()) {
             return true;
         }
         if (matchesSourceTranslationQuery(normalizedSelector, sourcePageId, sourcePage, sourceTitle)) {
             return true;
         }
-        for (ResourceLocation variantId : context.specialDataIndex()
-            .translationsBySourcePage()
-            .getOrDefault(sourcePageId, Collections.emptyList())) {
-            ParsedGuidePage variant = context.specialDataIndex()
-                .normalPagesById()
-                .get(variantId);
+        for (ParsedGuidePage variant : loadTranslationVariants(context, sourcePageId, snapshot)) {
             if (variant == null) {
                 continue;
             }
@@ -1042,6 +1099,61 @@ public class MediaWikiSpecialPageResolver {
             }
         }
         return false;
+    }
+
+    private ArrayList<MediaWikiSpecialListEntry> buildTranslationVariantEntries(MediaWikiListContext context,
+        ResourceLocation sourcePageId, String sourceTitle, MediaWikiTranslationStats.TranslationSnapshot snapshot) {
+        ArrayList<MediaWikiSpecialListEntry> children = new ArrayList<>();
+        for (ParsedGuidePage page : loadTranslationVariants(context, sourcePageId, snapshot)) {
+            String title = resolvePageTitle(context, page);
+            children.add(
+                new MediaWikiSpecialListEntry(
+                    page.getLanguage(),
+                    title,
+                    sourceTitle + " " + page.getLanguage() + " " + page.getId() + " " + title,
+                    page.getId(),
+                    null,
+                    pageIcon(page)));
+        }
+        return children;
+    }
+
+    private List<ParsedGuidePage> loadTranslationVariants(MediaWikiListContext context, ResourceLocation sourcePageId,
+        MediaWikiTranslationStats.TranslationSnapshot snapshot) {
+        LinkedHashMap<String, ParsedGuidePage> pagesByLanguage = new LinkedHashMap<>();
+        for (ResourceLocation variantId : context.specialDataIndex()
+            .translationsBySourcePage()
+            .getOrDefault(sourcePageId, Collections.emptyList())) {
+            ParsedGuidePage variant = context.specialDataIndex()
+                .normalPagesById()
+                .get(variantId);
+            if (variant != null) {
+                pagesByLanguage.putIfAbsent(variant.getLanguage(), variant);
+            }
+        }
+        for (String language : snapshot.languagesForPagePath(sourcePageId.getResourcePath())) {
+            pagesByLanguage.computeIfAbsent(language, ignored -> loadTranslatedPage(context, sourcePageId, language));
+        }
+        ArrayList<ParsedGuidePage> pages = new ArrayList<>();
+        for (ParsedGuidePage page : pagesByLanguage.values()) {
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+        pages.sort(Comparator.comparing(ParsedGuidePage::getLanguage, String.CASE_INSENSITIVE_ORDER));
+        return pages;
+    }
+
+    private ParsedGuidePage loadTranslatedPage(MediaWikiListContext context, ResourceLocation pageId, String language) {
+        if (!(context.guide() instanceof MediaWikiGuideAggregator aggregator)) {
+            return null;
+        }
+        MutableGuide ownerGuide = aggregator.findOwnerGuide(pageId);
+        if (ownerGuide == null) {
+            return null;
+        }
+        return GuideLightweightReloadService
+            .loadPageForLanguage(ownerGuide.getId(), ownerGuide.getContentRootFolder(), language, language, pageId);
     }
 
     private boolean matchesPrefix(String title, String pageIdText, String normalizedPrefix) {

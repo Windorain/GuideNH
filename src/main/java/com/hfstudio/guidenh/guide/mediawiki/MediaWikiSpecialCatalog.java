@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 public class MediaWikiSpecialCatalog {
 
     private static final int DEFAULT_VISIBLE_COUNT = 60;
+    private static final int SINGLE_ROW_VISIBLE_COUNT = 1;
 
     private static final List<MediaWikiSpecialGroup> GROUPS;
     private static final List<MediaWikiSpecialDefinition> DEFINITIONS;
@@ -172,32 +173,37 @@ public class MediaWikiSpecialCatalog {
                 MediaWikiSpecialPageIds.ALL_TRANSLATIONS,
                 "guidenh.mediawiki.special.alltranslations",
                 "translation",
-                MediaWikiSpecialPageKind.GROUPED));
+                MediaWikiSpecialPageKind.GROUPED,
+                false,
+                SINGLE_ROW_VISIBLE_COUNT,
+                null));
         definitions.add(
             definition(
                 MediaWikiSpecialPageIds.LANGUAGE_STATISTICS,
                 "guidenh.mediawiki.special.languagestatistics",
                 "translation",
-                MediaWikiSpecialPageKind.INFO));
+                MediaWikiSpecialPageKind.GROUPED,
+                false,
+                SINGLE_ROW_VISIBLE_COUNT,
+                null));
         definitions.add(
             definition(
                 MediaWikiSpecialPageIds.PAGE_TRANSLATION,
                 "guidenh.mediawiki.special.pagetranslation",
                 "translation",
-                MediaWikiSpecialPageKind.GROUPED));
+                MediaWikiSpecialPageKind.GROUPED,
+                false,
+                SINGLE_ROW_VISIBLE_COUNT,
+                null));
         definitions.add(
             definition(
                 MediaWikiSpecialPageIds.SEARCH_TRANSLATIONS,
                 "guidenh.mediawiki.special.searchtranslations",
                 "translation",
-                MediaWikiSpecialPageKind.GROUPED));
-        definitions.add(
-            definition(
-                MediaWikiSpecialPageIds.TRANSLATION_STATISTICS,
-                "guidenh.mediawiki.special.translationstatistics",
-                "translation",
-                MediaWikiSpecialPageKind.INFO));
-
+                MediaWikiSpecialPageKind.GROUPED,
+                false,
+                SINGLE_ROW_VISIBLE_COUNT,
+                null));
         definitions.add(
             definition(
                 MediaWikiSpecialPageIds.CONTRIBUTE,

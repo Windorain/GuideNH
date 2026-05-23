@@ -66,6 +66,10 @@ public class GuideRegistry {
         }
     }
 
+    public static long getNavigationRevision() {
+        return navigationRevision;
+    }
+
     /**
      * Register a static guide (implemented in code).
      */

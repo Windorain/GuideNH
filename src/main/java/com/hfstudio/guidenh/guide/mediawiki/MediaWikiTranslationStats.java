@@ -13,12 +13,16 @@ import java.util.TreeSet;
 import java.util.zip.ZipFile;
 
 import net.minecraft.client.resources.IResourcePack;
+import net.minecraft.util.ResourceLocation;
 
 import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.guide.Guide;
 import com.hfstudio.guidenh.guide.internal.datadriven.DataDrivenGuideLoader;
 
 public class MediaWikiTranslationStats {
+
+    private static final Object CACHE_LOCK = new Object();
+    private static volatile TranslationCacheEntry cachedEntry;
 
     private MediaWikiTranslationStats() {}
 
@@ -29,7 +33,31 @@ public class MediaWikiTranslationStats {
                 Collections.<String, Set<String>>emptyMap(),
                 0);
         }
+        String cacheKey = cacheKey(guide);
+        long currentRevision = computeRevision();
+        TranslationCacheEntry cacheEntry = cachedEntry;
+        if (cacheEntry != null && cacheEntry.matches(cacheKey, currentRevision)) {
+            return cacheEntry.snapshot();
+        }
+        synchronized (CACHE_LOCK) {
+            cacheEntry = cachedEntry;
+            if (cacheEntry != null && cacheEntry.matches(cacheKey, currentRevision)) {
+                return cacheEntry.snapshot();
+            }
+            TranslationSnapshot snapshot = buildSnapshot(guide);
+            cachedEntry = new TranslationCacheEntry(cacheKey, currentRevision, snapshot);
+            return snapshot;
+        }
+    }
 
+    public static void invalidateCache() {
+        synchronized (CACHE_LOCK) {
+            cachedEntry = null;
+        }
+    }
+
+    private static TranslationSnapshot buildSnapshot(Guide guide) {
+        Iterable<Guide> guides = resolveGuides(guide);
         LinkedHashMap<String, LinkedHashSet<String>> pagePathsByLanguage = new LinkedHashMap<>();
         LinkedHashSet<String> discoveredLanguages = new LinkedHashSet<>();
 
@@ -38,10 +66,12 @@ public class MediaWikiTranslationStats {
             if (resourcePackFile == null || !resourcePackFile.exists()) {
                 continue;
             }
-            if (resourcePackFile.isDirectory()) {
-                scanFolderPagesByLanguage(guide, resourcePackFile, pagePathsByLanguage, discoveredLanguages);
-            } else {
-                scanZipPagesByLanguage(guide, resourcePackFile, pagePathsByLanguage, discoveredLanguages);
+            for (Guide sourceGuide : guides) {
+                if (resourcePackFile.isDirectory()) {
+                    scanFolderPagesByLanguage(sourceGuide, resourcePackFile, pagePathsByLanguage, discoveredLanguages);
+                } else {
+                    scanZipPagesByLanguage(sourceGuide, resourcePackFile, pagePathsByLanguage, discoveredLanguages);
+                }
             }
         }
 
@@ -61,6 +91,36 @@ public class MediaWikiTranslationStats {
             allSourcePages.addAll(value);
         }
         return new TranslationSnapshot(new ArrayList<>(languages), resolvedPagePathsByLanguage, allSourcePages.size());
+    }
+
+    private static Iterable<Guide> resolveGuides(Guide guide) {
+        if (guide instanceof MediaWikiGuideAggregator aggregator) {
+            return new ArrayList<Guide>(aggregator.getComponentGuides());
+        }
+        return Collections.singletonList(guide);
+    }
+
+    private static String cacheKey(Guide guide) {
+        ResourceLocation guideId = guide.getId();
+        return (guideId != null ? guideId.toString() : "guide") + "|"
+            + guide.getDefaultNamespace()
+            + "|"
+            + guide.getContentRootFolder();
+    }
+
+    private static long computeRevision() {
+        long revision = 1L;
+        for (IResourcePack resourcePack : DataDrivenGuideLoader.getActiveResourcePacks()) {
+            File resourcePackFile = DataDrivenGuideLoader.getResourcePackFile(resourcePack);
+            if (resourcePackFile == null || !resourcePackFile.exists()) {
+                continue;
+            }
+            revision = 31L * revision + resourcePackFile.getAbsolutePath()
+                .hashCode();
+            revision = 31L * revision + resourcePackFile.lastModified();
+            revision = 31L * revision + resourcePackFile.length();
+        }
+        return revision;
     }
 
     private static void scanFolderPagesByLanguage(Guide guide, File resourcePackRoot,
@@ -170,6 +230,44 @@ public class MediaWikiTranslationStats {
         public int pageCountForLanguage(String language) {
             Set<String> pages = pagePathsByLanguage != null ? pagePathsByLanguage.get(language) : null;
             return pages != null ? pages.size() : 0;
+        }
+
+        public List<String> languagesForPagePath(String pagePath) {
+            if (pagePath == null || pagePath.isEmpty()
+                || pagePathsByLanguage == null
+                || pagePathsByLanguage.isEmpty()) {
+                return Collections.emptyList();
+            }
+            ArrayList<String> matchingLanguages = new ArrayList<>();
+            for (Map.Entry<String, Set<String>> entry : pagePathsByLanguage.entrySet()) {
+                if (entry.getValue() != null && entry.getValue()
+                    .contains(pagePath)) {
+                    matchingLanguages.add(entry.getKey());
+                }
+            }
+            matchingLanguages.sort(String.CASE_INSENSITIVE_ORDER);
+            return matchingLanguages;
+        }
+
+        public Set<String> allPagePaths() {
+            if (pagePathsByLanguage == null || pagePathsByLanguage.isEmpty()) {
+                return Collections.emptySet();
+            }
+            LinkedHashSet<String> pagePaths = new LinkedHashSet<>();
+            for (Set<String> pages : pagePathsByLanguage.values()) {
+                if (pages != null) {
+                    pagePaths.addAll(pages);
+                }
+            }
+            return pagePaths;
+        }
+    }
+
+    @Desugar
+    private record TranslationCacheEntry(String cacheKey, long revision, TranslationSnapshot snapshot) {
+
+        private boolean matches(String candidateKey, long candidateRevision) {
+            return cacheKey.equals(candidateKey) && revision == candidateRevision;
         }
     }
 }

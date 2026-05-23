@@ -16,6 +16,7 @@ import com.hfstudio.guidenh.guide.document.block.LytBlockContainer;
 import com.hfstudio.guidenh.guide.indices.CategoryIndex;
 import com.hfstudio.guidenh.guide.internal.GuidebookText;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiGeneratedListBlock;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiGuideAggregator;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListContext;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListContextProvider;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListEntry;
@@ -54,7 +55,13 @@ public class MediaWikiTagCompilerSupport {
                 return providedContext;
             }
         }
-        return MediaWikiListContext.create(guide, guide.getPages(), guide.getNavigationTree(), categoryIndex);
+        MediaWikiGuideAggregator aggregatedGuide = MediaWikiGuideAggregator.create(guide);
+        CategoryIndex effectiveCategoryIndex = aggregatedGuide.getIndex(CategoryIndex.class);
+        return MediaWikiListContext.create(
+            aggregatedGuide,
+            aggregatedGuide.getPages(),
+            aggregatedGuide.getNavigationTree(),
+            effectiveCategoryIndex);
     }
 
     public static MediaWikiGeneratedListBlock createBlock(List<MediaWikiListEntry> entries, int rows,
@@ -134,6 +141,15 @@ public class MediaWikiTagCompilerSupport {
         block.setResult(result);
         block.setRows(MediaWikiListPlanner.sanitizeRows(rows));
         block.setEmptyText(GuidebookText.MediaWikiNoPages.text());
+        return block;
+    }
+
+    public static LytBlock createSpecialBlock(MediaWikiSpecialPageResult result, int rows, MediaWikiListContext context,
+        MediaWikiSpecialPageQuery query, com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialPageResolver resolver) {
+        var block = (MediaWikiSpecialGeneratedBlock) createSpecialBlock(result, rows);
+        if (result != null && context != null && resolver != null) {
+            block.setResolverContext(context, result.definition(), resolver, query != null ? query.parameters() : null);
+        }
         return block;
     }
 

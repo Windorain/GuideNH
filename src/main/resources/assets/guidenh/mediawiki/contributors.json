@@ -1,7 +1,7 @@
 [
   {
-    "name": "GuideNH",
-    "role": "Maintainer",
-    "link": "https://github.com/ABKQPO/GuideNH"
+    "nameKey": "guidenh.mediawiki.contributor.abkqpo.name",
+    "roleKey": "guidenh.mediawiki.contributor.abkqpo.role",
+    "link": "https://github.com/ABKQPO"
   }
 ]

@@ -12,29 +12,44 @@ import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.indices.CategoryIndex;
 import com.hfstudio.guidenh.guide.internal.MutableGuide;
 
+import cpw.mods.fml.common.FMLLog;
+
 public class MediaWikiSyntheticPageFactory {
 
     private MediaWikiSyntheticPageFactory() {}
 
     public static Map<ResourceLocation, ParsedGuidePage> buildPages(Guide guide, Collection<ParsedGuidePage> pages,
         CategoryIndex categoryIndex) {
+        long startNanos = System.nanoTime();
         String language = resolveLanguage(guide, pages);
         String namespace = guide.getDefaultNamespace();
         String sourcePack = guide.getId()
             .toString();
 
         var syntheticPages = new LinkedHashMap<ResourceLocation, ParsedGuidePage>();
+        long specialStartNanos = System.nanoTime();
         for (MediaWikiSpecialDefinition definition : MediaWikiSpecialCatalog.definitions()) {
             ResourceLocation pageId = MediaWikiPageIds.specialPageId(namespace, definition.name());
             syntheticPages
                 .put(pageId, parseSyntheticPage(sourcePack, language, pageId, buildSpecialSource(definition.name())));
         }
+        long specialElapsedNanos = System.nanoTime() - specialStartNanos;
 
+        long categoryStartNanos = System.nanoTime();
         for (String categoryName : categoryIndex.getCategoryNames()) {
             ResourceLocation pageId = MediaWikiPageIds.categoryPageId(namespace, categoryName);
             syntheticPages
                 .put(pageId, parseSyntheticPage(sourcePack, language, pageId, buildCategorySource(categoryName)));
         }
+        long categoryElapsedNanos = System.nanoTime() - categoryStartNanos;
+        long totalElapsedNanos = System.nanoTime() - startNanos;
+        FMLLog.getLogger()
+            .info(
+                "[GuideNH] [MediaWikiSyntheticPageFactory] Built {} synthetic pages in {} ms (special: {} ms, category: {} ms)",
+                syntheticPages.size(),
+                nanosToMillis(totalElapsedNanos),
+                nanosToMillis(specialElapsedNanos),
+                nanosToMillis(categoryElapsedNanos));
         return syntheticPages;
     }
 
@@ -78,9 +93,27 @@ public class MediaWikiSyntheticPageFactory {
             .append("<Special name=\"")
             .append(specialName)
             .append("\" rows=\"")
-            .append(MediaWikiListPlanner.DEFAULT_ROWS)
+            .append(resolveSpecialRows(specialName))
             .append("\" />\n");
         return source.toString();
+    }
+
+    private static int resolveSpecialRows(String specialName) {
+        if (MediaWikiSpecialPageIds.CATEGORY_TREE.equals(specialName)) {
+            return 2;
+        }
+        if (MediaWikiSpecialPageIds.ALL_TRANSLATIONS.equals(specialName)
+            || MediaWikiSpecialPageIds.LANGUAGE_STATISTICS.equals(specialName)
+            || MediaWikiSpecialPageIds.PAGE_TRANSLATION.equals(specialName)
+            || MediaWikiSpecialPageIds.SEARCH_TRANSLATIONS.equals(specialName)
+            || MediaWikiSpecialPageIds.TRANSLATION_STATISTICS.equals(specialName)) {
+            return 1;
+        }
+        return MediaWikiListPlanner.DEFAULT_ROWS;
+    }
+
+    private static long nanosToMillis(long nanos) {
+        return nanos / 1_000_000L;
     }
 
     private static String escapeAttribute(String value) {

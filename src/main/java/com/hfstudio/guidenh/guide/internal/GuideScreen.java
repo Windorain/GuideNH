@@ -107,6 +107,7 @@ import com.hfstudio.guidenh.guide.internal.search.GuideSearchSnippetFormatter;
 import com.hfstudio.guidenh.guide.internal.structure.GuideStructureData;
 import com.hfstudio.guidenh.guide.internal.tooltip.GuideItemTooltipLines;
 import com.hfstudio.guidenh.guide.internal.tooltip.GuideItemTooltipRenderSupport;
+import com.hfstudio.guidenh.guide.internal.util.DisplayScale;
 import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.guide.layout.LayoutContext;
 import com.hfstudio.guidenh.guide.layout.MinecraftFontMetrics;
@@ -267,6 +268,8 @@ public class GuideScreen extends GuiContainer
     @Nullable
     private GuiTextField specialSearchField;
     @Nullable
+    private LytRect specialSearchFieldBounds;
+    @Nullable
     private LytDocument searchDocument;
     @Nullable
     private String cachedSearchQuery;
@@ -349,6 +352,12 @@ public class GuideScreen extends GuiContainer
     public static final int SEARCH_PATH_MAX_CHARS = 20;
     public static final String ASCII_ELLIPSIS = "...";
     public static final int SEARCH_TOOLBAR_FIELD_Y_OFFSET = 5;
+    private static final int SPECIAL_SEARCH_BACKGROUND_PADDING_X = 4;
+    private static final int SPECIAL_SEARCH_BACKGROUND_PADDING_Y = 3;
+    private static final int SPECIAL_SEARCH_TOP_MARGIN = 0;
+    private static final int SPECIAL_SEARCH_DIVIDER_GAP = 6;
+    private static final int SPECIAL_SEARCH_DIVIDER_HEIGHT = 1;
+    private static final int SPECIAL_SEARCH_WIDTH_PERCENT = 40;
     private static final int EXTERNAL_LINK_CONFIRM_ID = 1;
     private static final long SCENE_REGISTRATION_BUDGET_NANOS = 1_000_000L;
 
@@ -2595,7 +2604,13 @@ public class GuideScreen extends GuiContainer
 
     private int getContentHeight() {
         var activeDocument = getActiveDocument();
-        return activeDocument != null ? activeDocument.getContentHeight() : 0;
+        if (activeDocument == null) {
+            return 0;
+        }
+        if (isCenteredSearchStateDocument(activeDocument)) {
+            return activeDocument.getContentHeight();
+        }
+        return activeDocument.getContentHeight() + getDocumentRenderOffsetY(activeDocument);
     }
 
     private int getDocumentViewportY() {
@@ -2684,14 +2699,14 @@ public class GuideScreen extends GuiContainer
             drawBottomBar();
         }
 
+        if (specialSearchField != null) {
+            drawSpecialSearchField();
+        }
         drawRect(panelX, panelY, panelX + panelW, panelY + TOOLBAR_H, BG_COLOR);
         drawRect(panelX, panelY + TOOLBAR_H, panelX + panelW, panelY + TOOLBAR_H + 1, 0xFF2A2A2A);
         drawPageTitle();
         if (searchField != null) {
             drawSearchField();
-        }
-        if (specialSearchField != null) {
-            drawSpecialSearchField();
         }
 
         drawGuideButtons(contentMouseX, contentMouseY);
@@ -4218,11 +4233,13 @@ public class GuideScreen extends GuiContainer
         activeDocument.setHoveredElement(interaction != null ? interaction.hit : null);
         var ctx = reusableRenderCtx;
         ctx.setLightDarkMode(LightDarkMode.LIGHT_MODE);
-        cachedViewportRect = cachedRect(cachedViewportRect, 0, scrollY, contentW, documentH);
+        int documentRenderOffsetY = getDocumentRenderOffsetY(activeDocument);
+        int viewportTopInDocument = Math.max(0, scrollY - documentRenderOffsetY);
+        cachedViewportRect = cachedRect(cachedViewportRect, 0, viewportTopInDocument, contentW, documentH);
         cachedScissorRect = cachedRect(cachedScissorRect, contentX, documentY, contentW, documentH);
         ctx.setViewport(cachedViewportRect);
         ctx.setScreenHeight(this.height);
-        int documentRenderY = getDocumentRenderY(activeDocument);
+        int documentRenderY = getDocumentViewportY() + documentRenderOffsetY;
         ctx.setDocumentOrigin(contentX, documentRenderY);
         ctx.setScrollOffsetY(scrollY);
         ctx.setZoom(currentZoom);
@@ -4270,19 +4287,40 @@ public class GuideScreen extends GuiContainer
     }
 
     private void drawSpecialSearchField() {
-        if (specialSearchField == null) {
+        if (specialSearchField == null || specialSearchFieldBounds == null || specialSearchFieldBounds.isEmpty()) {
             return;
         }
 
+        int backgroundLeft = specialSearchFieldBounds.x();
+        int backgroundTop = specialSearchFieldBounds.y();
+        int backgroundRight = specialSearchFieldBounds.right();
+        int backgroundBottom = specialSearchFieldBounds.bottom() - SPECIAL_SEARCH_DIVIDER_GAP
+            - SPECIAL_SEARCH_DIVIDER_HEIGHT;
+        drawRect(backgroundLeft, backgroundTop, backgroundRight, backgroundBottom, 0xCC0F0F12);
+        drawRect(backgroundLeft, backgroundTop, backgroundRight, backgroundTop + 1, 0xFF5A5A5A);
+        drawRect(backgroundLeft, backgroundBottom - 1, backgroundRight, backgroundBottom, 0xFF5A5A5A);
+        drawRect(backgroundLeft, backgroundTop, backgroundLeft + 1, backgroundBottom, 0xFF5A5A5A);
+        drawRect(backgroundRight - 1, backgroundTop, backgroundRight, backgroundBottom, 0xFF5A5A5A);
+        pushGuiScissor(
+            backgroundLeft + 1,
+            backgroundTop + 1,
+            Math.max(0, backgroundRight - backgroundLeft - 2),
+            Math.max(0, backgroundBottom - backgroundTop - 2));
+        int originalY = specialSearchField.yPosition;
+        specialSearchField.yPosition = originalY + 3;
         specialSearchField.drawTextBox();
+        specialSearchField.yPosition = originalY;
+        popGuiScissor();
         if (shouldDrawSpecialSearchPlaceholder()) {
             drawString(
                 fontRendererObj,
                 GuidebookText.SearchPlaceholder.text(),
-                specialSearchField.xPosition,
-                specialSearchField.yPosition,
+                specialSearchField.xPosition + 2,
+                specialSearchField.yPosition + 2,
                 0xFF666666);
         }
+        int dividerY = specialSearchFieldBounds.bottom() - SPECIAL_SEARCH_DIVIDER_HEIGHT;
+        drawRect(contentX, dividerY, contentX + contentW, dividerY + SPECIAL_SEARCH_DIVIDER_HEIGHT, 0x665A5A5A);
     }
 
     private boolean shouldDrawSearchPlaceholder() {
@@ -4307,9 +4345,9 @@ public class GuideScreen extends GuiContainer
             return;
         }
 
-        int areaX = panelX + PANEL_PADDING;
+        int areaX = contentX;
         int areaY = getDocumentViewportY();
-        int areaW = Math.max(20, panelW - PANEL_PADDING * 2);
+        int areaW = Math.max(20, contentW);
         int areaH = getDocumentViewportHeight();
         int textW = fontRendererObj.getStringWidth(message);
         int textX = areaX + Math.max(0, (areaW - textW) / 2);
@@ -4553,7 +4591,8 @@ public class GuideScreen extends GuiContainer
 
     private boolean isFocusedTextInputReadyForCommittedCharacter() {
         return isGuideEditorActive() && guideEditorTextArea != null && guideEditorTextArea.isFocused()
-            || searchField != null && searchField.isFocused();
+            || searchField != null && searchField.isFocused()
+            || specialSearchField != null && specialSearchField.isFocused();
     }
 
     private boolean isSceneWheelInteractionBlocked(long now) {
@@ -5232,6 +5271,9 @@ public class GuideScreen extends GuiContainer
         if (handleSpecialSearchFieldKey(typedChar, keyCode)) return;
         if (handleGuideEditorKey(typedChar, keyCode)) return;
         if (GuideScreenNeiBridge.keyTypedForHoveredGuideItem(this, typedChar, keyCode)) return;
+        if (keyCode == Keyboard.KEY_BACK) {
+            return;
+        }
         if (keyCode == Keyboard.KEY_ESCAPE) {
             close();
             return;
@@ -5258,6 +5300,9 @@ public class GuideScreen extends GuiContainer
     }
 
     private boolean isInsideDocument(int mouseX, int mouseY) {
+        if (isInsideSpecialSearchField(mouseX, mouseY)) {
+            return false;
+        }
         int documentY = getDocumentViewportY();
         int documentH = getDocumentViewportHeight();
         return mouseX >= contentX && mouseX < contentX + contentW
@@ -5449,9 +5494,7 @@ public class GuideScreen extends GuiContainer
         if (specialName == null) {
             return false;
         }
-        return !MediaWikiSpecialPageIds.DOWNLOAD_GUIDENH_EXTENSION.equalsIgnoreCase(specialName)
-            && !MediaWikiSpecialPageIds.LANGUAGE_STATISTICS.equalsIgnoreCase(specialName)
-            && !MediaWikiSpecialPageIds.TRANSLATION_STATISTICS.equalsIgnoreCase(specialName);
+        return !MediaWikiSpecialPageIds.DOWNLOAD_GUIDENH_EXTENSION.equalsIgnoreCase(specialName);
     }
 
     private boolean isItemLinksPage() {
@@ -5493,11 +5536,16 @@ public class GuideScreen extends GuiContainer
     private void ensureSpecialSearchField() {
         if (!isSpecialPageWithSearchField()) {
             specialSearchField = null;
+            specialSearchFieldBounds = null;
             return;
         }
-        int fieldX = getSearchToolbarFieldX();
-        int fieldY = panelY + SEARCH_TOOLBAR_FIELD_Y_OFFSET;
-        int fieldW = getSearchToolbarFieldWidth(fieldX);
+        int fieldW = getSpecialSearchFieldWidth();
+        int fieldX = contentX + Math.max(0, (contentW - fieldW) / 2);
+        int fieldY = getDocumentViewportY() + SPECIAL_SEARCH_TOP_MARGIN + SPECIAL_SEARCH_BACKGROUND_PADDING_Y - scrollY;
+        int backgroundTop = fieldY - SPECIAL_SEARCH_BACKGROUND_PADDING_Y;
+        int backgroundHeight = SEARCH_FIELD_H + SPECIAL_SEARCH_BACKGROUND_PADDING_Y * 2
+            + SPECIAL_SEARCH_DIVIDER_GAP
+            + SPECIAL_SEARCH_DIVIDER_HEIGHT;
         boolean focused = specialSearchField != null && specialSearchField.isFocused();
         String currentText = specialSearchField != null ? specialSearchField.getText() : queryFromCurrentAnchor();
         if (specialSearchField == null || specialSearchField.xPosition != fieldX
@@ -5509,6 +5557,12 @@ public class GuideScreen extends GuiContainer
             specialSearchField.setText(currentText);
             specialSearchField.setFocused(focused || currentText.isEmpty());
         }
+        specialSearchFieldBounds = clampToDocumentViewport(
+            new LytRect(
+                fieldX - SPECIAL_SEARCH_BACKGROUND_PADDING_X,
+                backgroundTop,
+                fieldW + SPECIAL_SEARCH_BACKGROUND_PADDING_X * 2,
+                backgroundHeight));
 
         String query = queryFromCurrentAnchor();
         if (!Objects.equals(specialSearchField.getText(), query)) {
@@ -5517,7 +5571,7 @@ public class GuideScreen extends GuiContainer
     }
 
     private void syncSearchFieldsToCurrentRoute() {
-        syncSearchFieldsToCurrentRoute();
+        syncSearchFieldToCurrentRoute();
         syncSpecialSearchFieldToCurrentRoute();
     }
 
@@ -5539,6 +5593,7 @@ public class GuideScreen extends GuiContainer
     private void syncSpecialSearchFieldToCurrentRoute() {
         if (!isSpecialPageWithSearchField()) {
             specialSearchField = null;
+            specialSearchFieldBounds = null;
             return;
         }
         ensureSpecialSearchField();
@@ -5549,9 +5604,12 @@ public class GuideScreen extends GuiContainer
         if (!Objects.equals(specialSearchField.getText(), query)) {
             specialSearchField.setText(query);
         }
-        if (query.isEmpty()) {
-            specialSearchField.setFocused(false);
-        }
+    }
+
+    private int getSpecialSearchFieldWidth() {
+        int preferredWidth = Math.max(140, Math.round(contentW * (SPECIAL_SEARCH_WIDTH_PERCENT / 100.0f)));
+        int maxWidth = Math.max(140, contentW - PANEL_PADDING * 2 - SPECIAL_SEARCH_BACKGROUND_PADDING_X * 2);
+        return Math.max(140, Math.min(preferredWidth, maxWidth));
     }
 
     private int getSearchButtonX() {
@@ -5773,9 +5831,8 @@ public class GuideScreen extends GuiContainer
         var results = new ArrayList<GuideSearchResultDocumentBuilder.SearchPageResult>();
         String normalizedQuery = GuideSearchPage.normalizeQuery(query);
         try {
-            MutableGuide searchGuide = hasContentRoute() ? guide : null;
             for (var result : GuideME.getSearch()
-                .searchGuide(normalizedQuery, searchGuide)) {
+                .searchGuide(normalizedQuery, null)) {
                 GuidePageIcon icon = resolveSearchResultIcon(result.pageId());
                 int textColumnWidth = getSearchTextColumnWidth(icon != null);
                 int pathWidth = getSearchPathWidth(textColumnWidth);
@@ -5916,14 +5973,24 @@ public class GuideScreen extends GuiContainer
     }
 
     private int getDocumentRenderOffsetY(LytDocument activeDocument) {
+        int searchInset = getDocumentSearchInset();
         if (!GuideSearchResultDocumentBuilder.isCenteredStateDocument(activeDocument)) {
-            int searchInset = (isSearchPage() || isSpecialPageWithSearchField()) ? SEARCH_FIELD_H + 14 : 0;
             return searchInset;
         }
         // Use layout-unit viewport height so centering is correct under any zoom level.
-        int searchInset = (isSearchPage() || isSpecialPageWithSearchField()) ? SEARCH_FIELD_H + 14 : 0;
         return searchInset
             + Math.max(0, (getDocumentViewportHeight() - searchInset - activeDocument.getContentHeight()) / 2);
+    }
+
+    private int getDocumentSearchInset() {
+        if (isSpecialPageWithSearchField()) {
+            return SPECIAL_SEARCH_TOP_MARGIN + SEARCH_FIELD_H
+                + SPECIAL_SEARCH_BACKGROUND_PADDING_Y * 2
+                + SPECIAL_SEARCH_DIVIDER_GAP
+                + SPECIAL_SEARCH_DIVIDER_HEIGHT
+                + 6;
+        }
+        return isSearchPage() ? SEARCH_FIELD_H + 14 : 0;
     }
 
     private boolean handleSearchFieldKey(char typedChar, int keyCode) {
@@ -5982,13 +6049,10 @@ public class GuideScreen extends GuiContainer
         var nextAnchor = GuideSearchPage.anchorForQuery(query);
         if (nextAnchor.equals(currentAnchor)) {
             rebuildSearchDocumentIfNeeded(false);
-            syncSearchFieldToCurrentRoute();
+            syncSearchFieldsToCurrentRoute();
             return;
         }
 
-        rememberCurrentContentStateIfEligible();
-        history.push(captureCurrentViewState());
-        forwardHistory.clear();
         clearInteractionState();
         applyRoute(
             hasContentRoute() ? GuideScreenRoute.content(guide.getId(), nextAnchor)
@@ -6010,19 +6074,16 @@ public class GuideScreen extends GuiContainer
             : new PageAnchor(currentAnchor.pageId(), query);
         if (nextAnchor.equals(currentAnchor)) {
             applySpecialPageSearchQuery(query);
-            syncSearchFieldToCurrentRoute();
+            syncSearchFieldsToCurrentRoute();
             return;
         }
 
-        rememberCurrentContentStateIfEligible();
-        history.push(captureCurrentViewState());
-        forwardHistory.clear();
         currentAnchor = nextAnchor;
         currentRoute = GuideScreenRoute.content(guide.getId(), nextAnchor);
         pendingAnchorScroll = false;
         applySpecialPageSearchQuery(query);
         scrollY = 0;
-        syncSearchFieldToCurrentRoute();
+        syncSearchFieldsToCurrentRoute();
     }
 
     private void applySpecialPageSearchQuery(String query) {
@@ -6068,10 +6129,42 @@ public class GuideScreen extends GuiContainer
     }
 
     private boolean isInsideSpecialSearchField(int mouseX, int mouseY) {
-        return specialSearchField != null && mouseX >= specialSearchField.xPosition
-            && mouseX < specialSearchField.xPosition + specialSearchField.width
-            && mouseY >= specialSearchField.yPosition
-            && mouseY < specialSearchField.yPosition + SEARCH_FIELD_H;
+        return specialSearchFieldBounds != null && specialSearchFieldBounds.contains(mouseX, mouseY);
+    }
+
+    private LytRect clampToDocumentViewport(LytRect bounds) {
+        if (bounds == null) {
+            return LytRect.empty();
+        }
+        LytRect viewport = new LytRect(contentX, getDocumentViewportY(), contentW, getDocumentViewportHeight());
+        if (!bounds.intersects(viewport)) {
+            return LytRect.empty();
+        }
+        int left = Math.max(bounds.x(), viewport.x());
+        int top = Math.max(bounds.y(), viewport.y());
+        int right = Math.min(bounds.right(), viewport.right());
+        int bottom = Math.min(bounds.bottom(), viewport.bottom());
+        if (right <= left || bottom <= top) {
+            return LytRect.empty();
+        }
+        return new LytRect(left, top, right - left, bottom - top);
+    }
+
+    private void pushGuiScissor(int x, int y, int width, int height) {
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        int scaleFactor = DisplayScale.scaleFactor();
+        GL11.glEnable(GL11.GL_SCISSOR_TEST);
+        GL11.glScissor(
+            x * scaleFactor,
+            mc.displayHeight - (y + height) * scaleFactor,
+            width * scaleFactor,
+            height * scaleFactor);
+    }
+
+    private void popGuiScissor() {
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
     }
 
     public static boolean shouldConsumeFocusedSearchKey(char typedChar, int keyCode, String before, String after) {

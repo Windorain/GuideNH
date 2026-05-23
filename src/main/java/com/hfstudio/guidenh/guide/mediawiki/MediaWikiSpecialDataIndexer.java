@@ -34,6 +34,8 @@ import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.integration.betterquesting.QuestIndex;
 import com.hfstudio.guidenh.libs.unist.UnistPoint;
 
+import cpw.mods.fml.common.FMLLog;
+
 public class MediaWikiSpecialDataIndexer {
 
     private static final Pattern EXTERNAL_LINK_PATTERN = Pattern.compile("https?://[^\\s)>\\]]+");
@@ -46,6 +48,7 @@ public class MediaWikiSpecialDataIndexer {
 
     public MediaWikiSpecialDataIndex build(Guide guide, Collection<ParsedGuidePage> pages,
         CategoryIndex categoryIndex) {
+        long totalStartNanos = System.nanoTime();
         LinkedHashMap<ResourceLocation, ParsedGuidePage> normalPages = new LinkedHashMap<>();
         if (pages != null) {
             for (ParsedGuidePage page : pages) {
@@ -55,21 +58,55 @@ public class MediaWikiSpecialDataIndexer {
                 normalPages.put(page.getId(), page);
             }
         }
+        long assetStartNanos = System.nanoTime();
         Map<ResourceLocation, Long> assetSizesById = buildAssetSizes(guide);
+        long assetElapsedNanos = System.nanoTime() - assetStartNanos;
+        long usageStartNanos = System.nanoTime();
         Map<String, List<ResourceLocation>> fileUsageByPath = buildFileUsage(normalPages.values());
+        long usageElapsedNanos = System.nanoTime() - usageStartNanos;
 
-        return new MediaWikiSpecialDataIndex(
+        long metadataStartNanos = System.nanoTime();
+        Map<ResourceLocation, List<ResourceLocation>> translations = buildTranslations(normalPages.values());
+        Map<ResourceLocation, Set<String>> pageProperties = buildPageProperties(normalPages.values());
+        Map<ResourceLocation, List<String>> externalLinks = buildExternalLinks(normalPages.values());
+        Map<ResourceLocation, Long> pageSizes = buildPageSizes(normalPages.values());
+        Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> lintIssues = buildLintIssues(
+            guide,
+            normalPages.values(),
+            assetSizesById.keySet());
+        Map<String, List<ResourceLocation>> ambiguousBindings = buildAmbiguousItemBindings(normalPages.values());
+        Map<ResourceLocation, List<MediaWikiSpecialOverrideEntry>> overrides = buildOverrides(
+            guide,
+            normalPages.values());
+        Set<String> unusedFiles = buildUnusedFiles(assetSizesById.keySet(), fileUsageByPath.keySet());
+        long metadataElapsedNanos = System.nanoTime() - metadataStartNanos;
+
+        MediaWikiSpecialDataIndex dataIndex = new MediaWikiSpecialDataIndex(
             Collections.unmodifiableMap(normalPages),
-            Collections.unmodifiableMap(buildTranslations(normalPages.values())),
-            Collections.unmodifiableMap(buildPageProperties(normalPages.values())),
-            Collections.unmodifiableMap(buildExternalLinks(normalPages.values())),
-            Collections.unmodifiableMap(buildPageSizes(normalPages.values())),
+            Collections.unmodifiableMap(translations),
+            Collections.unmodifiableMap(pageProperties),
+            Collections.unmodifiableMap(externalLinks),
+            Collections.unmodifiableMap(pageSizes),
             Collections.unmodifiableMap(assetSizesById),
             Collections.unmodifiableMap(fileUsageByPath),
-            Collections.unmodifiableMap(buildLintIssues(guide, normalPages.values(), assetSizesById.keySet())),
-            Collections.unmodifiableMap(buildAmbiguousItemBindings(normalPages.values())),
-            Collections.unmodifiableMap(buildOverrides(guide, normalPages.values())),
-            Collections.unmodifiableSet(buildUnusedFiles(assetSizesById.keySet(), fileUsageByPath.keySet())));
+            Collections.unmodifiableMap(lintIssues),
+            Collections.unmodifiableMap(ambiguousBindings),
+            Collections.unmodifiableMap(overrides),
+            Collections.unmodifiableSet(unusedFiles));
+        long totalElapsedNanos = System.nanoTime() - totalStartNanos;
+        FMLLog.getLogger()
+            .info(
+                "[GuideNH] [MediaWikiSpecialDataIndexer] Built special data index for {} pages in {} ms (assets: {} ms, usage: {} ms, metadata: {} ms)",
+                normalPages.size(),
+                nanosToMillis(totalElapsedNanos),
+                nanosToMillis(assetElapsedNanos),
+                nanosToMillis(usageElapsedNanos),
+                nanosToMillis(metadataElapsedNanos));
+        return dataIndex;
+    }
+
+    private long nanosToMillis(long nanos) {
+        return nanos / 1_000_000L;
     }
 
     private Map<ResourceLocation, List<ResourceLocation>> buildTranslations(Collection<ParsedGuidePage> pages) {
@@ -136,15 +173,18 @@ public class MediaWikiSpecialDataIndexer {
 
     private Map<ResourceLocation, Long> buildAssetSizes(Guide guide) {
         LinkedHashMap<ResourceLocation, Long> sizes = new LinkedHashMap<>();
+        List<Guide> guides = resolveGuides(guide);
         for (IResourcePack resourcePack : DataDrivenGuideLoader.getActiveResourcePacks()) {
             File resourcePackFile = DataDrivenGuideLoader.getResourcePackFile(resourcePack);
             if (resourcePackFile == null || !resourcePackFile.exists()) {
                 continue;
             }
-            if (resourcePackFile.isDirectory()) {
-                collectAssetSizesFromDirectory(guide, resourcePackFile, sizes);
-            } else {
-                collectAssetSizesFromZip(guide, resourcePackFile, sizes);
+            for (Guide sourceGuide : guides) {
+                if (resourcePackFile.isDirectory()) {
+                    collectAssetSizesFromDirectory(sourceGuide, resourcePackFile, sizes);
+                } else {
+                    collectAssetSizesFromZip(sourceGuide, resourcePackFile, sizes);
+                }
             }
         }
         return sizes;
@@ -287,14 +327,15 @@ public class MediaWikiSpecialDataIndexer {
         Collection<ParsedGuidePage> pages) {
         LinkedHashMap<ResourceLocation, List<MediaWikiSpecialOverrideEntry>> overridesByPage = new LinkedHashMap<>();
         List<IResourcePack> activeResourcePacks = DataDrivenGuideLoader.getActiveResourcePacks();
-        String defaultLanguage = resolveDefaultLanguage(guide);
         LinkedHashMap<ResourceLocation, List<PageSourceCandidate>> candidateCache = new LinkedHashMap<>();
         for (ParsedGuidePage page : pages) {
             if (page == null) {
                 continue;
             }
+            Guide ownerGuide = resolveOwnerGuide(guide, page);
+            String defaultLanguage = resolveDefaultLanguage(ownerGuide);
             PageSourceSelection selection = resolveSelectedPageSource(
-                guide,
+                ownerGuide,
                 page,
                 defaultLanguage,
                 activeResourcePacks,
@@ -318,6 +359,23 @@ public class MediaWikiSpecialDataIndexer {
             overridesByPage.put(page.getId(), descriptions);
         }
         return overridesByPage;
+    }
+
+    private List<Guide> resolveGuides(Guide guide) {
+        if (guide instanceof MediaWikiGuideAggregator aggregator) {
+            return new ArrayList<Guide>(aggregator.getComponentGuides());
+        }
+        return Collections.singletonList(guide);
+    }
+
+    private Guide resolveOwnerGuide(Guide guide, ParsedGuidePage page) {
+        if (guide instanceof MediaWikiGuideAggregator aggregator && page != null) {
+            MutableGuide ownerGuide = aggregator.findOwnerGuide(page.getId());
+            if (ownerGuide != null) {
+                return ownerGuide;
+            }
+        }
+        return guide;
     }
 
     private @Nullable PageSourceSelection resolveSelectedPageSource(Guide guide, ParsedGuidePage page,

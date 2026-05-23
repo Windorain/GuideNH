@@ -527,3 +527,6 @@ guidenh.compat.bq.hidden=[Hidden Quest]
 guidenh.compat.bq.locked=[Locked Quest]
 guidenh.compat.bq.missing=[Unknown Quest]
 guidenh.compat.bq.open_in_guide=Open in Guide
+
+guidenh.mediawiki.contributor.abkqpo.name=ABKQPO
+guidenh.mediawiki.contributor.abkqpo.role=Owner

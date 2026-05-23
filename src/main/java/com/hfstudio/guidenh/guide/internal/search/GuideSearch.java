@@ -308,13 +308,41 @@ public class GuideSearch implements AutoCloseable {
 
                 var pageTitle = document.get(IndexSchema.FIELD_TITLE);
                 result.add(
-                    new SearchResult(guideId, pageId, pageTitle, GuideSearchSnippetFormatter.format(bestFragment)));
+                    new SearchResult(
+                        guideId,
+                        pageId,
+                        pageTitle,
+                        GuideSearchSnippetFormatter.format(bestFragment),
+                        scoreDoc.score));
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
+        result.sort((left, right) -> {
+            int leftPriority = searchPriority(left.pageId());
+            int rightPriority = searchPriority(right.pageId());
+            if (leftPriority != rightPriority) {
+                return Integer.compare(leftPriority, rightPriority);
+            }
+            int scoreCompare = Float.compare(right.score(), left.score());
+            if (scoreCompare != 0) {
+                return scoreCompare;
+            }
+            return left.pageTitle()
+                .compareToIgnoreCase(right.pageTitle());
+        });
         return result;
+    }
+
+    private int searchPriority(ResourceLocation pageId) {
+        if (MediaWikiPageIds.isCategoryPage(pageId)) {
+            return 2;
+        }
+        if (MediaWikiPageIds.isSpecialPage(pageId)) {
+            return 3;
+        }
+        return 1;
     }
 
     @Nullable
@@ -422,8 +450,8 @@ public class GuideSearch implements AutoCloseable {
     record GuideIndexingTask(Guide guide, List<ParsedGuidePage> pendingPages) {}
 
     @Desugar
-    public record SearchResult(ResourceLocation guideId, ResourceLocation pageId, String pageTitle,
-        LytFlowContent text) {
+    public record SearchResult(ResourceLocation guideId, ResourceLocation pageId, String pageTitle, LytFlowContent text,
+        float score) {
 
         public SearchResult {
             Objects.requireNonNull(guideId, "guideId");

@@ -24,6 +24,7 @@ import com.hfstudio.guidenh.guide.internal.recipe.NeiAnimationTicker;
 import com.hfstudio.guidenh.guide.internal.recipe.RecipeCache;
 import com.hfstudio.guidenh.guide.internal.resource.GuideResourceAccess;
 import com.hfstudio.guidenh.guide.internal.util.LangUtil;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiTranslationStats;
 import com.hfstudio.guidenh.guide.render.GuidePageTexture;
 
 import cpw.mods.fml.common.FMLLog;
@@ -51,6 +52,7 @@ public class GuideLightweightReloadService {
 
         long stageStartedAt = System.nanoTime();
         GuideRegistry.setDataDriven(DataDrivenGuideLoader.load());
+        MediaWikiTranslationStats.invalidateCache();
         long dataDrivenLoadNs = System.nanoTime() - stageStartedAt;
 
         var guidePages = new HashMap<ResourceLocation, Map<ResourceLocation, ParsedGuidePage>>();
@@ -204,6 +206,21 @@ public class GuideLightweightReloadService {
             folder,
             pageId,
             new ResourceLocation(namespace, folder + "/_" + sourceLanguage + "/" + pagePath));
+    }
+
+    public static @Nullable ParsedGuidePage loadPageForLanguage(ResourceLocation guideId, String folder,
+        String requestedLanguage, String sourceLanguage, ResourceLocation pageId) {
+        String normalizedRequestedLanguage = LangUtil.normalizeLanguage(requestedLanguage);
+        String normalizedSourceLanguage = LangUtil.normalizeLanguage(sourceLanguage);
+        String sourcePack = "resources:" + guideId.getResourceDomain();
+        return tryLoadPage(
+            sourcePack,
+            normalizedRequestedLanguage,
+            normalizedSourceLanguage,
+            guideId.getResourceDomain(),
+            folder,
+            pageId.getResourcePath(),
+            pageId);
     }
 
     @Nullable
