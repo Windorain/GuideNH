@@ -430,10 +430,17 @@ public class SceneEditorSceneNodePreviewApplier {
             NBTTagList entitiesTag = root.getTagList("entities", 10);
             for (int i = 0; i < entitiesTag.tagCount(); i++) {
                 NBTTagCompound et = entitiesTag.getCompoundTagAt(i);
-                Entity entity = GuidebookSceneEntityImportSupport
-                    .loadImportedEntityUnclamped(fakeWorld, et, 0f, 0f, 0f);
-                if (entity != null) {
-                    level.addEntity(entity);
+                GuidebookSceneEntityImportSupport.ImportedSceneEntity importedEntity = GuidebookSceneEntityImportSupport
+                    .loadImportedEntityRecord(fakeWorld, et, 0f, 0f, 0f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY);
+                if (importedEntity != null) {
+                    level.addEntity(importedEntity.entity(), importedEntity.sceneEntityId());
+                    if (Boolean.TRUE.equals(importedEntity.unmount())) {
+                        level.clearSceneEntityMount(importedEntity.sceneEntityId());
+                    } else if (importedEntity.mountTargetSceneEntityId() != null) {
+                        level.setSceneEntityMount(
+                            importedEntity.sceneEntityId(),
+                            importedEntity.mountTargetSceneEntityId());
+                    }
                 }
             }
         }

@@ -1,13 +1,14 @@
 package com.hfstudio.guidenh.guide.mediawiki;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import net.minecraft.util.ResourceLocation;
 
+import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.guide.Guide;
-import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.indices.CategoryIndex;
 import com.hfstudio.guidenh.guide.internal.MutableGuide;
@@ -19,7 +20,7 @@ public class MediaWikiSyntheticPageFactory {
     private MediaWikiSyntheticPageFactory() {}
 
     public static Map<ResourceLocation, ParsedGuidePage> buildPages(Guide guide, Collection<ParsedGuidePage> pages,
-        CategoryIndex categoryIndex) {
+        CategoryIndex categoryIndex, Map<ResourceLocation, SyntheticSourceSnapshot> cache, SyntheticPageParser parser) {
         long startNanos = System.nanoTime();
         String language = resolveLanguage(guide, pages);
         String namespace = guide.getDefaultNamespace();
@@ -27,20 +28,25 @@ public class MediaWikiSyntheticPageFactory {
             .toString();
 
         var syntheticPages = new LinkedHashMap<ResourceLocation, ParsedGuidePage>();
+        HashSet<ResourceLocation> seenIds = new HashSet<>();
         long specialStartNanos = System.nanoTime();
         for (MediaWikiSpecialDefinition definition : MediaWikiSpecialCatalog.definitions()) {
             ResourceLocation pageId = MediaWikiPageIds.specialPageId(namespace, definition.name());
-            syntheticPages
-                .put(pageId, parseSyntheticPage(sourcePack, language, pageId, buildSpecialSource(definition.name())));
+            String source = buildSpecialSource(definition.name());
+            syntheticPages.put(pageId, reuseOrParseSyntheticPage(cache, parser, pageId, sourcePack, language, source));
+            seenIds.add(pageId);
         }
         long specialElapsedNanos = System.nanoTime() - specialStartNanos;
 
         long categoryStartNanos = System.nanoTime();
         for (String categoryName : categoryIndex.getCategoryNames()) {
             ResourceLocation pageId = MediaWikiPageIds.categoryPageId(namespace, categoryName);
-            syntheticPages
-                .put(pageId, parseSyntheticPage(sourcePack, language, pageId, buildCategorySource(categoryName)));
+            String source = buildCategorySource(categoryName);
+            syntheticPages.put(pageId, reuseOrParseSyntheticPage(cache, parser, pageId, sourcePack, language, source));
+            seenIds.add(pageId);
         }
+        cache.keySet()
+            .removeIf(pageId -> !seenIds.contains(pageId));
         long categoryElapsedNanos = System.nanoTime() - categoryStartNanos;
         long totalElapsedNanos = System.nanoTime() - startNanos;
         FMLLog.getLogger()
@@ -53,9 +59,20 @@ public class MediaWikiSyntheticPageFactory {
         return syntheticPages;
     }
 
-    private static ParsedGuidePage parseSyntheticPage(String sourcePack, String language, ResourceLocation pageId,
-        String source) {
-        return PageCompiler.parse(sourcePack, language, pageId, source);
+    private static ParsedGuidePage reuseOrParseSyntheticPage(Map<ResourceLocation, SyntheticSourceSnapshot> cache,
+        SyntheticPageParser parser, ResourceLocation pageId, String sourcePack, String language, String source) {
+        SyntheticSourceSnapshot cached = cache.get(pageId);
+        if (cached != null && cached.sourcePack()
+            .equals(sourcePack)
+            && cached.language()
+                .equals(language)
+            && cached.source()
+                .equals(source)) {
+            return cached.parsedPage();
+        }
+        ParsedGuidePage parsedPage = parser.parse(pageId, sourcePack, language, source);
+        cache.put(pageId, new SyntheticSourceSnapshot(sourcePack, language, source, parsedPage));
+        return parsedPage;
     }
 
     private static String resolveLanguage(Guide guide, Collection<ParsedGuidePage> pages) {
@@ -120,4 +137,14 @@ public class MediaWikiSyntheticPageFactory {
         return value.replace("&", "&amp;")
             .replace("\"", "&quot;");
     }
+
+    @FunctionalInterface
+    public interface SyntheticPageParser {
+
+        ParsedGuidePage parse(ResourceLocation pageId, String sourcePack, String language, String source);
+    }
+
+    @Desugar
+    public record SyntheticSourceSnapshot(String sourcePack, String language, String source,
+        ParsedGuidePage parsedPage) {}
 }

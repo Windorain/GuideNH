@@ -36,6 +36,14 @@ public class PonderKeyframeEntityAction {
     @Nullable
     private String uuid;
     @Nullable
+    private String sceneEntityId;
+    @Nullable
+    private String mount;
+    @Nullable
+    private Boolean unmount;
+    @Nullable
+    private Boolean remove;
+    @Nullable
     private Boolean showName;
     @Nullable
     private Boolean showCape;
@@ -122,6 +130,26 @@ public class PonderKeyframeEntityAction {
     @Nullable
     public String getUuid() {
         return uuid;
+    }
+
+    @Nullable
+    public String getSceneEntityId() {
+        return sceneEntityId;
+    }
+
+    @Nullable
+    public String getMount() {
+        return mount;
+    }
+
+    @Nullable
+    public Boolean getUnmount() {
+        return unmount;
+    }
+
+    @Nullable
+    public Boolean getRemove() {
+        return remove;
     }
 
     @Nullable

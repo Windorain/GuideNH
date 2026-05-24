@@ -60,9 +60,13 @@ public class MediaWikiSpecialDataIndexer {
         }
         long assetStartNanos = System.nanoTime();
         Map<ResourceLocation, Long> assetSizesById = buildAssetSizes(guide);
+        Map<ResourceLocation, Set<ResourceLocation>> assetVariantsByReference = buildAssetVariantsByReference(
+            assetSizesById.keySet());
         long assetElapsedNanos = System.nanoTime() - assetStartNanos;
         long usageStartNanos = System.nanoTime();
-        Map<String, List<ResourceLocation>> fileUsageByPath = buildFileUsage(normalPages.values());
+        Map<String, List<ResourceLocation>> fileUsageByPath = buildFileUsage(
+            normalPages.values(),
+            assetVariantsByReference);
         long usageElapsedNanos = System.nanoTime() - usageStartNanos;
 
         long metadataStartNanos = System.nanoTime();
@@ -73,7 +77,7 @@ public class MediaWikiSpecialDataIndexer {
         Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> lintIssues = buildLintIssues(
             guide,
             normalPages.values(),
-            assetSizesById.keySet());
+            assetVariantsByReference);
         Map<String, List<ResourceLocation>> ambiguousBindings = buildAmbiguousItemBindings(normalPages.values());
         Map<ResourceLocation, List<MediaWikiSpecialOverrideEntry>> overrides = buildOverrides(
             guide,
@@ -102,6 +106,21 @@ public class MediaWikiSpecialDataIndexer {
                 nanosToMillis(assetElapsedNanos),
                 nanosToMillis(usageElapsedNanos),
                 nanosToMillis(metadataElapsedNanos));
+        FMLLog.getLogger()
+            .info(
+                "[GuideNH] [MediaWikiSpecialDataIndexer] Details assets={}, assetAliases={}, fileUsageKeys={}, translations={}, propertyPages={}, externalLinkPages={}, pageSizes={}, lintPages={}, lintIssues={}, ambiguousBindings={}, overrides={}, unusedFiles={}",
+                assetSizesById.size(),
+                assetVariantsByReference.size(),
+                fileUsageByPath.size(),
+                translations.size(),
+                pageProperties.size(),
+                externalLinks.size(),
+                pageSizes.size(),
+                lintIssues.size(),
+                countLintIssues(lintIssues),
+                ambiguousBindings.size(),
+                overrides.size(),
+                unusedFiles.size());
         return dataIndex;
     }
 
@@ -242,8 +261,30 @@ public class MediaWikiSpecialDataIndexer {
         } catch (IOException ignored) {}
     }
 
+    private Map<ResourceLocation, Set<ResourceLocation>> buildAssetVariantsByReference(
+        Set<ResourceLocation> knownAssets) {
+        LinkedHashMap<ResourceLocation, Set<ResourceLocation>> variantsByReference = new LinkedHashMap<>();
+        for (ResourceLocation assetId : knownAssets) {
+            if (assetId == null) {
+                continue;
+            }
+            registerAssetVariant(variantsByReference, assetId, assetId);
+            ResourceLocation strippedAssetId = LangUtil.stripLangFromPageId(assetId);
+            if (!assetId.equals(strippedAssetId)) {
+                registerAssetVariant(variantsByReference, strippedAssetId, assetId);
+            }
+        }
+        return variantsByReference;
+    }
+
+    private void registerAssetVariant(Map<ResourceLocation, Set<ResourceLocation>> variantsByReference,
+        ResourceLocation referenceId, ResourceLocation assetId) {
+        variantsByReference.computeIfAbsent(referenceId, ignored -> new LinkedHashSet<>())
+            .add(assetId);
+    }
+
     private Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> buildLintIssues(Guide guide,
-        Collection<ParsedGuidePage> pages, Set<ResourceLocation> knownAssets) {
+        Collection<ParsedGuidePage> pages, Map<ResourceLocation, Set<ResourceLocation>> assetVariantsByReference) {
         LinkedHashMap<ResourceLocation, List<MediaWikiSpecialLintIssue>> issues = new LinkedHashMap<>();
         for (ParsedGuidePage page : pages) {
             if (page != null && page.hasParseFailure()) {
@@ -254,7 +295,7 @@ public class MediaWikiSpecialDataIndexer {
                             page.getParseFailureMessage(),
                             resolveLineNumber(page.getParseFailureFrom()))));
             }
-            appendAssetReferenceIssues(issues, page, knownAssets);
+            appendAssetReferenceIssues(issues, page, assetVariantsByReference);
         }
         if (guide instanceof MutableGuide mutableGuide) {
             appendCompileFailures(issues, mutableGuide);
@@ -301,7 +342,8 @@ public class MediaWikiSpecialDataIndexer {
         return bindings;
     }
 
-    private Map<String, List<ResourceLocation>> buildFileUsage(Collection<ParsedGuidePage> pages) {
+    private Map<String, List<ResourceLocation>> buildFileUsage(Collection<ParsedGuidePage> pages,
+        Map<ResourceLocation, Set<ResourceLocation>> assetVariantsByReference) {
         LinkedHashMap<String, List<ResourceLocation>> usage = new LinkedHashMap<>();
         for (ParsedGuidePage page : pages) {
             if (page == null) {
@@ -310,9 +352,11 @@ public class MediaWikiSpecialDataIndexer {
             LinkedHashSet<String> pageAssets = new LinkedHashSet<>();
             for (AssetReference reference : collectAssetReferences(page)) {
                 if (reference.assetId() != null) {
-                    pageAssets.add(
-                        reference.assetId()
-                            .toString());
+                    for (ResourceLocation resolvedAssetId : resolveAssetTargets(
+                        reference.assetId(),
+                        assetVariantsByReference)) {
+                        pageAssets.add(resolvedAssetId.toString());
+                    }
                 }
             }
             for (String assetKey : pageAssets) {
@@ -567,8 +611,8 @@ public class MediaWikiSpecialDataIndexer {
     }
 
     private void appendAssetReferenceIssues(Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> issues,
-        ParsedGuidePage page, Set<ResourceLocation> knownAssets) {
-        if (page == null || knownAssets == null) {
+        ParsedGuidePage page, Map<ResourceLocation, Set<ResourceLocation>> assetVariantsByReference) {
+        if (page == null || assetVariantsByReference == null) {
             return;
         }
         LinkedHashSet<String> reported = new LinkedHashSet<>();
@@ -584,7 +628,7 @@ public class MediaWikiSpecialDataIndexer {
                     reference.lineNumber());
                 continue;
             }
-            if (!knownAssets.contains(reference.assetId())) {
+            if (resolveAssetTargets(reference.assetId(), assetVariantsByReference).isEmpty()) {
                 appendLintIssue(
                     issues,
                     page.getId(),
@@ -598,6 +642,15 @@ public class MediaWikiSpecialDataIndexer {
         String message, @Nullable Integer lineNumber) {
         issues.computeIfAbsent(pageId, ignored -> new ArrayList<>())
             .add(new MediaWikiSpecialLintIssue(message, lineNumber));
+    }
+
+    private Set<ResourceLocation> resolveAssetTargets(@Nullable ResourceLocation referenceAssetId,
+        Map<ResourceLocation, Set<ResourceLocation>> assetVariantsByReference) {
+        if (referenceAssetId == null || assetVariantsByReference == null) {
+            return Collections.emptySet();
+        }
+        Set<ResourceLocation> matches = assetVariantsByReference.get(referenceAssetId);
+        return matches != null ? matches : Collections.emptySet();
     }
 
     private List<AssetReference> collectAssetReferences(ParsedGuidePage page) {
@@ -654,6 +707,16 @@ public class MediaWikiSpecialDataIndexer {
             }
         }
         return line;
+    }
+
+    private int countLintIssues(Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> lintIssues) {
+        int total = 0;
+        for (List<MediaWikiSpecialLintIssue> issues : lintIssues.values()) {
+            if (issues != null) {
+                total += issues.size();
+            }
+        }
+        return total;
     }
 
     @Desugar

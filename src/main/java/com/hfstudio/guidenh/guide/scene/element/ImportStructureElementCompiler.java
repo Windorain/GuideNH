@@ -154,10 +154,17 @@ public class ImportStructureElementCompiler implements SceneElementTagCompiler {
             NBTTagList entitiesTag = root.getTagList("entities", 10);
             for (int i = 0; i < entitiesTag.tagCount(); i++) {
                 NBTTagCompound et = entitiesTag.getCompoundTagAt(i);
-                Entity entity = GuidebookSceneEntityImportSupport
-                    .loadImportedEntity(fakeWorld, et, offsetX, offsetY, offsetZ, level.getHeight() - 1f);
-                if (entity != null) {
-                    level.addEntity(entity);
+                GuidebookSceneEntityImportSupport.ImportedSceneEntity importedEntity = GuidebookSceneEntityImportSupport
+                    .loadImportedEntityRecord(fakeWorld, et, offsetX, offsetY, offsetZ, 0f, level.getHeight() - 1f);
+                if (importedEntity != null) {
+                    level.addEntity(importedEntity.entity(), importedEntity.sceneEntityId());
+                    if (MdxAttrs.getBoolean(importedEntity.unmount(), false)) {
+                        level.clearSceneEntityMount(importedEntity.sceneEntityId());
+                    } else if (importedEntity.mountTargetSceneEntityId() != null) {
+                        level.setSceneEntityMount(
+                            importedEntity.sceneEntityId(),
+                            importedEntity.mountTargetSceneEntityId());
+                    }
                 }
             }
         }

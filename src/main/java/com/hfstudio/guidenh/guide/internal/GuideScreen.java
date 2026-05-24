@@ -1313,17 +1313,18 @@ public class GuideScreen extends GuiContainer
             return;
         }
         pollGuideEditorExternalChanges();
-        if (!guideEditorDirty) {
+        if (!guideEditorDirty && !guideEditorPreviewDirty) {
             return;
         }
         long now = System.currentTimeMillis();
-        if (now >= guideEditorNextPreviewCompileAtMillis && guideEditorPreviewDirty) {
-            rebuildGuideEditorPreview();
-        }
         boolean saveDue = guideEditorNextSaveAtMillis > 0L && now >= guideEditorNextSaveAtMillis;
         boolean safetySaveDue = guideEditorNextSafetySaveAtMillis > 0L && now >= guideEditorNextSafetySaveAtMillis;
-        if (saveDue || safetySaveDue) {
+        if (guideEditorDirty && (saveDue || safetySaveDue)) {
             saveGuideEditorDraft();
+            return;
+        }
+        if (now >= guideEditorNextPreviewCompileAtMillis && guideEditorPreviewDirty) {
+            rebuildGuideEditorPreview();
         }
     }
 
@@ -1459,13 +1460,17 @@ public class GuideScreen extends GuiContainer
             return false;
         }
         updateGuideEditorTextFromArea();
+        long startedAt = System.nanoTime();
         try {
             String language = guideEditorDraftPage.getLanguage();
             String sourcePack = guideEditorDraftPage.getSourcePack();
+            long stageStartedAt = System.nanoTime();
             guideEditorFileStore
                 .savePage(guide, currentAnchor.pageId(), language, guideEditorDraftSource, currentAnchor.pageId());
-            ParsedGuidePage parsedDraft = PageCompiler
-                .parse(sourcePack, language, currentAnchor.pageId(), guideEditorDraftSource);
+            long saveFileNs = System.nanoTime() - stageStartedAt;
+            stageStartedAt = System.nanoTime();
+            ParsedGuidePage parsedDraft = resolveCurrentGuideEditorParsedDraftForSave(sourcePack, language);
+            long parseNs = System.nanoTime() - stageStartedAt;
             guideEditorSavedSource = guideEditorDraftSource;
             guideEditorDirty = false;
             guideEditorExternalFileCheckEnabled = guideEditorFileStore
@@ -1474,18 +1479,46 @@ public class GuideScreen extends GuiContainer
             guideEditorNextSafetySaveAtMillis = 0L;
             guideEditorNextPreviewCompileAtMillis = 0L;
             guideEditorNextExternalCheckAtMillis = System.currentTimeMillis() + 250L;
+            long stagePageApplyNs = 0L;
             if (canApplyGuideEditorParsedPage(parsedDraft)) {
-                applyGuideEditorPageWithoutReload(guide, parsedDraft);
+                stageStartedAt = System.nanoTime();
                 guideEditorDraftPage = parsedDraft;
-                guideEditorPreviewDirty = true;
+                applyGuideEditorPageWithoutReload(guide, parsedDraft, false);
+                stagePageApplyNs = System.nanoTime() - stageStartedAt;
                 scheduleGuideEditorNavigationRefresh();
             }
             updateToolbarButtonState();
+            FMLLog.getLogger()
+                .info(
+                    "[GuideNH] [GuideScreen] Saved guide editor draft for {} in {} ms (write: {} ms, parse: {} ms, stage: {} ms, reusedParsed={})",
+                    currentAnchor.pageId(),
+                    (System.nanoTime() - startedAt) / 1_000_000L,
+                    saveFileNs / 1_000_000L,
+                    parseNs / 1_000_000L,
+                    stagePageApplyNs / 1_000_000L,
+                    reusedGuideEditorParsedDraft(sourcePack, language));
             return true;
         } catch (Throwable t) {
             FMLLog.warning("Failed to autosave guide editor page {}", currentAnchor.pageId(), t);
             return false;
         }
+    }
+
+    private ParsedGuidePage resolveCurrentGuideEditorParsedDraftForSave(String sourcePack, String language) {
+        if (reusedGuideEditorParsedDraft(sourcePack, language)) {
+            return guideEditorDraftPage;
+        }
+        return PageCompiler.parse(sourcePack, language, currentAnchor.pageId(), guideEditorDraftSource);
+    }
+
+    private boolean reusedGuideEditorParsedDraft(String sourcePack, String language) {
+        return guideEditorDraftPage != null && guideEditorDraftSource != null
+            && currentAnchor != null
+            && currentAnchor.pageId() != null
+            && Objects.equals(guideEditorDraftPage.getSourcePack(), sourcePack)
+            && Objects.equals(guideEditorDraftPage.getLanguage(), language)
+            && Objects.equals(guideEditorDraftPage.getId(), currentAnchor.pageId())
+            && Objects.equals(guideEditorDraftPage.getSource(), guideEditorDraftSource);
     }
 
     private void pollGuideEditorExternalChanges() {
@@ -1681,12 +1714,21 @@ public class GuideScreen extends GuiContainer
     }
 
     private void applyGuideEditorPageWithoutReload(MutableGuide targetGuide, ParsedGuidePage parsedPage) {
+        applyGuideEditorPageWithoutReload(targetGuide, parsedPage, true);
+    }
+
+    private void applyGuideEditorPageWithoutReload(MutableGuide targetGuide, ParsedGuidePage parsedPage,
+        boolean rebuildNavigationState) {
         if (targetGuide == null || parsedPage == null) {
             return;
         }
         guideEditorSuppressReloadFromEditorApply = true;
         try {
-            targetGuide.applyEditorPage(parsedPage);
+            if (rebuildNavigationState) {
+                targetGuide.applyEditorPage(parsedPage);
+            } else {
+                targetGuide.stageEditorPage(parsedPage);
+            }
         } finally {
             guideEditorSuppressReloadFromEditorApply = false;
         }
@@ -2812,9 +2854,6 @@ public class GuideScreen extends GuiContainer
     private void drawGuideEditorScreen(int mouseX, int mouseY) {
         ensureGuideEditorTextArea();
         updateGuideEditorTextFromArea();
-        if (guideEditorPreviewDirty && System.currentTimeMillis() >= guideEditorNextPreviewCompileAtMillis) {
-            rebuildGuideEditorPreview();
-        }
 
         int toolbarY = panelY + TOOLBAR_H + 1;
         int toolbarBottom = layoutGuideEditorActionButtons(contentX, toolbarY, contentW);
@@ -4307,7 +4346,7 @@ public class GuideScreen extends GuiContainer
             Math.max(0, backgroundRight - backgroundLeft - 2),
             Math.max(0, backgroundBottom - backgroundTop - 2));
         int originalY = specialSearchField.yPosition;
-        specialSearchField.yPosition = originalY + 3;
+        specialSearchField.yPosition = originalY + 2;
         specialSearchField.drawTextBox();
         specialSearchField.yPosition = originalY;
         popGuiScissor();

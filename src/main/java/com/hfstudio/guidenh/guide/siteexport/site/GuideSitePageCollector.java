@@ -22,6 +22,7 @@ import com.hfstudio.guidenh.guide.internal.localization.GuideLocalizedPageSource
 import com.hfstudio.guidenh.guide.internal.resource.GuideResourceAccess;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiPageIds;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSyntheticPageFactory;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSyntheticPageFactory.SyntheticSourceSnapshot;
 import com.hfstudio.guidenh.guide.navigation.NavigationTree;
 
 import cpw.mods.fml.common.FMLLog;
@@ -93,6 +94,7 @@ public class GuideSitePageCollector {
         List<ResourceLocation> pageIds = new ArrayList<>(pageIdSet);
         List<GuideSitePageVariant> variants = new ArrayList<>();
         Map<String, Map<ResourceLocation, Optional<LoadedPage>>> pageCacheByLanguage = new LinkedHashMap<>();
+        Map<ResourceLocation, SyntheticSourceSnapshot> syntheticSourceCache = new LinkedHashMap<>();
 
         for (String language : languages) {
             List<ParsedGuidePage> localizedPages = new ArrayList<>();
@@ -128,7 +130,13 @@ public class GuideSitePageCollector {
             CategoryIndex categoryIndex = new CategoryIndex();
             categoryIndex.rebuild(indexedPages);
             for (ParsedGuidePage syntheticPage : MediaWikiSyntheticPageFactory
-                .buildPages(guide, localizedPages, categoryIndex)
+                .buildPages(
+                    guide,
+                    localizedPages,
+                    categoryIndex,
+                    syntheticSourceCache,
+                    (pageId, sourcePack, sourceLanguage, source) -> GuideSitePageCollector
+                        .parseSyntheticPage(pageId, sourcePack, sourceLanguage, source))
                 .values()) {
                 variants.add(
                     new GuideSitePageVariant(
@@ -141,6 +149,11 @@ public class GuideSitePageCollector {
             }
         }
         return variants;
+    }
+
+    private static ParsedGuidePage parseSyntheticPage(ResourceLocation pageId, String sourcePack, String language,
+        String source) {
+        return com.hfstudio.guidenh.guide.compiler.PageCompiler.parse(sourcePack, language, pageId, source);
     }
 
     public static List<String> discoverLanguagesOrEmpty() {

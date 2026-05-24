@@ -4765,6 +4765,8 @@ public class LytGuidebookScene extends LytBlock {
                     .isEmpty()
                 || !kf.getRemoveEntityNBT()
                     .isEmpty()
+                || !kf.getRemoveEntities()
+                    .isEmpty()
                 || !kf.getParticles()
                     .isEmpty()
                 || !kf.getAnimateEntities()
@@ -4994,6 +4996,9 @@ public class LytGuidebookScene extends LytBlock {
         for (PonderKeyframeEntityAction action : kf.getCreateEntities()) {
             createPonderEntity(action);
         }
+        for (PonderKeyframeEntityAction action : kf.getRemoveEntities()) {
+            removePonderEntity(action);
+        }
         for (PonderKeyframeEntityAction action : kf.getSetEntityNBT()) {
             setPonderEntityNbt(action);
         }
@@ -5011,6 +5016,7 @@ public class LytGuidebookScene extends LytBlock {
     private void createPonderEntity(PonderKeyframeEntityAction action) {
         String ref = trimToNull(action.getRef());
         String entityId = trimToNull(action.getId());
+        String sceneEntityId = resolvePonderSceneEntityId(action);
         if (ref == null || entityId == null) {
             return;
         }
@@ -5033,12 +5039,25 @@ public class LytGuidebookScene extends LytBlock {
         }
         PonderEntityRuntime existing = ponderEntityRefs.remove(ref);
         if (existing != null) {
-            level.removeEntity(existing.entityId);
+            level.removeEntitiesBySceneEntityId(existing.sceneEntityId);
         }
-        level.addEntity(entity);
+        level.addEntity(entity, sceneEntityId);
         applyPonderEntityState(entity, entityId, action, true);
         ponderEntityRefs
-            .put(ref, new PonderEntityRuntime(entity.getEntityId(), entityId, action.getName(), action.getUuid()));
+            .put(ref, new PonderEntityRuntime(sceneEntityId, entityId, action.getName(), action.getUuid()));
+    }
+
+    private void removePonderEntity(PonderKeyframeEntityAction action) {
+        String ref = trimToNull(action.getRef());
+        if (ref == null) {
+            return;
+        }
+        PonderEntityRuntime runtime = ponderEntityRefs.remove(ref);
+        if (runtime == null) {
+            return;
+        }
+        level.removeEntitiesBySceneEntityId(runtime.sceneEntityId);
+        ponderEntityAnimationBaselines.remove(ref);
     }
 
     private void setPonderEntityNbt(PonderKeyframeEntityAction action) {
@@ -5126,7 +5145,7 @@ public class LytGuidebookScene extends LytBlock {
         PonderEntityRuntime runtime = findPonderEntityRuntime(entity);
         try {
             entity.readFromNBT(tag);
-            level.addEntity(entity);
+            level.addEntity(entity, runtime != null ? runtime.sceneEntityId : null);
             return entity;
         } catch (Throwable ignored) {}
 
@@ -5140,8 +5159,7 @@ public class LytGuidebookScene extends LytBlock {
             .loadFromNbt(fakeWorld, entityId, tag, runtime.playerName, runtime.playerUuid);
         if (replacement != null) {
             level.removeEntity(entity.getEntityId());
-            level.addEntity(replacement);
-            runtime.entityId = replacement.getEntityId();
+            level.addEntity(replacement, runtime.sceneEntityId);
             return replacement;
         }
         return entity;
@@ -5149,8 +5167,12 @@ public class LytGuidebookScene extends LytBlock {
 
     @Nullable
     private PonderEntityRuntime findPonderEntityRuntime(Entity entity) {
+        String sceneEntityId = level.getSceneEntityId(entity.getEntityId());
+        if (sceneEntityId == null) {
+            return null;
+        }
         for (PonderEntityRuntime runtime : ponderEntityRefs.values()) {
-            if (runtime.entityId == entity.getEntityId()) {
+            if (runtime.sceneEntityId.equals(sceneEntityId)) {
                 return runtime;
             }
         }
@@ -5207,6 +5229,15 @@ public class LytGuidebookScene extends LytBlock {
             action.getBaby(),
             resolvePonderPreviewPlayerPose(action),
             usePreviewDefaults);
+        String sceneEntityId = resolvePonderSceneEntityId(action);
+        if (Boolean.TRUE.equals(action.getUnmount())) {
+            level.clearSceneEntityMount(sceneEntityId);
+        } else {
+            String mountTargetSceneEntityId = trimToNull(action.getMount());
+            if (mountTargetSceneEntityId != null) {
+                level.setSceneEntityMount(sceneEntityId, mountTargetSceneEntityId);
+            }
+        }
     }
 
     @Nullable
@@ -5238,7 +5269,7 @@ public class LytGuidebookScene extends LytBlock {
 
     private void clearPonderEntities() {
         for (PonderEntityRuntime runtime : ponderEntityRefs.values()) {
-            level.removeEntity(runtime.entityId);
+            level.removeEntitiesBySceneEntityId(runtime.sceneEntityId);
         }
         ponderEntityRefs.clear();
         clearPonderEntityAnimationBaselines();
@@ -5337,7 +5368,17 @@ public class LytGuidebookScene extends LytBlock {
     @Nullable
     private Entity resolvePonderAnimatedEntity(String ref) {
         PonderEntityRuntime runtime = ponderEntityRefs.get(ref);
-        return runtime == null ? null : level.getEntity(runtime.entityId);
+        return runtime == null ? null : level.getFirstEntityBySceneEntityId(runtime.sceneEntityId);
+    }
+
+    @Nullable
+    private String resolvePonderSceneEntityId(PonderKeyframeEntityAction action) {
+        String sceneEntityId = trimToNull(action.getSceneEntityId());
+        if (sceneEntityId != null) {
+            return sceneEntityId;
+        }
+        String ref = trimToNull(action.getRef());
+        return ref != null ? "__ponder__" + ref : null;
     }
 
     @Nullable
@@ -5709,16 +5750,16 @@ public class LytGuidebookScene extends LytBlock {
 
     private static class PonderEntityRuntime {
 
-        private int entityId;
+        private final String sceneEntityId;
         private final String entityTypeId;
         @Nullable
         private final String playerName;
         @Nullable
         private final String playerUuid;
 
-        private PonderEntityRuntime(int entityId, String entityTypeId, @Nullable String playerName,
+        private PonderEntityRuntime(String sceneEntityId, String entityTypeId, @Nullable String playerName,
             @Nullable String playerUuid) {
-            this.entityId = entityId;
+            this.sceneEntityId = sceneEntityId;
             this.entityTypeId = entityTypeId;
             this.playerName = playerName;
             this.playerUuid = playerUuid;

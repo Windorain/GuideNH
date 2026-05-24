@@ -49,6 +49,8 @@ public class PonderKeyframe {
     @Nullable
     private List<PonderKeyframeEntityAction> removeEntityNBT;
     @Nullable
+    private List<PonderKeyframeEntityAction> removeEntities;
+    @Nullable
     private List<PonderKeyframeEntityAnimation> animateEntities;
     /**
      * Maximum number of ticks over which the camera eases from the previous keyframe's position
@@ -137,6 +139,10 @@ public class PonderKeyframe {
 
     public List<PonderKeyframeEntityAction> getRemoveEntityNBT() {
         return removeEntityNBT != null ? removeEntityNBT : Collections.emptyList();
+    }
+
+    public List<PonderKeyframeEntityAction> getRemoveEntities() {
+        return removeEntities != null ? removeEntities : Collections.emptyList();
     }
 
     public List<PonderKeyframeEntityAnimation> getAnimateEntities() {

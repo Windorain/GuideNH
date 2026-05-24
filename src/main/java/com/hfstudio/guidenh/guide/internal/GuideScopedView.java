@@ -23,7 +23,6 @@ import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListContext;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListContextProvider;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialDataIndex;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialDataIndexer;
-import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialPageRefreshController;
 import com.hfstudio.guidenh.guide.navigation.NavigationTree;
 
 import cpw.mods.fml.common.FMLLog;
@@ -36,8 +35,6 @@ public class GuideScopedView implements Guide, MediaWikiListContextProvider {
     private final Map<Class<?>, PageIndex> indexOverrides;
     @Nullable
     private volatile MediaWikiListContext mediaWikiListContext;
-    private volatile long mediaWikiListContextRevision = Long.MIN_VALUE;
-    private final MediaWikiSpecialPageRefreshController mediaWikiRefreshController = new MediaWikiSpecialPageRefreshController();
     private final Map<ParsedGuidePage, GuidePage> compiledPages = Collections
         .synchronizedMap(new IdentityHashMap<ParsedGuidePage, GuidePage>());
 
@@ -136,47 +133,16 @@ public class GuideScopedView implements Guide, MediaWikiListContextProvider {
 
     @Override
     public @Nullable MediaWikiListContext getMediaWikiListContext() {
-        long currentRevision = mediaWikiRefreshController.currentRevision();
         MediaWikiListContext cached = mediaWikiListContext;
-        if (cached != null && mediaWikiListContextRevision == currentRevision) {
+        if (cached != null) {
             return cached;
         }
         synchronized (this) {
-            if (mediaWikiListContext != null && mediaWikiListContextRevision == currentRevision) {
+            if (mediaWikiListContext != null) {
                 return mediaWikiListContext;
             }
             long startNanos = System.nanoTime();
-            MediaWikiGuideAggregator aggregatedGuide = MediaWikiGuideAggregator.create(delegate);
-            LinkedHashMap<ResourceLocation, ParsedGuidePage> mergedPagesById = new LinkedHashMap<>();
-            for (ParsedGuidePage page : aggregatedGuide.getPages()) {
-                if (page != null) {
-                    mergedPagesById.put(page.getId(), page);
-                }
-            }
-            mergedPagesById.putAll(parsedPagesById);
-
-            ArrayList<ParsedGuidePage> categoryIndexedPages = new ArrayList<>();
-            for (ParsedGuidePage page : mergedPagesById.values()) {
-                if (page == null) {
-                    continue;
-                }
-                if (NavigationTree.areModRequirementsMet(
-                    page.getFrontmatter() != null ? page.getFrontmatter()
-                        .navigationEntry() : null)) {
-                    categoryIndexedPages.add(page);
-                }
-            }
-            CategoryIndex categoryIndex = new CategoryIndex();
-            categoryIndex.rebuild(categoryIndexedPages);
-            MediaWikiSpecialDataIndex specialDataIndex = new MediaWikiSpecialDataIndexer()
-                .build(aggregatedGuide, mergedPagesById.values(), categoryIndex);
-            mediaWikiListContext = MediaWikiListContext.create(
-                aggregatedGuide,
-                mergedPagesById.values(),
-                aggregatedGuide.getNavigationTree(),
-                categoryIndex,
-                specialDataIndex);
-            mediaWikiListContextRevision = currentRevision;
+            mediaWikiListContext = createFallbackMediaWikiListContext();
             FMLLog.getLogger()
                 .info(
                     "[GuideNH] [GuideScopedView] Built preview MediaWikiListContext in {} ms for guide {}",
@@ -188,5 +154,38 @@ public class GuideScopedView implements Guide, MediaWikiListContextProvider {
 
     private long nanosToMillis(long nanos) {
         return nanos / 1_000_000L;
+    }
+
+    private MediaWikiListContext createFallbackMediaWikiListContext() {
+        MediaWikiGuideAggregator aggregatedGuide = MediaWikiGuideAggregator.create(delegate);
+        LinkedHashMap<ResourceLocation, ParsedGuidePage> mergedPagesById = new LinkedHashMap<>();
+        for (ParsedGuidePage page : aggregatedGuide.getPages()) {
+            if (page != null) {
+                mergedPagesById.put(page.getId(), page);
+            }
+        }
+        mergedPagesById.putAll(parsedPagesById);
+
+        ArrayList<ParsedGuidePage> categoryIndexedPages = new ArrayList<>();
+        for (ParsedGuidePage page : mergedPagesById.values()) {
+            if (page == null) {
+                continue;
+            }
+            if (NavigationTree.areModRequirementsMet(
+                page.getFrontmatter() != null ? page.getFrontmatter()
+                    .navigationEntry() : null)) {
+                categoryIndexedPages.add(page);
+            }
+        }
+        CategoryIndex categoryIndex = new CategoryIndex();
+        categoryIndex.rebuild(categoryIndexedPages);
+        MediaWikiSpecialDataIndex specialDataIndex = new MediaWikiSpecialDataIndexer()
+            .build(aggregatedGuide, mergedPagesById.values(), categoryIndex);
+        return MediaWikiListContext.create(
+            aggregatedGuide,
+            mergedPagesById.values(),
+            aggregatedGuide.getNavigationTree(),
+            categoryIndex,
+            specialDataIndex);
     }
 }

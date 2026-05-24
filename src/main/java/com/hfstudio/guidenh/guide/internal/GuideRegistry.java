@@ -94,8 +94,19 @@ public class GuideRegistry {
      * Register all dynamic guides (defined in resource packs), which replaces all previously available dynamic guides.
      */
     public static void setDataDriven(Map<ResourceLocation, MutableGuide> guides) {
+        int previousCount = dataDrivenGuides.size();
+        for (MutableGuide existingGuide : new ArrayList<>(dataDrivenGuides.values())) {
+            if (existingGuide != null) {
+                existingGuide.close();
+            }
+        }
         dataDrivenGuides.clear();
         dataDrivenGuides.putAll(guides);
+        FMLLog.getLogger()
+            .info(
+                "[GuideNH] [GuideRegistry] Replaced {} data-driven guides with {} freshly loaded guides",
+                previousCount,
+                dataDrivenGuides.size());
 
         rebuildGuides();
     }
@@ -104,9 +115,14 @@ public class GuideRegistry {
      * Update parsed pages for a specific guide after a resource reload.
      */
     public static void updatePages(ResourceLocation guideId, Map<ResourceLocation, ParsedGuidePage> pages) {
+        updatePages(guideId, pages, true);
+    }
+
+    public static void updatePages(ResourceLocation guideId, Map<ResourceLocation, ParsedGuidePage> pages,
+        boolean invalidateMergedNavigationTree) {
         var guide = mergedGuides.get(guideId);
         if (guide != null) {
-            guide.setPages(pages);
+            guide.setPages(pages, invalidateMergedNavigationTree);
         }
     }
 

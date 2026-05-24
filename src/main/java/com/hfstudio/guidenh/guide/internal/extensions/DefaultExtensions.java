@@ -68,6 +68,7 @@ import com.hfstudio.guidenh.guide.scene.element.PlaceBlockElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.PlaySoundElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.RemoveBlocksElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.ReplaceBlockElementCompiler;
+import com.hfstudio.guidenh.guide.scene.element.RemoveEntityElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.SceneElementTagCompiler;
 import com.hfstudio.guidenh.guide.scene.element.TextAnnotationElementCompiler;
 import com.hfstudio.guidenh.guide.scene.element.WeatherElementCompiler;
@@ -167,6 +168,7 @@ public class DefaultExtensions {
             new WeatherElementCompiler(),
             new PlaySoundElementCompiler(),
             new RemoveBlocksElementCompiler(),
+            new RemoveEntityElementCompiler(),
             new ReplaceBlockElementCompiler(),
             new PlaceBlockElementCompiler());
     }

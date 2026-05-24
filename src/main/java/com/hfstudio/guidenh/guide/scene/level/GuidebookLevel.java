@@ -3,8 +3,12 @@ package com.hfstudio.guidenh.guide.scene.level;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -38,6 +42,10 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
 
     private final HashMap<Long, TileEntity> tileEntities = new HashMap<>();
     private final LinkedHashMap<Integer, Entity> entities = new LinkedHashMap<>();
+    private final LinkedHashMap<String, LinkedHashSet<Integer>> sceneEntityIds = new LinkedHashMap<>();
+    private final HashMap<Integer, String> entitySceneIds = new HashMap<>();
+    private final LinkedHashMap<String, SceneEntityMountState> sceneEntityMountStates = new LinkedHashMap<>();
+    private final HashMap<String, LinkedHashSet<String>> sceneEntityMountChildren = new HashMap<>();
 
     private final HashMap<Long, int[]> filledBlocks = new HashMap<>();
     private final HashMap<Long, String> explicitBlockIds = new HashMap<>();
@@ -315,6 +323,10 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
         chunks.clear();
         tileEntities.clear();
         entities.clear();
+        sceneEntityIds.clear();
+        entitySceneIds.clear();
+        sceneEntityMountStates.clear();
+        sceneEntityMountChildren.clear();
         filledBlocks.clear();
         explicitBlockIds.clear();
         previewAuthorityStore.clear();
@@ -353,27 +365,149 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
     }
 
     public void addEntity(@Nullable Entity entity) {
+        addEntity(entity, null);
+    }
+
+    public void addEntity(@Nullable Entity entity, @Nullable String sceneEntityId) {
         if (entity == null) {
             return;
         }
         if (entity.worldObj == null && fakeWorld != null) {
             bindEntity(entity, fakeWorld);
         }
+        String previousSceneEntityId = entitySceneIds.remove(entity.getEntityId());
+        if (previousSceneEntityId != null) {
+            unregisterSceneEntityId(previousSceneEntityId, entity.getEntityId());
+        }
         entities.put(entity.getEntityId(), entity);
+        registerSceneEntityId(sceneEntityId, entity.getEntityId());
         boundsDirty = true;
         previewStateDirty = true;
     }
 
     public void removeEntity(int entityId) {
-        if (entities.remove(entityId) != null) {
+        if (removeEntityInternal(entityId, true)) {
             boundsDirty = true;
             previewStateDirty = true;
         }
     }
 
+    public int removeEntitiesBySceneEntityId(@Nullable String sceneEntityId) {
+        String normalizedSceneEntityId = trimToNull(sceneEntityId);
+        if (normalizedSceneEntityId == null) {
+            return 0;
+        }
+        LinkedHashSet<Integer> entityIds = sceneEntityIds.get(normalizedSceneEntityId);
+        if (entityIds == null || entityIds.isEmpty()) {
+            clearSceneEntityMountState(normalizedSceneEntityId);
+            return 0;
+        }
+        int removedCount = 0;
+        Integer[] snapshot = entityIds.toArray(new Integer[0]);
+        for (Integer entityId : snapshot) {
+            if (entityId != null && removeEntityInternal(entityId.intValue(), true)) {
+                removedCount++;
+            }
+        }
+        return removedCount;
+    }
+
     @Nullable
     public Entity getEntity(int entityId) {
         return entities.get(entityId);
+    }
+
+    @Nullable
+    public String getSceneEntityId(int entityId) {
+        return entitySceneIds.get(entityId);
+    }
+
+    public Set<String> getSceneEntityIds() {
+        return Collections.unmodifiableSet(sceneEntityIds.keySet());
+    }
+
+    public List<Entity> getEntitiesBySceneEntityId(@Nullable String sceneEntityId) {
+        String normalizedSceneEntityId = trimToNull(sceneEntityId);
+        if (normalizedSceneEntityId == null) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<Integer> entityIds = sceneEntityIds.get(normalizedSceneEntityId);
+        if (entityIds == null || entityIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Entity> resolved = new java.util.ArrayList<>(entityIds.size());
+        for (Integer entityId : entityIds) {
+            Entity entity = entityId != null ? entities.get(entityId.intValue()) : null;
+            if (entity != null && !entity.isDead) {
+                resolved.add(entity);
+            }
+        }
+        return resolved;
+    }
+
+    @Nullable
+    public Entity getFirstEntityBySceneEntityId(@Nullable String sceneEntityId) {
+        String normalizedSceneEntityId = trimToNull(sceneEntityId);
+        if (normalizedSceneEntityId == null) {
+            return null;
+        }
+        LinkedHashSet<Integer> entityIds = sceneEntityIds.get(normalizedSceneEntityId);
+        if (entityIds == null || entityIds.isEmpty()) {
+            return null;
+        }
+        for (Integer entityId : entityIds) {
+            Entity entity = entityId != null ? entities.get(entityId.intValue()) : null;
+            if (entity != null && !entity.isDead) {
+                return entity;
+            }
+        }
+        return null;
+    }
+
+    public void setSceneEntityMount(@Nullable String riderSceneEntityId, @Nullable String vehicleSceneEntityId) {
+        String normalizedRiderSceneEntityId = trimToNull(riderSceneEntityId);
+        if (normalizedRiderSceneEntityId == null) {
+            return;
+        }
+        String normalizedVehicleSceneEntityId = trimToNull(vehicleSceneEntityId);
+        if (normalizedVehicleSceneEntityId == null
+            || normalizedVehicleSceneEntityId.equals(normalizedRiderSceneEntityId)
+            || wouldCreateMountCycle(normalizedRiderSceneEntityId, normalizedVehicleSceneEntityId)) {
+            clearSceneEntityMountState(normalizedRiderSceneEntityId);
+            return;
+        }
+        setSceneEntityMountState(
+            normalizedRiderSceneEntityId,
+            new SceneEntityMountState(normalizedRiderSceneEntityId, normalizedVehicleSceneEntityId));
+        applySceneEntityMount(normalizedRiderSceneEntityId);
+    }
+
+    public void clearSceneEntityMount(@Nullable String riderSceneEntityId) {
+        String normalizedRiderSceneEntityId = trimToNull(riderSceneEntityId);
+        if (normalizedRiderSceneEntityId == null) {
+            return;
+        }
+        clearSceneEntityMountState(normalizedRiderSceneEntityId);
+        for (Entity rider : getEntitiesBySceneEntityId(normalizedRiderSceneEntityId)) {
+            if (rider != null) {
+                rider.mountEntity(null);
+            }
+        }
+    }
+
+    @Nullable
+    public SceneEntityMountState getSceneEntityMountState(@Nullable String riderSceneEntityId) {
+        String normalizedRiderSceneEntityId = trimToNull(riderSceneEntityId);
+        return normalizedRiderSceneEntityId == null ? null : sceneEntityMountStates.get(normalizedRiderSceneEntityId);
+    }
+
+    public void applySceneEntityMounts() {
+        if (sceneEntityMountStates.isEmpty()) {
+            return;
+        }
+        for (String riderSceneEntityId : new java.util.ArrayList<>(sceneEntityMountStates.keySet())) {
+            applySceneEntityMount(riderSceneEntityId);
+        }
     }
 
     public int[] getBounds() {
@@ -617,6 +751,125 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
         entity.dimension = world.provider.dimensionId;
     }
 
+    private boolean removeEntityInternal(int entityId, boolean removeChildrenMountStates) {
+        Entity removed = entities.remove(entityId);
+        if (removed == null) {
+            return false;
+        }
+        removed.mountEntity(null);
+        removed.setDead();
+        String sceneEntityId = entitySceneIds.remove(entityId);
+        if (sceneEntityId != null) {
+            unregisterSceneEntityId(sceneEntityId, entityId);
+            if (removeChildrenMountStates) {
+                clearDependentSceneEntityMountStates(sceneEntityId);
+                clearSceneEntityMountState(sceneEntityId);
+            }
+        }
+        return true;
+    }
+
+    private void registerSceneEntityId(@Nullable String sceneEntityId, int entityId) {
+        String normalizedSceneEntityId = trimToNull(sceneEntityId);
+        if (normalizedSceneEntityId == null) {
+            return;
+        }
+        sceneEntityIds.computeIfAbsent(normalizedSceneEntityId, ignored -> new LinkedHashSet<>())
+            .add(entityId);
+        entitySceneIds.put(entityId, normalizedSceneEntityId);
+        applySceneEntityMount(normalizedSceneEntityId);
+        LinkedHashSet<String> childIds = sceneEntityMountChildren.get(normalizedSceneEntityId);
+        if (childIds != null && !childIds.isEmpty()) {
+            for (String childId : new java.util.ArrayList<>(childIds)) {
+                applySceneEntityMount(childId);
+            }
+        }
+    }
+
+    private void unregisterSceneEntityId(String sceneEntityId, int entityId) {
+        LinkedHashSet<Integer> entityIds = sceneEntityIds.get(sceneEntityId);
+        if (entityIds == null) {
+            return;
+        }
+        entityIds.remove(entityId);
+        if (entityIds.isEmpty()) {
+            sceneEntityIds.remove(sceneEntityId);
+        }
+    }
+
+    private void applySceneEntityMount(String riderSceneEntityId) {
+        SceneEntityMountState mountState = sceneEntityMountStates.get(riderSceneEntityId);
+        if (mountState == null) {
+            return;
+        }
+        Entity vehicle = getFirstEntityBySceneEntityId(mountState.vehicleSceneEntityId());
+        if (vehicle == null) {
+            return;
+        }
+        for (Entity rider : getEntitiesBySceneEntityId(riderSceneEntityId)) {
+            if (rider == null) {
+                continue;
+            }
+            if (rider == vehicle) {
+                continue;
+            }
+            if (rider.ridingEntity != vehicle) {
+                rider.mountEntity(vehicle);
+            }
+        }
+    }
+
+    private void setSceneEntityMountState(String riderSceneEntityId, SceneEntityMountState mountState) {
+        clearSceneEntityMountState(riderSceneEntityId);
+        sceneEntityMountStates.put(riderSceneEntityId, mountState);
+        sceneEntityMountChildren.computeIfAbsent(mountState.vehicleSceneEntityId(), ignored -> new LinkedHashSet<>())
+            .add(riderSceneEntityId);
+    }
+
+    private void clearSceneEntityMountState(String riderSceneEntityId) {
+        SceneEntityMountState previousState = sceneEntityMountStates.remove(riderSceneEntityId);
+        if (previousState == null) {
+            return;
+        }
+        LinkedHashSet<String> childIds = sceneEntityMountChildren.get(previousState.vehicleSceneEntityId());
+        if (childIds != null) {
+            childIds.remove(riderSceneEntityId);
+            if (childIds.isEmpty()) {
+                sceneEntityMountChildren.remove(previousState.vehicleSceneEntityId());
+            }
+        }
+    }
+
+    private void clearDependentSceneEntityMountStates(String vehicleSceneEntityId) {
+        LinkedHashSet<String> riderIds = sceneEntityMountChildren.remove(vehicleSceneEntityId);
+        if (riderIds == null || riderIds.isEmpty()) {
+            return;
+        }
+        for (String riderSceneEntityId : new java.util.ArrayList<>(riderIds)) {
+            SceneEntityMountState mountState = sceneEntityMountStates.remove(riderSceneEntityId);
+            if (mountState != null) {
+                for (Entity rider : getEntitiesBySceneEntityId(riderSceneEntityId)) {
+                    if (rider != null) {
+                        rider.mountEntity(null);
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean wouldCreateMountCycle(String riderSceneEntityId, String vehicleSceneEntityId) {
+        String currentSceneEntityId = vehicleSceneEntityId;
+        Set<String> visited = new HashSet<>();
+        while (currentSceneEntityId != null && visited.add(currentSceneEntityId)) {
+            if (riderSceneEntityId.equals(currentSceneEntityId)) {
+                return true;
+            }
+            SceneEntityMountState mountState = sceneEntityMountStates.get(currentSceneEntityId);
+            currentSceneEntityId = mountState != null ? mountState.vehicleSceneEntityId() : null;
+        }
+        return false;
+    }
+
     private void bindTileEntity(TileEntity tileEntity, int x, int y, int z, World world) {
         try {
             tileEntity.updateContainingBlockInfo();
@@ -695,6 +948,25 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
             return value;
         }
         return value.substring(start, end);
+    }
+
+    public static class SceneEntityMountState {
+
+        private final String riderSceneEntityId;
+        private final String vehicleSceneEntityId;
+
+        public SceneEntityMountState(String riderSceneEntityId, String vehicleSceneEntityId) {
+            this.riderSceneEntityId = riderSceneEntityId;
+            this.vehicleSceneEntityId = vehicleSceneEntityId;
+        }
+
+        public String riderSceneEntityId() {
+            return riderSceneEntityId;
+        }
+
+        public String vehicleSceneEntityId() {
+            return vehicleSceneEntityId;
+        }
     }
 
 }

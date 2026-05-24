@@ -67,6 +67,8 @@ public class GuidebookSceneEntityStateSupport {
 
         entity.setPosition(x != null ? x : entity.posX, y != null ? y : entity.posY, z != null ? z : entity.posZ);
         GuidebookSceneEntityImportSupport.syncPreviousTransform(entity);
+        entity.prevRotationYaw = entity.rotationYaw;
+        entity.prevRotationPitch = entity.rotationPitch;
     }
 
     public static void applyOptionalRotation(Entity entity, @Nullable Float yaw, @Nullable Float pitch,

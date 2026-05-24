@@ -47,6 +47,7 @@ import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialDataIndex;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialDataIndexer;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialPageRefreshController;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSyntheticPageFactory;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSyntheticPageFactory.SyntheticSourceSnapshot;
 import com.hfstudio.guidenh.guide.navigation.NavigationNode;
 import com.hfstudio.guidenh.guide.navigation.NavigationTree;
 import com.hfstudio.guidenh.guide.scene.SceneTagCompiler;
@@ -57,7 +58,8 @@ import cpw.mods.fml.common.FMLLog;
  * Encapsulates a Guide, which consists of a collection of Markdown pages and associated content, loaded from a
  * guide-specific subdirectory of resource packs.
  */
-public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, MediaWikiListContextProvider {
+public class MutableGuide
+    implements Guide, GuideDevWatcherPump.TickableGuide, MediaWikiListContextProvider, AutoCloseable {
 
     public static final String ACTIVE_CLIENT_WORLD_REQUIRED_MESSAGE = "active client world";
     private static final int MAX_STRONG_RUNTIME_PAGES = 48;
@@ -77,12 +79,17 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
      */
     private Map<ResourceLocation, ParsedGuidePage> pages;
     private Map<ResourceLocation, ParsedGuidePage> syntheticPages = Collections.emptyMap();
+    private final Map<ResourceLocation, SyntheticSourceSnapshot> syntheticSourceCache = new HashMap<>();
     @Nullable
     private MediaWikiListContext mediaWikiListContext;
+    @Nullable
+    private volatile MediaWikiListContext fallbackMediaWikiListContext;
     @Nullable
     private MediaWikiSpecialDataIndex mediaWikiSpecialDataIndex;
     private volatile long mediaWikiListContextRevision = Long.MIN_VALUE;
     private volatile long mediaWikiSpecialDataIndexRevision = Long.MIN_VALUE;
+    private volatile long fallbackMediaWikiListContextRevision = Long.MIN_VALUE;
+    private volatile long requestedMediaWikiWarmupRevision = Long.MIN_VALUE;
     private final MediaWikiSpecialPageRefreshController mediaWikiRefreshController = new MediaWikiSpecialPageRefreshController();
     private final Map<ParsedGuidePage, GuidePage> compiledPagesWeak = Collections.synchronizedMap(new WeakHashMap<>());
     private final LinkedHashMap<ResourceLocation, GuidePage> compiledPagesStrong = new LinkedHashMap<ResourceLocation, GuidePage>(
@@ -362,6 +369,53 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
         return watcher != null;
     }
 
+    @Override
+    public synchronized void close() {
+        int developmentPageCount = developmentPages.size();
+        int syntheticPageCount = syntheticPages.size();
+        int failureCount = pageFailures.size();
+        int weakCompiledCount;
+        int strongCompiledCount;
+        synchronized (compiledPagesWeak) {
+            weakCompiledCount = compiledPagesWeak.size();
+            strongCompiledCount = compiledPagesStrong.size();
+        }
+        if (watcher != null) {
+            watcher.close();
+            watcher = null;
+        }
+        mediaWikiRefreshController.close();
+        developmentPages.clear();
+        pageFailures.clear();
+        syntheticPages = Collections.emptyMap();
+        syntheticSourceCache.clear();
+        mediaWikiListContext = null;
+        fallbackMediaWikiListContext = null;
+        mediaWikiSpecialDataIndex = null;
+        fallbackMediaWikiListContextRevision = Long.MIN_VALUE;
+        requestedMediaWikiWarmupRevision = Long.MIN_VALUE;
+        synchronized (compiledPagesWeak) {
+            compiledPagesWeak.clear();
+            compiledPagesStrong.clear();
+        }
+        warmupPageQueue.clear();
+        queuedWarmupPages.clear();
+        prioritizedWarmupPages.clear();
+        scheduledWarmupPages.clear();
+        validationPageQueue.clear();
+        queuedValidationPages.clear();
+        scheduledValidationPages.clear();
+        FMLLog.getLogger()
+            .info(
+                "[GuideNH] [MutableGuide] Closed guide {} and cleared caches developmentPages={}, syntheticPages={}, failures={}, compiledWeak={}, compiledStrong={}",
+                id,
+                developmentPageCount,
+                syntheticPageCount,
+                failureCount,
+                weakCompiledCount,
+                strongCompiledCount);
+    }
+
     private final Deque<ResourceLocation> warmupPageQueue = new ArrayDeque<>();
     private final HashSet<ResourceLocation> queuedWarmupPages = new HashSet<>();
     private final HashSet<ResourceLocation> prioritizedWarmupPages = new HashSet<>();
@@ -489,6 +543,10 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
     }
 
     public void setPages(Map<ResourceLocation, ParsedGuidePage> pages) {
+        setPages(pages, true);
+    }
+
+    public void setPages(Map<ResourceLocation, ParsedGuidePage> pages, boolean invalidateMergedNavigationTree) {
         this.pages = Collections.unmodifiableMap(new HashMap<>(pages));
         this.syntheticPages = Collections.emptyMap();
         invalidateMediaWikiDerivedCaches();
@@ -504,7 +562,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
 
         if (watcher != null) {
             watcher.clearChanges(); // Since we'll load them all now, ignore all changes up to now
-
+            developmentPages.clear();
             for (var page : watcher.loadAll()) {
                 developmentPages.put(page.getId(), page);
             }
@@ -513,7 +571,9 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
         rebuildIndices();
         rebuildSyntheticPages();
         navigationTree = buildNavigation();
-        GuideRegistry.invalidateMergedNavigationTree();
+        if (invalidateMergedNavigationTree) {
+            GuideRegistry.invalidateMergedNavigationTree();
+        }
         refreshPageFailures();
         rebuildWarmupQueue();
         // Do not eagerly compile pages here. Some packs register or rewrite recipes
@@ -527,6 +587,11 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
     }
 
     public void applyEditorPage(ParsedGuidePage parsedPage) {
+        stageEditorPage(parsedPage);
+        rebuildEditorNavigationStateWithoutValidation();
+    }
+
+    public void stageEditorPage(ParsedGuidePage parsedPage) {
         if (parsedPage == null) {
             return;
         }
@@ -543,7 +608,6 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
             clearCompileFailure(pageId);
             clearParseFailure(pageId);
         }
-        rebuildEditorNavigationStateWithoutValidation();
     }
 
     private void removeCompiledPage(ResourceLocation pageId) {
@@ -987,6 +1051,7 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
     private void rebuildSyntheticPages() {
         if (pages == null) {
             syntheticPages = Collections.emptyMap();
+            syntheticSourceCache.clear();
             invalidateMediaWikiDerivedCaches();
             return;
         }
@@ -994,8 +1059,13 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
         long startNanos = System.nanoTime();
         var previousSyntheticIds = new HashSet<>(syntheticPages.keySet());
         CategoryIndex categoryIndex = getIndex(CategoryIndex.class);
-        syntheticPages = Collections.unmodifiableMap(
-            MediaWikiSyntheticPageFactory.buildPages(this, getSourceParsedPages().values(), categoryIndex));
+        Map<ResourceLocation, ParsedGuidePage> rebuiltPages = MediaWikiSyntheticPageFactory.buildPages(
+            this,
+            getSourceParsedPages().values(),
+            categoryIndex,
+            syntheticSourceCache,
+            this::parseSyntheticPage);
+        syntheticPages = Collections.unmodifiableMap(rebuiltPages);
         previousSyntheticIds.addAll(syntheticPages.keySet());
         for (ResourceLocation syntheticPageId : previousSyntheticIds) {
             removeCompiledPage(syntheticPageId);
@@ -1011,69 +1081,39 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
     private void invalidateMediaWikiDerivedCaches() {
         long nextRevision = mediaWikiRefreshController.invalidate();
         mediaWikiListContext = null;
+        fallbackMediaWikiListContext = null;
         mediaWikiSpecialDataIndex = null;
         mediaWikiListContextRevision = nextRevision;
         mediaWikiSpecialDataIndexRevision = nextRevision;
+        fallbackMediaWikiListContextRevision = nextRevision;
+        requestedMediaWikiWarmupRevision = Long.MIN_VALUE;
     }
 
     @Override
     public @Nullable MediaWikiListContext getMediaWikiListContext() {
         long currentRevision = mediaWikiRefreshController.currentRevision();
-        if ((mediaWikiListContext == null || mediaWikiListContextRevision != currentRevision) && pages != null) {
-            mediaWikiListContext = buildMediaWikiListContext();
-            mediaWikiListContextRevision = currentRevision;
-        }
-        return mediaWikiListContext;
-    }
-
-    private @Nullable MediaWikiListContext buildMediaWikiListContext() {
-        if (pages == null) {
-            return null;
-        }
-        long startNanos = System.nanoTime();
-        MediaWikiGuideAggregator aggregatedGuide = MediaWikiGuideAggregator.create(this);
-        CategoryIndex categoryIndex = aggregatedGuide.getIndex(CategoryIndex.class);
-        MediaWikiSpecialDataIndex specialDataIndex = getOrBuildMediaWikiSpecialDataIndex(
-            aggregatedGuide,
-            categoryIndex);
-        MediaWikiListContext context = MediaWikiListContext.create(
-            aggregatedGuide,
-            aggregatedGuide.getPages(),
-            aggregatedGuide.getNavigationTree(),
-            categoryIndex,
-            specialDataIndex);
-        FMLLog.getLogger()
-            .info(
-                "[GuideNH] [MutableGuide] Built MediaWikiListContext in {} ms for guide {}",
-                nanosToMillis(System.nanoTime() - startNanos),
-                id);
-        return context;
-    }
-
-    private MediaWikiSpecialDataIndex getOrBuildMediaWikiSpecialDataIndex(Guide sourceGuide,
-        CategoryIndex categoryIndex) {
-        long currentRevision = mediaWikiRefreshController.currentRevision();
-        MediaWikiSpecialDataIndex cached = mediaWikiSpecialDataIndex;
-        if (cached != null && mediaWikiSpecialDataIndexRevision == currentRevision) {
+        MediaWikiListContext cached = mediaWikiListContext;
+        if (cached != null && mediaWikiListContextRevision == currentRevision) {
             return cached;
         }
-        long startNanos = System.nanoTime();
-        MediaWikiSpecialDataIndex built = new MediaWikiSpecialDataIndexer()
-            .build(sourceGuide, sourceGuide.getPages(), categoryIndex);
-        mediaWikiSpecialDataIndex = built;
-        mediaWikiSpecialDataIndexRevision = currentRevision;
-        FMLLog.getLogger()
-            .info(
-                "[GuideNH] [MutableGuide] Built MediaWikiSpecialDataIndex in {} ms for guide {}",
-                nanosToMillis(System.nanoTime() - startNanos),
-                id);
-        return built;
+        if (pages == null) {
+            return cached;
+        }
+        requestMediaWikiDerivedCacheWarmup(currentRevision);
+        if (cached != null) {
+            return cached;
+        }
+        return getOrCreateFallbackMediaWikiListContext(currentRevision);
     }
 
     private void requestMediaWikiDerivedCacheWarmup(long revision) {
         if (pages == null) {
             return;
         }
+        if (requestedMediaWikiWarmupRevision == revision) {
+            return;
+        }
+        requestedMediaWikiWarmupRevision = revision;
         MediaWikiGuideAggregator aggregatedGuide = MediaWikiGuideAggregator.create(this);
         CategoryIndex categoryIndex = aggregatedGuide.getIndex(CategoryIndex.class);
         Map<ResourceLocation, ParsedGuidePage> pagesSnapshot = new LinkedHashMap<>();
@@ -1083,21 +1123,88 @@ public class MutableGuide implements Guide, GuideDevWatcherPump.TickableGuide, M
             }
         }
         NavigationTree navigationSnapshot = aggregatedGuide.getNavigationTree();
+        FMLLog.getLogger()
+            .info(
+                "[GuideNH] [MutableGuide] Scheduling MediaWiki cache warmup for guide {} revision {} with {} pages",
+                id,
+                revision,
+                pagesSnapshot.size());
         mediaWikiRefreshController.requestRefresh(revision, () -> {
-            MediaWikiSpecialDataIndex specialDataIndex = new MediaWikiSpecialDataIndexer()
-                .build(aggregatedGuide, pagesSnapshot.values(), categoryIndex);
-            MediaWikiListContext listContext = MediaWikiListContext
-                .create(aggregatedGuide, pagesSnapshot.values(), navigationSnapshot, categoryIndex, specialDataIndex);
-            synchronized (this) {
-                if (!mediaWikiRefreshController.isCurrent(revision)) {
-                    return;
+            try {
+                long startNanos = System.nanoTime();
+                MediaWikiSpecialDataIndex specialDataIndex = new MediaWikiSpecialDataIndexer()
+                    .build(aggregatedGuide, pagesSnapshot.values(), categoryIndex);
+                MediaWikiListContext listContext = MediaWikiListContext.create(
+                    aggregatedGuide,
+                    pagesSnapshot.values(),
+                    navigationSnapshot,
+                    categoryIndex,
+                    specialDataIndex);
+                synchronized (this) {
+                    if (!mediaWikiRefreshController.isCurrent(revision)) {
+                        return;
+                    }
+                    mediaWikiSpecialDataIndex = specialDataIndex;
+                    mediaWikiSpecialDataIndexRevision = revision;
+                    mediaWikiListContext = listContext;
+                    mediaWikiListContextRevision = revision;
+                    fallbackMediaWikiListContext = listContext;
+                    fallbackMediaWikiListContextRevision = revision;
                 }
-                mediaWikiSpecialDataIndex = specialDataIndex;
-                mediaWikiSpecialDataIndexRevision = revision;
-                mediaWikiListContext = listContext;
-                mediaWikiListContextRevision = revision;
+                FMLLog.getLogger()
+                    .info(
+                        "[GuideNH] [MutableGuide] Warmed MediaWiki caches asynchronously in {} ms for guide {} revision {} with {} pages",
+                        nanosToMillis(System.nanoTime() - startNanos),
+                        id,
+                        revision,
+                        pagesSnapshot.size());
+            } catch (Throwable t) {
+                synchronized (this) {
+                    if (requestedMediaWikiWarmupRevision == revision) {
+                        requestedMediaWikiWarmupRevision = Long.MIN_VALUE;
+                    }
+                }
+                FMLLog.getLogger()
+                    .warn(
+                        "[GuideNH] [MutableGuide] Failed to warm MediaWiki caches asynchronously for guide {} revision {}",
+                        id,
+                        revision,
+                        t);
             }
         });
+    }
+
+    private ParsedGuidePage parseSyntheticPage(ResourceLocation pageId, String sourcePack, String language,
+        String source) {
+        return PageCompiler.parse(sourcePack, language, pageId, source);
+    }
+
+    private MediaWikiListContext getOrCreateFallbackMediaWikiListContext(long revision) {
+        MediaWikiListContext cached = fallbackMediaWikiListContext;
+        if (cached != null && fallbackMediaWikiListContextRevision == revision) {
+            return cached;
+        }
+        synchronized (this) {
+            cached = fallbackMediaWikiListContext;
+            if (cached != null && fallbackMediaWikiListContextRevision == revision) {
+                return cached;
+            }
+            MediaWikiListContext created = createFallbackMediaWikiListContext();
+            fallbackMediaWikiListContext = created;
+            fallbackMediaWikiListContextRevision = revision;
+            return created;
+        }
+    }
+
+    private MediaWikiListContext createFallbackMediaWikiListContext() {
+        MediaWikiGuideAggregator aggregatedGuide = MediaWikiGuideAggregator.create(this);
+        CategoryIndex categoryIndex = aggregatedGuide.getIndex(CategoryIndex.class);
+        return MediaWikiListContext.create(
+            aggregatedGuide,
+            aggregatedGuide.getPages(),
+            aggregatedGuide.getNavigationTree(),
+            categoryIndex,
+            MediaWikiSpecialDataIndex.empty());
     }
 
     private long nanosToMillis(long nanos) {

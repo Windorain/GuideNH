@@ -75,11 +75,13 @@ public class GuideLightweightReloadService {
 
         stageStartedAt = System.nanoTime();
         for (var entry : guidePages.entrySet()) {
-            GuideRegistry.updatePages(entry.getKey(), entry.getValue());
+            GuideRegistry.updatePages(entry.getKey(), entry.getValue(), false);
         }
+        GuideRegistry.invalidateMergedNavigationTree();
         long registryUpdateNs = System.nanoTime() - stageStartedAt;
 
         stageStartedAt = System.nanoTime();
+        GuideWarmupPump.clearScheduler();
         for (MutableGuide guide : GuideRegistry.getAll()) {
             guide.resetWarmup();
         }

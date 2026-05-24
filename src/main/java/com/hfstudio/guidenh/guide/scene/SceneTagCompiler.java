@@ -45,7 +45,7 @@ public class SceneTagCompiler extends BlockTagCompiler {
     public static final LytErrorSink NOOP_ERROR_SINK = (compiler, text, node) -> {};
     private static final String[] SCENE_ROOT_TAG_NAMES = { "GameScene", "Scene" };
     private static final String[] SCENE_HEAVY_TAG_NAMES = { "ImportStructure", "ImportStructureLib", "PlaceBlock",
-        "RemoveBlocks", "ReplaceBlock", "Block", "Entity" };
+        "RemoveBlocks", "RemoveEntity", "ReplaceBlock", "Block", "Entity" };
     private static final int SCENE_HEAVY_ELEMENT_THRESHOLD = 8;
 
     private Map<String, SceneElementTagCompiler> elementCompilers = Collections.emptyMap();

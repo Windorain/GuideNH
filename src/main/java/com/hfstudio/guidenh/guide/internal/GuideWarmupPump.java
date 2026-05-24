@@ -18,6 +18,10 @@ public class GuideWarmupPump {
             .register(new GuideWarmupPump());
     }
 
+    public static void clearScheduler() {
+        SCHEDULER.clear();
+    }
+
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) {

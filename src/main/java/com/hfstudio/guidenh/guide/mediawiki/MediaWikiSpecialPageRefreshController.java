@@ -14,6 +14,7 @@ public class MediaWikiSpecialPageRefreshController {
     private final AtomicLong queuedRevision = new AtomicLong(Long.MIN_VALUE);
     private final ConcurrentLinkedQueue<RefreshTask> pendingTasks = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean workerScheduled = new AtomicBoolean();
+    private final AtomicBoolean closed = new AtomicBoolean();
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "guidenh-mediawiki-refresh");
         thread.setDaemon(true);
@@ -33,11 +34,19 @@ public class MediaWikiSpecialPageRefreshController {
     }
 
     public void requestRefresh(long expectedRevision, Runnable task) {
-        if (task == null) {
+        if (task == null || closed.get()) {
             return;
         }
+        while (true) {
+            long latestQueuedRevision = queuedRevision.get();
+            if (expectedRevision <= latestQueuedRevision) {
+                return;
+            }
+            if (queuedRevision.compareAndSet(latestQueuedRevision, expectedRevision)) {
+                break;
+            }
+        }
         pendingTasks.add(new RefreshTask(expectedRevision, task));
-        queuedRevision.accumulateAndGet(expectedRevision, Math::max);
         if (!workerScheduled.compareAndSet(false, true)) {
             return;
         }
@@ -51,6 +60,15 @@ public class MediaWikiSpecialPageRefreshController {
                 }
             }
         });
+    }
+
+    public void close() {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
+        pendingTasks.clear();
+        workerScheduled.set(false);
+        executor.shutdownNow();
     }
 
     private void drainPendingTasks() {

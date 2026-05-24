@@ -1,5 +1,7 @@
 package com.hfstudio.guidenh.guide.mediawiki;
 
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -27,6 +29,9 @@ import com.hfstudio.guidenh.guide.internal.util.NavigationUtil;
 
 public class MediaWikiSpecialPageResolver {
 
+    private static final long ONE_KILOBYTE = 1024L;
+    private static final long ONE_MEGABYTE = 1024L * 1024L;
+    private static final DecimalFormat SIZE_DECIMAL_FORMAT = createSizeDecimalFormat();
     private final MediaWikiSpecialContributors contributors = new MediaWikiSpecialContributors();
 
     public boolean isSupported(String specialName) {
@@ -236,7 +241,7 @@ public class MediaWikiSpecialPageResolver {
             entries.add(
                 new MediaWikiSpecialListEntry(
                     title,
-                    size + " B",
+                    formatBytesForDisplay(size),
                     title + " " + size,
                     page.getId(),
                     null,
@@ -555,7 +560,7 @@ public class MediaWikiSpecialPageResolver {
                 new MediaWikiSpecialListEntry(
                     entry.getKey()
                         .toString(),
-                    entry.getValue() + " B",
+                    formatBytesForDisplay(entry.getValue() != null ? entry.getValue() : 0L),
                     entry.getKey() + " " + entry.getValue(),
                     null,
                     null,
@@ -642,6 +647,9 @@ public class MediaWikiSpecialPageResolver {
         String pageQuery = firstNonBlank(query.parameter(MediaWikiSpecialPageQuery.PARAM_PAGE), query.searchText());
         String normalizedQuery = MediaWikiSpecialSearchSupport.normalize(pageQuery);
         MediaWikiTranslationStats.TranslationSnapshot snapshot = MediaWikiTranslationStats.scan(context.guide());
+        if (normalizedQuery.isEmpty()) {
+            return buildAllTranslationsFast(context, snapshot);
+        }
         ArrayList<MediaWikiSpecialGroupedEntry> groups = new ArrayList<>();
         for (ResourceLocation sourcePageId : collectTranslationSourcePageIds(context, snapshot)) {
             ParsedGuidePage sourcePage = findSourcePage(
@@ -670,6 +678,36 @@ public class MediaWikiSpecialPageResolver {
                 continue;
             }
             children.sort(this::compareEntries);
+            groups.add(
+                new MediaWikiSpecialGroupedEntry(
+                    sourceTitle,
+                    sourcePageId.toString(),
+                    sourceTitle + " " + sourcePageId,
+                    children));
+        }
+        groups.sort(Comparator.comparing(MediaWikiSpecialGroupedEntry::title, String.CASE_INSENSITIVE_ORDER));
+        return groups;
+    }
+
+    private List<MediaWikiSpecialGroupedEntry> buildAllTranslationsFast(MediaWikiListContext context,
+        MediaWikiTranslationStats.TranslationSnapshot snapshot) {
+        ArrayList<MediaWikiSpecialGroupedEntry> groups = new ArrayList<>();
+        for (ResourceLocation sourcePageId : collectTranslationSourcePageIds(context, snapshot)) {
+            ParsedGuidePage sourcePage = findSourcePageWithoutLoading(
+                context,
+                sourcePageId,
+                context.specialDataIndex()
+                    .translationsBySourcePage()
+                    .get(sourcePageId));
+            String sourceTitle = sourcePage != null ? resolvePageTitle(context, sourcePage) : sourcePageId.toString();
+            ArrayList<MediaWikiSpecialListEntry> children = buildFastTranslationVariantEntries(
+                context,
+                sourcePageId,
+                sourceTitle,
+                snapshot);
+            if (children.isEmpty()) {
+                continue;
+            }
             groups.add(
                 new MediaWikiSpecialGroupedEntry(
                     sourceTitle,
@@ -1025,6 +1063,31 @@ public class MediaWikiSpecialPageResolver {
 
     private ParsedGuidePage findSourcePage(MediaWikiListContext context, ResourceLocation sourcePageId,
         List<ResourceLocation> variants, MediaWikiTranslationStats.TranslationSnapshot snapshot) {
+        ParsedGuidePage loaded = findSourcePageWithoutLoading(context, sourcePageId, variants);
+        if (loaded != null) {
+            return loaded;
+        }
+        List<String> languages = snapshot
+            .languagesForPagePath(sourcePageId != null ? sourcePageId.getResourcePath() : "");
+        String currentLanguage = LangUtil.getCurrentLanguage();
+        ParsedGuidePage fallback = null;
+        for (String language : languages) {
+            ParsedGuidePage page = loadTranslatedPage(context, sourcePageId, language);
+            if (page == null) {
+                continue;
+            }
+            if (currentLanguage.equalsIgnoreCase(page.getLanguage())) {
+                return page;
+            }
+            if (fallback == null) {
+                fallback = page;
+            }
+        }
+        return fallback;
+    }
+
+    private ParsedGuidePage findSourcePageWithoutLoading(MediaWikiListContext context, ResourceLocation sourcePageId,
+        List<ResourceLocation> variants) {
         ParsedGuidePage sourcePage = context.specialDataIndex()
             .normalPagesById()
             .get(sourcePageId);
@@ -1048,23 +1111,6 @@ public class MediaWikiSpecialPageResolver {
             }
             if (fallback == null) {
                 fallback = variant;
-            }
-        }
-        if (fallback != null) {
-            return fallback;
-        }
-        List<String> languages = snapshot
-            .languagesForPagePath(sourcePageId != null ? sourcePageId.getResourcePath() : "");
-        for (String language : languages) {
-            ParsedGuidePage page = loadTranslatedPage(context, sourcePageId, language);
-            if (page == null) {
-                continue;
-            }
-            if (currentLanguage.equalsIgnoreCase(page.getLanguage())) {
-                return page;
-            }
-            if (fallback == null) {
-                fallback = page;
             }
         }
         return fallback;
@@ -1115,6 +1161,45 @@ public class MediaWikiSpecialPageResolver {
                     null,
                     pageIcon(page)));
         }
+        return children;
+    }
+
+    private ArrayList<MediaWikiSpecialListEntry> buildFastTranslationVariantEntries(MediaWikiListContext context,
+        ResourceLocation sourcePageId, String sourceTitle, MediaWikiTranslationStats.TranslationSnapshot snapshot) {
+        LinkedHashMap<String, MediaWikiSpecialListEntry> entriesByLanguage = new LinkedHashMap<>();
+        for (ResourceLocation variantId : context.specialDataIndex()
+            .translationsBySourcePage()
+            .getOrDefault(sourcePageId, Collections.emptyList())) {
+            ParsedGuidePage variant = context.specialDataIndex()
+                .normalPagesById()
+                .get(variantId);
+            if (variant == null) {
+                continue;
+            }
+            String title = resolvePageTitle(context, variant);
+            entriesByLanguage.putIfAbsent(
+                variant.getLanguage(),
+                new MediaWikiSpecialListEntry(
+                    variant.getLanguage(),
+                    title,
+                    sourceTitle + " " + variant.getLanguage() + " " + variant.getId() + " " + title,
+                    variant.getId(),
+                    null,
+                    pageIcon(variant)));
+        }
+        for (String language : snapshot.languagesForPagePath(sourcePageId.getResourcePath())) {
+            entriesByLanguage.computeIfAbsent(
+                language,
+                ignored -> new MediaWikiSpecialListEntry(
+                    language,
+                    sourceTitle,
+                    sourceTitle + " " + language + " " + sourcePageId,
+                    sourcePageId,
+                    null,
+                    null));
+        }
+        ArrayList<MediaWikiSpecialListEntry> children = new ArrayList<>(entriesByLanguage.values());
+        children.sort(this::compareEntries);
         return children;
     }
 
@@ -1288,8 +1373,20 @@ public class MediaWikiSpecialPageResolver {
         }
         int separator = subtitle.indexOf(' ');
         String numeric = separator >= 0 ? subtitle.substring(0, separator) : subtitle;
+        String unit = separator >= 0 ? subtitle.substring(separator + 1)
+            .trim() : "";
         try {
-            return Long.parseLong(numeric);
+            double value = Double.parseDouble(numeric);
+            if (unit.startsWith("MB")) {
+                return Math.round(value * ONE_MEGABYTE);
+            }
+            if (unit.startsWith("KB")) {
+                return Math.round(value * ONE_KILOBYTE);
+            }
+            if (unit.startsWith("B")) {
+                return Math.round(value);
+            }
+            return Math.round(value);
         } catch (NumberFormatException ignored) {
             return 0L;
         }
@@ -1298,7 +1395,28 @@ public class MediaWikiSpecialPageResolver {
     private String buildMediaStatisticsSubtitle(ResourceLocation resourceId, long size, boolean pageFile) {
         String extension = resolveFileExtension(resourceId);
         String type = extension.isEmpty() ? (pageFile ? "page" : "file") : extension;
-        return size + " B | " + type;
+        return formatBytesForDisplay(size) + " | " + type;
+    }
+
+    private String formatBytesForDisplay(long sizeBytes) {
+        long safeBytes = Math.max(0L, sizeBytes);
+        if (safeBytes >= ONE_MEGABYTE) {
+            return formatDecimalSize((double) safeBytes / (double) ONE_MEGABYTE) + " MB";
+        }
+        return formatDecimalSize((double) safeBytes / (double) ONE_KILOBYTE) + " KB";
+    }
+
+    private String formatDecimalSize(double value) {
+        synchronized (SIZE_DECIMAL_FORMAT) {
+            return SIZE_DECIMAL_FORMAT.format(value);
+        }
+    }
+
+    private static DecimalFormat createSizeDecimalFormat() {
+        DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.ROOT);
+        DecimalFormat format = new DecimalFormat("0.##", symbols);
+        format.setGroupingUsed(false);
+        return format;
     }
 
     private String resolveFileExtension(@Nullable ResourceLocation resourceId) {

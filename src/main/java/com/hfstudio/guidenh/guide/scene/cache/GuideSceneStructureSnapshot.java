@@ -4,9 +4,11 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.Entity;
@@ -54,6 +56,7 @@ public class GuideSceneStructureSnapshot implements Serializable {
         restoreBlocks(level, explicitBlockIdsByPos);
         restoreTileEntities(level);
         restoreEntities(level);
+        restoreEntityMounts(level);
         restorePreviewAuthority(level);
         return level;
     }
@@ -121,13 +124,18 @@ public class GuideSceneStructureSnapshot implements Serializable {
             if (entityId == null) {
                 continue;
             }
+            String sceneEntityId = level.getSceneEntityId(entity.getEntityId());
+            GuidebookLevel.SceneEntityMountState mountState = level.getSceneEntityMountState(sceneEntityId);
             entities.add(
                 new EntityEntry(
                     entityId,
                     encodeCompound(tag),
+                    sceneEntityId,
                     entity instanceof EntityPlayer ? entity.getCommandSenderName() : null,
                     entity instanceof EntityPlayer && entity.getUniqueID() != null ? entity.getUniqueID()
                         .toString() : null,
+                    mountState != null ? mountState.vehicleSceneEntityId() : null,
+                    mountState == null ? null : Boolean.FALSE,
                     entity instanceof GuidebookNameplateControllable nameplateControllable
                         ? Boolean.valueOf(nameplateControllable.isGuidebookNameplateVisible())
                         : null,
@@ -218,7 +226,27 @@ public class GuideSceneStructureSnapshot implements Serializable {
                 .loadFromNbt(world, entry.entityId, decodeCompound(entry.nbt), entry.playerName, entry.playerUuid);
             if (entity != null) {
                 applyEntityRuntimeState(entity, entry);
-                level.addEntity(entity);
+                level.addEntity(entity, entry.sceneEntityId);
+            }
+        }
+    }
+
+    private void restoreEntityMounts(GuidebookLevel level) {
+        if (entities.isEmpty()) {
+            return;
+        }
+        Set<String> appliedUnmounts = new HashSet<>();
+        for (EntityEntry entry : entities) {
+            String sceneEntityId = GuidebookSceneEntityLoader.trimToNull(entry.sceneEntityId);
+            if (sceneEntityId == null) {
+                continue;
+            }
+            if (Boolean.TRUE.equals(entry.unmount) && appliedUnmounts.add(sceneEntityId)) {
+                level.clearSceneEntityMount(sceneEntityId);
+            }
+            String mountTargetSceneEntityId = GuidebookSceneEntityLoader.trimToNull(entry.mountTargetSceneEntityId);
+            if (mountTargetSceneEntityId != null) {
+                level.setSceneEntityMount(sceneEntityId, mountTargetSceneEntityId);
             }
         }
     }
@@ -392,9 +420,15 @@ public class GuideSceneStructureSnapshot implements Serializable {
         private final String entityId;
         private final String nbt;
         @Nullable
+        private final String sceneEntityId;
+        @Nullable
         private final String playerName;
         @Nullable
         private final String playerUuid;
+        @Nullable
+        private final String mountTargetSceneEntityId;
+        @Nullable
+        private final Boolean unmount;
         @Nullable
         private final Boolean previewNameplateVisible;
         @Nullable
@@ -404,13 +438,17 @@ public class GuideSceneStructureSnapshot implements Serializable {
         @Nullable
         private final Boolean previewBaby;
 
-        public EntityEntry(String entityId, String nbt, @Nullable String playerName, @Nullable String playerUuid,
+        public EntityEntry(String entityId, String nbt, @Nullable String sceneEntityId, @Nullable String playerName,
+            @Nullable String playerUuid, @Nullable String mountTargetSceneEntityId, @Nullable Boolean unmount,
             @Nullable Boolean previewNameplateVisible, @Nullable Boolean previewCapeVisible,
             @Nullable PreviewPlayerPoseEntry previewPose, @Nullable Boolean previewBaby) {
             this.entityId = entityId;
             this.nbt = nbt;
+            this.sceneEntityId = sceneEntityId;
             this.playerName = playerName;
             this.playerUuid = playerUuid;
+            this.mountTargetSceneEntityId = mountTargetSceneEntityId;
+            this.unmount = unmount;
             this.previewNameplateVisible = previewNameplateVisible;
             this.previewCapeVisible = previewCapeVisible;
             this.previewPose = previewPose;
