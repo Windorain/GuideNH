@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -24,7 +25,9 @@ import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorElementModel;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorElementType;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneModel;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneNodeModel;
+import com.hfstudio.guidenh.guide.internal.localization.GuideResourceLanguageIndex;
 import com.hfstudio.guidenh.guide.internal.structure.GuideTextNbtCodec;
+import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
 import com.hfstudio.guidenh.guide.scene.StructureLibSceneBinding;
 import com.hfstudio.guidenh.guide.scene.StructureLibSceneCondition;
@@ -314,7 +317,7 @@ public class SceneEditorSceneNodePreviewApplier {
                         .getTagName());
                 continue;
             }
-            templateAnnotations.add(toRuntimeAnnotation(templateElement));
+            templateAnnotations.addAll(toRuntimeAnnotations(templateElement));
         }
 
         if (templateAnnotations.isEmpty()) {
@@ -342,7 +345,11 @@ public class SceneEditorSceneNodePreviewApplier {
         if (element == null || !element.isVisible()) {
             return;
         }
-        scene.addAnnotation(toRuntimeAnnotation(element));
+        for (SceneAnnotation annotation : toRuntimeAnnotations(element)) {
+            if (annotation != null) {
+                scene.addAnnotation(annotation);
+            }
+        }
     }
 
     @Nullable
@@ -466,7 +473,7 @@ public class SceneEditorSceneNodePreviewApplier {
         }
     }
 
-    private SceneAnnotation toRuntimeAnnotation(SceneEditorElementModel element) {
+    private List<SceneAnnotation> toRuntimeAnnotations(SceneEditorElementModel element) {
         ConstantColor color = parseColor(element.getColorLiteral());
         if (element.getType() == SceneEditorElementType.BLOCK) {
             Vector3f min = new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ());
@@ -478,7 +485,7 @@ public class SceneEditorSceneNodePreviewApplier {
             annotation.setAlwaysOnTop(element.isAlwaysOnTop());
             applyTooltip(annotation, element.getTooltipMarkdown());
             applyStructureLibCondition(annotation, element);
-            return annotation;
+            return Collections.<SceneAnnotation>singletonList(annotation);
         }
         if (element.getType() == SceneEditorElementType.BOX) {
             Vector3f min = new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ());
@@ -488,7 +495,7 @@ public class SceneEditorSceneNodePreviewApplier {
             annotation.setAlwaysOnTop(element.isAlwaysOnTop());
             applyTooltip(annotation, element.getTooltipMarkdown());
             applyStructureLibCondition(annotation, element);
-            return annotation;
+            return Collections.<SceneAnnotation>singletonList(annotation);
         }
         if (element.getType() == SceneEditorElementType.LINE) {
             InWorldLineAnnotation annotation = new InWorldLineAnnotation(
@@ -498,22 +505,30 @@ public class SceneEditorSceneNodePreviewApplier {
             annotation.setAlwaysOnTop(element.isAlwaysOnTop());
             applyTooltip(annotation, element.getTooltipMarkdown());
             applyStructureLibCondition(annotation, element);
-            return annotation;
+            return Collections.<SceneAnnotation>singletonList(annotation);
         }
         if (element.getType() == SceneEditorElementType.TEXT) {
-            String text = element.getTextMarkdown();
-            TextAnnotation annotation = new TextAnnotation(
-                new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()),
-                text,
-                color,
-                element.getMaxWidth());
+            String text = resolveAnnotationText(element);
+            TextAnnotation annotation = createTextAnnotation(element, text, color);
             annotation.setBackgroundAlpha(element.getBackgroundAlpha());
+            annotation.setConnector(
+                parseConnectorSideAttribute(element),
+                parseIntegerAttributeOrDefault(element.getExtraAttribute("connectorOffset"), 0),
+                parseIntegerAttributeOrDefault(
+                    element.getExtraAttribute("connectorLength"),
+                    TextAnnotation.CONNECTOR_HEIGHT));
             LytParagraph paragraph = new LytParagraph();
             PageCompiler compiler = SceneEditorTooltipCompiler.createPreviewCompiler(text);
             compiler.compileInlineMarkdown(text, paragraph);
             annotation.setRichContent(paragraph);
             applyStructureLibCondition(annotation, element);
-            return annotation;
+            ArrayList<SceneAnnotation> annotations = new ArrayList<>();
+            annotations.add(annotation);
+            SceneAnnotation highlight = createTextHighlightAnnotation(element);
+            if (highlight != null) {
+                annotations.add(highlight);
+            }
+            return annotations;
         }
         DiamondAnnotation annotation = new DiamondAnnotation(
             new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()),
@@ -521,7 +536,7 @@ public class SceneEditorSceneNodePreviewApplier {
         annotation.setAlwaysOnTop(element.isAlwaysOnTop());
         applyTooltip(annotation, element.getTooltipMarkdown());
         applyStructureLibCondition(annotation, element);
-        return annotation;
+        return Collections.<SceneAnnotation>singletonList(annotation);
     }
 
     private List<Vector3f> resolveLinePoints(SceneEditorElementModel element) {
@@ -533,6 +548,52 @@ public class SceneEditorSceneNodePreviewApplier {
         fallback.add(new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()));
         fallback.add(new Vector3f(element.getSecondaryX(), element.getSecondaryY(), element.getSecondaryZ()));
         return fallback;
+    }
+
+    private TextAnnotation createTextAnnotation(SceneEditorElementModel element, String text, ConstantColor color) {
+        if (parseBooleanAttribute(element.getExtraAttribute("independent"))) {
+            return new TextAnnotation(
+                text,
+                color,
+                parseIntegerAttributeOrDefault(element.getExtraAttribute("yOffset"), 0),
+                element.getMaxWidth());
+        }
+        return new TextAnnotation(
+            new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()),
+            text,
+            color,
+            element.getMaxWidth());
+    }
+
+    @Nullable
+    private SceneAnnotation createTextHighlightAnnotation(SceneEditorElementModel element) {
+        String hlMinX = normalizeAttribute(element.getExtraAttribute("hlMinX"));
+        String hlMinY = normalizeAttribute(element.getExtraAttribute("hlMinY"));
+        String hlMinZ = normalizeAttribute(element.getExtraAttribute("hlMinZ"));
+        String hlMaxX = normalizeAttribute(element.getExtraAttribute("hlMaxX"));
+        String hlMaxY = normalizeAttribute(element.getExtraAttribute("hlMaxY"));
+        String hlMaxZ = normalizeAttribute(element.getExtraAttribute("hlMaxZ"));
+        if (hlMinX == null && hlMinY == null && hlMinZ == null && hlMaxX == null && hlMaxY == null && hlMaxZ == null) {
+            return null;
+        }
+
+        Vector3f min = new Vector3f(
+            parseFloatAttributeOrDefault(hlMinX, 0f),
+            parseFloatAttributeOrDefault(hlMinY, 0f),
+            parseFloatAttributeOrDefault(hlMinZ, 0f));
+        Vector3f max = new Vector3f(
+            parseFloatAttributeOrDefault(hlMaxX, 1f),
+            parseFloatAttributeOrDefault(hlMaxY, 1f),
+            parseFloatAttributeOrDefault(hlMaxZ, 1f));
+        normalizeBounds(min, max);
+        ConstantColor highlightColor = parseColorOrDefault(element.getExtraAttribute("highlightColor"), 0x8000FFAA);
+        InWorldBoxAnnotation annotation = new InWorldBoxAnnotation(
+            min,
+            max,
+            highlightColor,
+            InWorldBoxAnnotation.DEFAULT_THICKNESS);
+        applyStructureLibCondition(annotation, element);
+        return annotation;
     }
 
     private void applyTooltip(SceneAnnotation annotation, @Nullable String tooltipMarkdown) {
@@ -576,6 +637,54 @@ public class SceneEditorSceneNodePreviewApplier {
         }
         int color = (int) Long.parseLong(normalized.toUpperCase(Locale.ROOT), 16);
         return new ConstantColor(color);
+    }
+
+    private String resolveAnnotationText(SceneEditorElementModel element) {
+        if (element == null) {
+            return "";
+        }
+        String textKey = normalizeAttribute(element.getTextKey());
+        if (textKey != null) {
+            String localized = GuideResourceLanguageIndex.getValue(LangUtil.getCurrentLanguage(), textKey);
+            if (localized != null && !localized.isEmpty()) {
+                return localized;
+            }
+        }
+        return element.getTextMarkdown();
+    }
+
+    private boolean parseBooleanAttribute(@Nullable String value) {
+        String normalized = normalizeAttribute(value);
+        return normalized != null && Boolean.parseBoolean(normalized);
+    }
+
+    private TextAnnotation.ConnectorSide parseConnectorSideAttribute(SceneEditorElementModel element) {
+        String rawValue = element != null ? normalizeAttribute(element.getExtraAttribute("connectorSide")) : null;
+        if (rawValue == null) {
+            return TextAnnotation.ConnectorSide.BOTTOM;
+        }
+        try {
+            return TextAnnotation.ConnectorSide.fromSerializedName(rawValue);
+        } catch (IllegalArgumentException ignored) {
+            return TextAnnotation.ConnectorSide.BOTTOM;
+        }
+    }
+
+    private float parseFloatAttributeOrDefault(@Nullable String value, float defaultValue) {
+        String normalized = normalizeAttribute(value);
+        if (normalized == null) {
+            return defaultValue;
+        }
+        try {
+            return Float.parseFloat(normalized);
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
+    }
+
+    private ConstantColor parseColorOrDefault(@Nullable String colorLiteral, int defaultColor) {
+        String normalized = normalizeAttribute(colorLiteral);
+        return normalized != null ? parseColor(normalized) : new ConstantColor(defaultColor);
     }
 
     @Nullable

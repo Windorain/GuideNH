@@ -30,6 +30,7 @@ import com.hfstudio.guidenh.guide.GuidePageChange;
 import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.internal.localization.GuideLocalizedPageSourceResolver;
 import com.hfstudio.guidenh.guide.internal.localization.GuidePageLanguageIndex;
+import com.hfstudio.guidenh.guide.internal.localization.GuideResourceLanguageIndex;
 import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 
 import cpw.mods.fml.common.FMLLog;
@@ -363,6 +364,7 @@ public class GuideSourceWatcher implements AutoCloseable {
             }
             if (shouldClearLanguageCache) {
                 GuidePageLanguageIndex.clear();
+                GuideResourceLanguageIndex.clear();
             }
             for (PageReloadRequest request : requests) {
                 queueReloadedPages(loadAll(request.namespace()));

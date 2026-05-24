@@ -15,11 +15,9 @@ import org.jetbrains.annotations.Nullable;
 import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.indices.CategoryIndex;
+import com.hfstudio.guidenh.guide.internal.GuideLightweightReloadService;
 import com.hfstudio.guidenh.guide.internal.MutableGuide;
 import com.hfstudio.guidenh.guide.internal.datadriven.DataDrivenGuideLoader;
-import com.hfstudio.guidenh.guide.internal.localization.GuideLocalizedPageSourceResolver;
-import com.hfstudio.guidenh.guide.internal.localization.GuideLocalizedPageSourceResolver.ResolvedGuidePageSource;
-import com.hfstudio.guidenh.guide.internal.resource.GuideResourceAccess;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiPageIds;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSyntheticPageFactory;
 import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSyntheticPageFactory.SyntheticSourceSnapshot;
@@ -215,84 +213,31 @@ public class GuideSitePageCollector {
 
     private static Optional<LoadedPage> tryLoadPage(MutableGuide guide, IResourceManager resourceManager,
         String language, ResourceLocation pageId) {
-        String namespace = pageId.getResourceDomain();
-        String pagePath = pageId.getResourcePath();
+        String sourceLanguage = language;
+        ParsedGuidePage localized = GuideLightweightReloadService
+            .loadPageForLanguage(guide.getId(), guide.getContentRootFolder(), language, sourceLanguage, pageId);
+        if (localized != null) {
+            return Optional.of(new LoadedPage(sourceLanguage, false, localized));
+        }
+
         String defaultLanguage = guide.getDefaultLanguage();
-        Optional<LoadedPage> localized = tryLoadPageFromSource(
-            resourceManager,
-            namespace,
-            guide.getContentRootFolder(),
-            language,
-            language,
-            pagePath,
-            pageId);
-        if (localized.isPresent()) {
-            return localized;
-        }
         if (!defaultLanguage.equals(language)) {
-            Optional<LoadedPage> fallback = tryLoadPageFromSource(
-                resourceManager,
-                namespace,
-                guide.getContentRootFolder(),
-                language,
-                defaultLanguage,
-                pagePath,
-                pageId);
-            if (fallback.isPresent()) {
-                return fallback;
+            ParsedGuidePage fallback = GuideLightweightReloadService
+                .loadPageForLanguage(guide.getId(), guide.getContentRootFolder(), language, defaultLanguage, pageId);
+            if (fallback != null) {
+                return Optional.of(new LoadedPage(defaultLanguage, true, fallback));
             }
         }
-        return tryLoadNeutralPage(resourceManager, namespace, guide.getContentRootFolder(), language, pagePath, pageId);
-    }
 
-    private static Optional<LoadedPage> tryLoadPageFromSource(IResourceManager resourceManager, String namespace,
-        String contentRootFolder, String requestedLanguage, String sourceLanguage, String pagePath,
-        ResourceLocation pageId) {
-        ResourceLocation localizedSource = new ResourceLocation(
-            namespace,
-            contentRootFolder + "/_" + sourceLanguage + "/" + pagePath);
-        return tryLoadPageBytes(
+        String namespace = pageId.getResourceDomain();
+        ParsedGuidePage neutral = GuideLightweightReloadService.tryLoadNeutralPageForExport(
             resourceManager,
-            namespace,
-            contentRootFolder,
-            requestedLanguage,
-            sourceLanguage,
+            "resources:" + namespace,
+            language,
+            guide.getContentRootFolder(),
             pageId,
-            localizedSource);
-    }
-
-    private static Optional<LoadedPage> tryLoadNeutralPage(IResourceManager resourceManager, String namespace,
-        String contentRootFolder, String requestedLanguage, String pagePath, ResourceLocation pageId) {
-        ResourceLocation neutralSource = new ResourceLocation(namespace, contentRootFolder + "/" + pagePath);
-        return tryLoadPageBytes(
-            resourceManager,
-            namespace,
-            contentRootFolder,
-            requestedLanguage,
-            null,
-            pageId,
-            neutralSource);
-    }
-
-    private static Optional<LoadedPage> tryLoadPageBytes(IResourceManager resourceManager, String namespace,
-        String contentRootFolder, String requestedLanguage, @Nullable String sourceLanguage, ResourceLocation pageId,
-        ResourceLocation sourceId) {
-        try {
-            byte[] bytes = GuideResourceAccess.readBytes(resourceManager, sourceId);
-            if (bytes == null) {
-                return Optional.empty();
-            }
-            ResolvedGuidePageSource resolvedSource = GuideLocalizedPageSourceResolver
-                .resolve(requestedLanguage, contentRootFolder, pageId, bytes);
-            return Optional.of(
-                new LoadedPage(
-                    sourceLanguage,
-                    sourceLanguage == null || !requestedLanguage.equals(sourceLanguage) || resolvedSource.localized(),
-                    GuideLocalizedPageSourceResolver
-                        .parse("resources:" + namespace, requestedLanguage, pageId, resolvedSource)));
-        } catch (Exception e) {
-            return Optional.empty();
-        }
+            new ResourceLocation(namespace, guide.getContentRootFolder() + "/" + pageId.getResourcePath()));
+        return neutral != null ? Optional.of(new LoadedPage(null, true, neutral)) : Optional.empty();
     }
 
     @Desugar

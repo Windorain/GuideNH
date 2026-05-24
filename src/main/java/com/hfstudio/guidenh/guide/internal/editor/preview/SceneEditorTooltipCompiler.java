@@ -59,6 +59,7 @@ final class SceneEditorTooltipCompiler {
             PAGE_COLLECTION,
             EXTENSIONS,
             parsed.getSourcePack(),
+            parsed.getLanguage(),
             parsed.getId(),
             parsed.getSource());
     }

@@ -49,6 +49,7 @@ assets/<modid>/guidebooks/
 |------|------|------|------|
 | `time` | 整数 | 是 | 该关键帧所在刻（0 ≤ time ≤ totalTime）。 |
 | `label` | 字符串 | 否 | 悬停在进度条节点上时显示的标签及方向箭头。 |
+| `labelKey` | 字符串 | 否 | 关键帧标签的翻译键。解析成功时会覆盖 `label`。 |
 | `camera` | 对象 | 否 | 该关键帧的摄像机状态，缺省字段从前一关键帧继承。 |
 | `cameraEaseTicks` | 整数 或 null | 否 | 摄像机从**上一个**关键帧的位置缓动到当前关键帧的时间（刻数）。`null`（默认）= 在整个片段内缓动；`0` = 立即跳转；`N > 0` = 在 N 刻内缓动，之后保持目标位置。 |
 | `layer` | 整数 或 null | 否 | 可见层覆盖。`null` 显示所有层；从 1 开始的整数限制到指定层。 |
@@ -417,7 +418,8 @@ assets/<modid>/guidebooks/
 |------|------|--------|------|
 | `x`, `y`, `z` | float | `0.0` | 菱形尖端的世界坐标。 |
 | `color` | 字符串 | `"0xFF00E000"` | ARGB 颜色，格式为 `"0xAARRGGBB"`。 |
-| `tooltip` | 字符串 | `""` | 悬停时显示的文本。 |
+| `tooltip` | 字符串 | `""` | 悬停时显示的回退文本。 |
+| `tooltipKey` | 字符串 | `""` | 悬停提示的翻译键。解析成功时会覆盖 `tooltip`。 |
 | `alwaysOnTop` | 布尔值 | `false` | 为 true 时穿透方块渲染。 |
 
 ---
@@ -549,7 +551,7 @@ assets/<modid>/guidebooks/
   "x": 1.5,
   "y": 2.5,
   "z": 1.5,
-  "text": "在此放置物品",
+  "textKey": "guidenh.sample.scene.insert_items",
   "color": "0xFF44AAFF",
   "connectorSide": "right",
   "connectorOffset": 8,
@@ -573,7 +575,8 @@ assets/<modid>/guidebooks/
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `x`, `y`, `z` | float | `0.0` | 锚点的世界坐标（独立模式下忽略）。 |
-| `text` | 字符串 | — | **必填。** 气泡框中显示的文本。 |
+| `text` | 字符串 | — | 回退显示文本。 |
+| `textKey` | 字符串 | — | 优先从资源包 `lang` 文件解析的翻译键；解析失败时回退到 `text`。 |
 | `color` | 字符串 | `"0xFFAAAAAA"` | ARGB 边框颜色。 |
 | `backgroundAlpha` | 整数 | `204` | 背景透明度，`0` 为完全透明，`255` 为完全不透明。 |
 | `maxWidth` | 整数 | `0` | 若 &gt; 0，按此像素宽度自动换行；`0` 表示单行。 |

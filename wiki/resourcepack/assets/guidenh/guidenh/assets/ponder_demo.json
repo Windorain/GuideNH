@@ -3,7 +3,7 @@
   "keyframes": [
     {
       "time": 0,
-      "label": "Overview",
+      "labelKey": "guidenh.sample.ponder.label.overview",
       "camera": {
         "zoom": 1.8,
         "rotX": 25.0,
@@ -16,7 +16,7 @@
       "annotations": [
         {
           "type": "text",
-          "text": "A simple smelting setup: hopper feeds the furnace, chest collects output.",
+          "textKey": "guidenh.sample.ponder.text.overview",
           "independent": true,
           "yOffset": -60,
           "maxWidth": 180,
@@ -26,7 +26,7 @@
     },
     {
       "time": 60,
-      "label": "Input hopper",
+      "labelKey": "guidenh.sample.ponder.label.input",
       "camera": {
         "rotY": 240.0
       },
@@ -45,7 +45,7 @@
           "x": 0.5,
           "y": 2.8,
           "z": 1.5,
-          "text": "Place fuel and ore here",
+          "textKey": "guidenh.sample.ponder.text.insert_ore",
           "color": "0xFF44FF44",
           "hlMinX": 0.05,
           "hlMinY": 1.05,
@@ -163,7 +163,7 @@
     },
     {
       "time": 270,
-      "label": "Output chest",
+      "labelKey": "guidenh.sample.ponder.label.output",
       "camera": {
         "rotY": 165.0
       },
@@ -192,7 +192,7 @@
           "x": 2.5,
           "y": 2.8,
           "z": 1.5,
-          "text": "Collect ingots from the chest",
+          "textKey": "guidenh.sample.ponder.text.collect_ingots",
           "color": "0xFF00AAFF"
         },
         {

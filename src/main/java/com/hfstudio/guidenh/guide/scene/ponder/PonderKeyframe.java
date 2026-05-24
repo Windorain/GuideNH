@@ -21,6 +21,8 @@ public class PonderKeyframe {
     @Nullable
     private String label;
     @Nullable
+    private String labelKey;
+    @Nullable
     private PonderKeyframeCameraState camera;
     @Nullable
     private Integer layer;
@@ -72,6 +74,18 @@ public class PonderKeyframe {
     @Nullable
     public String getLabel() {
         return label;
+    }
+
+    @Nullable
+    public String getLabelKey() {
+        return labelKey;
+    }
+
+    public void applyLocalizedLabel(@Nullable String localizedLabel) {
+        if (localizedLabel == null || localizedLabel.isEmpty()) {
+            return;
+        }
+        this.label = localizedLabel;
     }
 
     @Nullable

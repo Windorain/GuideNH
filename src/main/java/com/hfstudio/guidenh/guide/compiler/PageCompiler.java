@@ -84,6 +84,7 @@ import com.hfstudio.guidenh.guide.internal.markdown.MarkdownRuntimeBlocks.QuoteI
 import com.hfstudio.guidenh.guide.internal.markdown.MarkdownRuntimeBlocks.QuoteIconSpec;
 import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapParser;
 import com.hfstudio.guidenh.guide.internal.util.GuideStringLines;
+import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.guide.render.GuidePageTexture;
 import com.hfstudio.guidenh.guide.sound.GuideSoundParsers;
 import com.hfstudio.guidenh.guide.style.BorderStyle;
@@ -155,6 +156,7 @@ public class PageCompiler {
     private final PageCollection pages;
     private final ExtensionCollection extensions;
     private final String sourcePack;
+    private final String language;
     private final ResourceLocation pageId;
     private final String pageContent;
     private final Map<String, MdAstDefinition> definitions = new HashMap<>();
@@ -169,9 +171,15 @@ public class PageCompiler {
 
     public PageCompiler(PageCollection pages, ExtensionCollection extensions, String sourcePack,
         ResourceLocation pageId, String pageContent) {
+        this(pages, extensions, sourcePack, LangUtil.ENGLISH_LANGUAGE, pageId, pageContent);
+    }
+
+    public PageCompiler(PageCollection pages, ExtensionCollection extensions, String sourcePack, String language,
+        ResourceLocation pageId, String pageContent) {
         this.pages = pages;
         this.extensions = extensions;
         this.sourcePack = sourcePack;
+        this.language = language;
         this.pageId = pageId;
         this.pageContent = pageContent;
 
@@ -353,6 +361,7 @@ public class PageCompiler {
             pages,
             extensions,
             parsedPage.getSourcePack(),
+            parsedPage.getLanguage(),
             parsedPage.getId(),
             parsedPage.getSource()).compile(parsedPage.getAstRoot());
         var titleHeading = extractPageTitleHeading(document);
@@ -1725,6 +1734,10 @@ public class PageCompiler {
 
     public ResourceLocation getGuideId() {
         return pages.getId();
+    }
+
+    public String getLanguage() {
+        return language;
     }
 
     public PageCollection getPageCollection() {

@@ -55,7 +55,8 @@ Press ▶ to play, or drag the timeline. The keyframe nodes snap the timeline to
 | `totalTime` | int | Total animation length in game ticks (20 ticks = 1 second) |
 | `keyframes` | array | Ordered list of keyframe objects |
 | `time` | int | Tick at which this keyframe becomes active |
-| `label` | string? | Optional label shown when hovering the keyframe node |
+| `label` | string? | Optional fallback label shown when hovering the keyframe node |
+| `labelKey` | string? | Translation key for the keyframe label. When resolved, it overrides `label` |
 | `camera` | object? | Partial camera override (only specified fields are applied) |
 | `layer` | int? | Visible layer override (`null` = show all) |
 | `annotations` | array? | Annotation objects to show while this keyframe is active |
@@ -322,6 +323,7 @@ Text with an accompanying highlight box:
 | `text` field | Type | Description |
 |---|---|---|
 | `text` | string | Label text |
+| `textKey` | string? | Translation key resolved from resource-pack `lang` files before falling back to `text` |
 | `color` | string | Border colour in `0xAARRGGBB` format |
 | `maxWidth` | int? | Word-wrap width in pixels; `0` or omitted = single line |
 | `independent` | bool? | `true` = screen-space mode (no world anchor) |

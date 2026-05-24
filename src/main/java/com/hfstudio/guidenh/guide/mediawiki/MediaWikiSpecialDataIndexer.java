@@ -2,8 +2,8 @@ package com.hfstudio.guidenh.guide.mediawiki;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -24,12 +24,12 @@ import org.jetbrains.annotations.Nullable;
 import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.guide.Guide;
 import com.hfstudio.guidenh.guide.compiler.IdUtils;
-import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.indices.CategoryIndex;
 import com.hfstudio.guidenh.guide.internal.GuidebookText;
 import com.hfstudio.guidenh.guide.internal.MutableGuide;
 import com.hfstudio.guidenh.guide.internal.datadriven.DataDrivenGuideLoader;
+import com.hfstudio.guidenh.guide.internal.datadriven.GuidePageResourceSelector;
 import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.integration.betterquesting.QuestIndex;
 import com.hfstudio.guidenh.libs.unist.UnistPoint;
@@ -477,20 +477,16 @@ public class MediaWikiSpecialDataIndexer {
             if (bytes == null) {
                 continue;
             }
-            candidates
-                .add(new PageSourceCandidate(resourcePack.getPackName(), readLoadPriority(sourceId, bytes), order++));
+            candidates.add(
+                new PageSourceCandidate(
+                    resourcePack.getPackName(),
+                    GuidePageResourceSelector.readLoadPriority(sourceId, bytes),
+                    order++));
         }
         candidates.sort(
             (left, right) -> left.priority() != right.priority() ? Integer.compare(right.priority(), left.priority())
                 : Integer.compare(right.order(), left.order()));
         return candidates;
-    }
-
-    private int readLoadPriority(ResourceLocation sourceId, byte[] bytes) {
-        String source = new String(bytes, StandardCharsets.UTF_8);
-        var navigation = PageCompiler.parseFrontmatterFromSource(sourceId, PageCompiler.normalizeLineEndings(source))
-            .navigationEntry();
-        return navigation != null ? navigation.loadPriority() : 0;
     }
 
     private String resolveDefaultLanguage(Guide guide) {
@@ -565,14 +561,6 @@ public class MediaWikiSpecialDataIndexer {
         return result.isEmpty() ? Collections.<String>emptyList() : new ArrayList<>(result);
     }
 
-    private ResourceLocation resolveAssetId(ParsedGuidePage page, String rawPath) {
-        try {
-            return tryResolveAssetId(page, rawPath);
-        } catch (IllegalArgumentException ignored) {
-            return null;
-        }
-    }
-
     private @Nullable ResourceLocation tryResolveAssetId(ParsedGuidePage page, String rawPath) {
         if (rawPath == null) {
             return null;
@@ -597,17 +585,6 @@ public class MediaWikiSpecialDataIndexer {
             }
         }
         return false;
-    }
-
-    private int resolveLoadPriority(ParsedGuidePage page) {
-        if (page == null || page.getFrontmatter() == null
-            || page.getFrontmatter()
-                .navigationEntry() == null) {
-            return 0;
-        }
-        return page.getFrontmatter()
-            .navigationEntry()
-            .loadPriority();
     }
 
     private void appendAssetReferenceIssues(Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> issues,
@@ -661,12 +638,25 @@ public class MediaWikiSpecialDataIndexer {
         }
         ArrayList<AssetReference> references = new ArrayList<>();
         LinkedHashSet<String> seen = new LinkedHashSet<>();
-        collectAssetReferences(page, page.getSource(), ATTRIBUTE_RESOURCE_REFERENCE_PATTERN, references, seen);
-        collectAssetReferences(page, page.getSource(), MARKDOWN_RESOURCE_REFERENCE_PATTERN, references, seen);
+        int[] lineStartOffsets = buildLineStartOffsets(page.getSource());
+        collectAssetReferences(
+            page,
+            page.getSource(),
+            lineStartOffsets,
+            ATTRIBUTE_RESOURCE_REFERENCE_PATTERN,
+            references,
+            seen);
+        collectAssetReferences(
+            page,
+            page.getSource(),
+            lineStartOffsets,
+            MARKDOWN_RESOURCE_REFERENCE_PATTERN,
+            references,
+            seen);
         return references;
     }
 
-    private void collectAssetReferences(ParsedGuidePage page, String source, Pattern pattern,
+    private void collectAssetReferences(ParsedGuidePage page, String source, int[] lineStartOffsets, Pattern pattern,
         List<AssetReference> references, Set<String> seen) {
         Matcher matcher = pattern.matcher(source);
         while (matcher.find()) {
@@ -681,7 +671,7 @@ public class MediaWikiSpecialDataIndexer {
                 || !shouldIndexAsset(trimmed)) {
                 continue;
             }
-            Integer lineNumber = resolveLineNumber(source, matcher.start(1));
+            Integer lineNumber = resolveLineNumber(lineStartOffsets, matcher.start(1));
             ResourceLocation assetId = null;
             boolean valid = true;
             try {
@@ -696,17 +686,35 @@ public class MediaWikiSpecialDataIndexer {
         }
     }
 
-    private @Nullable Integer resolveLineNumber(String source, int offset) {
-        if (source == null || offset < 0 || offset > source.length()) {
-            return null;
-        }
-        int line = 1;
-        for (int i = 0; i < offset; i++) {
+    private int[] buildLineStartOffsets(String source) {
+        int lineCount = 1;
+        for (int i = 0; i < source.length(); i++) {
             if (source.charAt(i) == '\n') {
-                line++;
+                lineCount++;
             }
         }
-        return line;
+
+        int[] offsets = new int[lineCount];
+        offsets[0] = 0;
+        int lineIndex = 1;
+        for (int i = 0; i < source.length(); i++) {
+            if (source.charAt(i) == '\n') {
+                offsets[lineIndex++] = i + 1;
+            }
+        }
+        return offsets;
+    }
+
+    private @Nullable Integer resolveLineNumber(int[] lineStartOffsets, int offset) {
+        if (lineStartOffsets == null || offset < 0) {
+            return null;
+        }
+        int lineIndex = Arrays.binarySearch(lineStartOffsets, offset);
+        if (lineIndex >= 0) {
+            return lineIndex + 1;
+        }
+        int insertionPoint = -lineIndex - 1;
+        return insertionPoint > 0 ? insertionPoint : 1;
     }
 
     private int countLintIssues(Map<ResourceLocation, List<MediaWikiSpecialLintIssue>> lintIssues) {

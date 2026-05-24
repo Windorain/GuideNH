@@ -53,6 +53,29 @@ public class GuideNavBar {
         }
     }
 
+    public static class ContextTarget {
+
+        @Nullable
+        private final ResourceLocation guideId;
+        @Nullable
+        private final ResourceLocation pageId;
+
+        public ContextTarget(@Nullable ResourceLocation guideId, @Nullable ResourceLocation pageId) {
+            this.guideId = guideId;
+            this.pageId = pageId;
+        }
+
+        @Nullable
+        public ResourceLocation guideId() {
+            return guideId;
+        }
+
+        @Nullable
+        public ResourceLocation pageId() {
+            return pageId;
+        }
+    }
+
     public static class ClickResult {
 
         @Nullable
@@ -142,6 +165,7 @@ public class GuideNavBar {
     private int height;
     private boolean open;
     private boolean pinned;
+    private boolean contextMenuOpen;
     private int openWidth = WIDTH_OPEN;
     private int scrollY;
     @Nullable
@@ -181,11 +205,18 @@ public class GuideNavBar {
         }
     }
 
+    public void setContextMenuOpen(boolean contextMenuOpen) {
+        this.contextMenuOpen = contextMenuOpen;
+        if (contextMenuOpen) {
+            this.open = true;
+        }
+    }
+
     public void update(int mouseX, int mouseY, @Nullable NavigationTree tree, GuideBookmarkState bookmarkState) {
         if (shouldRebuildRows(tree, bookmarkState)) {
             rebuildRows(tree, bookmarkState);
         }
-        if (pinned) {
+        if (pinned || contextMenuOpen) {
             open = true;
             return;
         }
@@ -565,6 +596,28 @@ public class GuideNavBar {
             return ClickResult.navigate(row.guideId(), row.pageId());
         }
         return ClickResult.none();
+    }
+
+    @Nullable
+    public ContextTarget getContextTarget(int mouseX, int mouseY) {
+        if (!isOpen()) {
+            return null;
+        }
+        int w = currentWidth();
+        if (mouseX < x || mouseX >= x + w || mouseY < y + TITLE_H || mouseY >= y + height) {
+            return null;
+        }
+        StickyStack stickyStack = computeStickyStack(y + TITLE_H + CONTENT_PADDING);
+        RowHit rowHit = pickRowAt(mouseY, stickyStack);
+        if (rowHit == null) {
+            return null;
+        }
+        Row row = rowHit.row();
+        GuideNavProjection.DisplayRow displayRow = row.displayRow();
+        if (row.pageId() == null || !displayRow.hasPage()) {
+            return null;
+        }
+        return new ContextTarget(row.guideId(), row.pageId());
     }
 
     @Nullable

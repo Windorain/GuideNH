@@ -4,8 +4,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -126,6 +128,19 @@ public class SceneEditorMarkdownCodec {
                 "color",
                 "maxWidth",
                 "backgroundAlpha",
+                "textKey",
+                "independent",
+                "yOffset",
+                "connectorSide",
+                "connectorOffset",
+                "connectorLength",
+                "hlMinX",
+                "hlMinY",
+                "hlMinZ",
+                "hlMaxX",
+                "hlMaxY",
+                "hlMaxZ",
+                "highlightColor",
                 "visible",
                 "showWhenStructure",
                 "showWhenTier",
@@ -399,7 +414,23 @@ public class SceneEditorMarkdownCodec {
             model.setBackgroundAlpha(parseAlphaAttribute(element, "backgroundAlpha", model.getBackgroundAlpha()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
             applyStructureLibConditionAttributes(model, element);
+            model.setTextKey(parseOptionalStringAttribute(element, "textKey"));
             model.setTextMarkdown(parseTextAnnotationText(element, source, model.getTextMarkdown()));
+            applyExtraAttributes(
+                model,
+                element,
+                "independent",
+                "yOffset",
+                "connectorSide",
+                "connectorOffset",
+                "connectorLength",
+                "hlMinX",
+                "hlMinY",
+                "hlMinZ",
+                "hlMaxX",
+                "hlMaxY",
+                "hlMaxZ",
+                "highlightColor");
             return model;
         }
         SceneEditorElementType registeredType = SceneEditorElementType.getByTagName(tagName);
@@ -430,6 +461,7 @@ public class SceneEditorMarkdownCodec {
         }
         applyStructureLibConditionAttributes(model, element);
         if (type.supportsText()) {
+            model.setTextKey(parseOptionalStringAttribute(element, "textKey"));
             model.setTextMarkdown(parseTextAnnotationText(element, source, model.getTextMarkdown()));
         } else if (type.supportsTooltip()) {
             model.setTooltipMarkdown(extractTooltipMarkdown(element, source));
@@ -524,6 +556,21 @@ public class SceneEditorMarkdownCodec {
         if (value != null && !value.isEmpty()) {
             node.setAttribute(attribute, value);
         }
+    }
+
+    private void applyExtraAttributes(SceneEditorElementModel model, MdxJsxElementFields element,
+        String... attributes) {
+        if (model == null || element == null || attributes == null || attributes.length == 0) {
+            return;
+        }
+        Map<String, String> extraAttributes = new LinkedHashMap<>();
+        for (String attribute : attributes) {
+            String value = parseOptionalStringAttribute(element, attribute);
+            if (value != null && !value.isEmpty()) {
+                extraAttributes.put(attribute, value);
+            }
+        }
+        model.setExtraAttributes(extraAttributes);
     }
 
     private void applyStructureLibConditionAttributes(SceneEditorElementModel model, MdxJsxElementFields element) {
@@ -813,9 +860,30 @@ public class SceneEditorMarkdownCodec {
                 .append(element.getBackgroundAlpha())
                 .append('"');
         }
+        if (!element.getTextKey()
+            .isEmpty()) {
+            tagBuilder.append(" textKey=\"")
+                .append(escapeAttribute(element.getTextKey()))
+                .append('"');
+        }
         if (!element.isVisible()) {
             tagBuilder.append(" visible={false}");
         }
+        appendExtraAttributes(
+            tagBuilder,
+            element,
+            "independent",
+            "yOffset",
+            "connectorSide",
+            "connectorOffset",
+            "connectorLength",
+            "hlMinX",
+            "hlMinY",
+            "hlMinZ",
+            "hlMaxX",
+            "hlMaxY",
+            "hlMaxZ",
+            "highlightColor");
         appendStructureLibConditionAttributes(tagBuilder, element);
         appendTextElementBody(builder, indent, tagBuilder, element.getTextMarkdown());
     }
@@ -851,6 +919,14 @@ public class SceneEditorMarkdownCodec {
                 .getDefaultBackgroundAlpha()) {
             tagBuilder.append(" backgroundAlpha=\"")
                 .append(element.getBackgroundAlpha())
+                .append('"');
+        }
+        if (element.getType()
+            .supportsText()
+            && !element.getTextKey()
+                .isEmpty()) {
+            tagBuilder.append(" textKey=\"")
+                .append(escapeAttribute(element.getTextKey()))
                 .append('"');
         }
         appendStructureLibConditionAttributes(tagBuilder, element);
@@ -909,6 +985,15 @@ public class SceneEditorMarkdownCodec {
             .append("=\"")
             .append(escapeAttribute(value))
             .append('"');
+    }
+
+    private void appendExtraAttributes(StringBuilder builder, SceneEditorElementModel element, String... attributes) {
+        if (builder == null || element == null || attributes == null || attributes.length == 0) {
+            return;
+        }
+        for (String attribute : attributes) {
+            appendOptionalStringAttribute(builder, attribute, element.getExtraAttribute(attribute));
+        }
     }
 
     private void appendElementTooltip(StringBuilder builder, String indent, String tagName, StringBuilder openingTag,

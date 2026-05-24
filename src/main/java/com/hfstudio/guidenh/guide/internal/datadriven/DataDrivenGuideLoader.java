@@ -333,6 +333,17 @@ public class DataDrivenGuideLoader {
         }
     }
 
+    public static IResourcePack findResourcePack(ResourceLocation resourceLocation) {
+        return findResourcePack(resourceLocation, getActiveResourcePacks());
+    }
+
+    public static IResourcePack findResourcePack(ResourceLocation resourceLocation,
+        Iterable<? extends IResourcePack> resourcePacks) {
+        GuidePageResourceSelector.SelectedPageResource selected = GuidePageResourceSelector
+            .select(resourceLocation, resourcePacks);
+        return selected != null ? selected.resourcePack() : null;
+    }
+
     public static void scanResourcePackFolder(File resourcePackRoot,
         Map<ResourceLocation, LinkedHashSet<String>> discoveredLanguages) {
         var assetsDir = new File(resourcePackRoot, "assets");

@@ -139,6 +139,10 @@ public class TextAnnotation extends OverlayAnnotation {
         this.connectorLength = Math.max(0, connectorLength);
     }
 
+    public ColorValue getBorderColor() {
+        return borderColor;
+    }
+
     public Vector3f getWorldPos() {
         return worldPos;
     }
@@ -149,6 +153,31 @@ public class TextAnnotation extends OverlayAnnotation {
 
     public String getText() {
         return text;
+    }
+
+    public int getMaxWidth() {
+        return maxWidth;
+    }
+
+    public float getScreenYOffset() {
+        return screenYOffset;
+    }
+
+    public ConnectorSide getConnectorSide() {
+        return connectorSide;
+    }
+
+    public int getConnectorOffset() {
+        return connectorOffset;
+    }
+
+    public int getConnectorLength() {
+        return connectorLength;
+    }
+
+    @Nullable
+    public LytParagraph getRichContent() {
+        return richContent;
     }
 
     private List<String> getLines(FontRenderer fr, int contentWidth) {

@@ -95,7 +95,8 @@ The `src` attribute accepts both relative and absolute IDs:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `time` | integer | Yes | Tick at which this keyframe occurs (0 <= time <= totalTime). |
-| `label` | string | No | Optional label shown when hovering the keyframe node on the progress bar. |
+| `label` | string | No | Optional fallback label shown when hovering the keyframe node on the progress bar. |
+| `labelKey` | string | No | Translation key for the keyframe label. When resolved, it overrides `label`. |
 | `camera` | object | No | Camera state at this keyframe. Null fields inherit from the previous keyframe. |
 | `cameraEaseTicks` | integer or null | No | How many ticks the camera takes to ease from the **previous** keyframe to this one. `null` (default) = ease over the full segment. `0` = instant snap. `N > 0` = ease over N ticks, then hold at the target position. |
 | `layer` | integer or null | No | Visible layer override. `null` (or omitted) shows all layers. 1-based index. |
@@ -487,7 +488,8 @@ Renders a 3D diamond marker at a world position.
 |-------|------|---------|-------------|
 | `x`, `y`, `z` | float | `0.0` | World-space position of the diamond tip. |
 | `color` | string | `"0xFF00E000"` | ARGB color as `"0xAARRGGBB"`. |
-| `tooltip` | string | `""` | Text shown on hover. |
+| `tooltip` | string | `""` | Fallback text shown on hover. |
+| `tooltipKey` | string | `""` | Translation key for the hover text. When resolved, it overrides `tooltip`. |
 | `alwaysOnTop` | boolean | `false` | If true, rendered through solid blocks. |
 
 ---
