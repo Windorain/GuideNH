@@ -5219,14 +5219,15 @@ public class LytGuidebookScene extends LytBlock {
             return;
         }
 
-        GuidebookSceneEntityStateSupport.applyOptionalPosition(entity, action.getX(), action.getY(), action.getZ());
+        boolean spatialChanged = GuidebookSceneEntityStateSupport
+            .applyOptionalPosition(entity, action.getX(), action.getY(), action.getZ());
         GuidebookSceneEntityStateSupport.applyOptionalRotation(
             entity,
             action.getYaw(),
             action.getPitch(),
             action.getBodyYaw(),
             action.getHeadYaw());
-        GuidebookSceneEntityStateSupport.applyVisualState(
+        spatialChanged |= GuidebookSceneEntityStateSupport.applyVisualState(
             entity,
             entityId,
             action.getShowName(),
@@ -5234,6 +5235,9 @@ public class LytGuidebookScene extends LytBlock {
             action.getBaby(),
             resolvePonderPreviewPlayerPose(action),
             usePreviewDefaults);
+        if (spatialChanged) {
+            level.markSpatialDirty();
+        }
         String sceneEntityId = resolvePonderSceneEntityId(action);
         if (Boolean.TRUE.equals(action.getUnmount())) {
             level.clearSceneEntityMount(sceneEntityId);
@@ -5372,6 +5376,7 @@ public class LytGuidebookScene extends LytBlock {
         }
 
         Map<String, Entity> resolvedEntities = new HashMap<>();
+        boolean spatialChanged = false;
         for (String ref : ponderEntityAnimationBaselines.keySet()) {
             Entity entity = resolvePonderAnimatedEntity(ref);
             if (entity == null) {
@@ -5380,7 +5385,7 @@ public class LytGuidebookScene extends LytBlock {
             resolvedEntities.put(ref, entity);
             PonderEntityAnimationRuntimeSupport.Baseline baseline = ponderEntityAnimationBaselines.get(ref);
             if (baseline != null) {
-                PonderEntityAnimationRuntimeSupport.restoreBaseline(entity, baseline);
+                spatialChanged |= PonderEntityAnimationRuntimeSupport.restoreBaseline(entity, baseline);
             }
         }
 
@@ -5416,13 +5421,16 @@ public class LytGuidebookScene extends LytBlock {
                 continue;
             }
 
-            PonderEntityAnimationRuntimeSupport.apply(
+            spatialChanged |= PonderEntityAnimationRuntimeSupport.apply(
                 entity,
                 frameBaseline,
                 timedAnimation.animation(),
                 timedAnimation.preset(),
                 timedAnimation.durationTicks(),
                 elapsedTicks);
+        }
+        if (spatialChanged) {
+            level.markSpatialDirty();
         }
     }
 

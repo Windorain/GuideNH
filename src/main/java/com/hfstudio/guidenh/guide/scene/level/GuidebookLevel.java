@@ -64,6 +64,7 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
 
     // Reusable bounds scratch buffer returned from getBounds(); callers consume immediately.
     private final int[] boundsScratch = new int[6];
+    private final float[] centerScratch = new float[3];
 
     @Nullable
     private static GuidebookPreviewWorldFactory previewWorldFactory;
@@ -76,6 +77,7 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
     private int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
     private int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
     private boolean boundsDirty = true;
+    private boolean centerDirty = true;
 
     public static void setPreviewWorldFactory(@Nullable GuidebookPreviewWorldFactory factory) {
         previewWorldFactory = factory;
@@ -170,7 +172,7 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
             if (y > maxY) maxY = y;
             if (z > maxZ) maxZ = z;
         }
-        boundsDirty = true;
+        markSpatialDirty();
         previewStateDirty = true;
     }
 
@@ -219,7 +221,7 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
             if (y > maxY) maxY = y;
             if (z > maxZ) maxZ = z;
         }
-        boundsDirty = true;
+        markSpatialDirty();
         previewStateDirty = true;
     }
 
@@ -339,7 +341,7 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
         maxX = Integer.MIN_VALUE;
         maxY = Integer.MIN_VALUE;
         maxZ = Integer.MIN_VALUE;
-        boundsDirty = true;
+        markSpatialDirty();
         previewStateDirty = true;
         if (fakeWorld instanceof GuidebookPreviewWorld previewWorld) {
             previewWorld.syncLoadedTileEntities(tileEntities.values());
@@ -384,13 +386,13 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
         }
         entities.put(entity.getEntityId(), entity);
         registerSceneEntityId(sceneEntityId, entity.getEntityId());
-        boundsDirty = true;
+        markSpatialDirty();
         previewStateDirty = true;
     }
 
     public void removeEntity(int entityId) {
         if (removeEntityInternal(entityId, true)) {
-            boundsDirty = true;
+            markSpatialDirty();
             previewStateDirty = true;
         }
     }
@@ -411,6 +413,10 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
             if (entityId != null && removeEntityInternal(entityId.intValue(), true)) {
                 removedCount++;
             }
+        }
+        if (removedCount > 0) {
+            markSpatialDirty();
+            previewStateDirty = true;
         }
         return removedCount;
     }
@@ -501,10 +507,15 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
             return;
         }
         clearSceneEntityMountState(normalizedRiderSceneEntityId);
+        boolean spatialChanged = false;
         for (Entity rider : getEntitiesBySceneEntityId(normalizedRiderSceneEntityId)) {
             if (rider != null) {
+                spatialChanged |= rider.ridingEntity != null;
                 rider.mountEntity(null);
             }
+        }
+        if (spatialChanged) {
+            markSpatialDirty();
         }
     }
 
@@ -585,37 +596,56 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
     }
 
     public float[] getCenter() {
-        if (isEmpty()) return new float[] { 0f, 0f, 0f };
-        double minCenterX = Double.POSITIVE_INFINITY;
-        double minCenterY = Double.POSITIVE_INFINITY;
-        double minCenterZ = Double.POSITIVE_INFINITY;
-        double maxCenterX = Double.NEGATIVE_INFINITY;
-        double maxCenterY = Double.NEGATIVE_INFINITY;
-        double maxCenterZ = Double.NEGATIVE_INFINITY;
-        for (int[] p : filledBlocks.values()) {
-            minCenterX = Math.min(minCenterX, p[0]);
-            minCenterY = Math.min(minCenterY, p[1]);
-            minCenterZ = Math.min(minCenterZ, p[2]);
-            maxCenterX = Math.max(maxCenterX, p[0] + 1.0D);
-            maxCenterY = Math.max(maxCenterY, p[1] + 1.0D);
-            maxCenterZ = Math.max(maxCenterZ, p[2] + 1.0D);
+        float[] out = centerScratch;
+        if (isEmpty()) {
+            out[0] = 0f;
+            out[1] = 0f;
+            out[2] = 0f;
+            return out;
         }
-        for (Entity entity : entities.values()) {
-            if (entity == null || entity.boundingBox == null) {
-                continue;
+        if (centerDirty) {
+            double minCenterX = Double.POSITIVE_INFINITY;
+            double minCenterY = Double.POSITIVE_INFINITY;
+            double minCenterZ = Double.POSITIVE_INFINITY;
+            double maxCenterX = Double.NEGATIVE_INFINITY;
+            double maxCenterY = Double.NEGATIVE_INFINITY;
+            double maxCenterZ = Double.NEGATIVE_INFINITY;
+            for (int[] p : filledBlocks.values()) {
+                minCenterX = Math.min(minCenterX, p[0]);
+                minCenterY = Math.min(minCenterY, p[1]);
+                minCenterZ = Math.min(minCenterZ, p[2]);
+                maxCenterX = Math.max(maxCenterX, p[0] + 1.0D);
+                maxCenterY = Math.max(maxCenterY, p[1] + 1.0D);
+                maxCenterZ = Math.max(maxCenterZ, p[2] + 1.0D);
             }
-            minCenterX = Math.min(minCenterX, entity.boundingBox.minX);
-            minCenterY = Math.min(minCenterY, entity.boundingBox.minY);
-            minCenterZ = Math.min(minCenterZ, entity.boundingBox.minZ);
-            maxCenterX = Math.max(maxCenterX, entity.boundingBox.maxX);
-            maxCenterY = Math.max(maxCenterY, entity.boundingBox.maxY);
-            maxCenterZ = Math.max(maxCenterZ, entity.boundingBox.maxZ);
+            for (Entity entity : entities.values()) {
+                if (entity == null || entity.boundingBox == null) {
+                    continue;
+                }
+                minCenterX = Math.min(minCenterX, entity.boundingBox.minX);
+                minCenterY = Math.min(minCenterY, entity.boundingBox.minY);
+                minCenterZ = Math.min(minCenterZ, entity.boundingBox.minZ);
+                maxCenterX = Math.max(maxCenterX, entity.boundingBox.maxX);
+                maxCenterY = Math.max(maxCenterY, entity.boundingBox.maxY);
+                maxCenterZ = Math.max(maxCenterZ, entity.boundingBox.maxZ);
+            }
+            if (!Double.isFinite(minCenterX) || !Double.isFinite(maxCenterX)) {
+                out[0] = 0f;
+                out[1] = 0f;
+                out[2] = 0f;
+            } else {
+                out[0] = (float) ((minCenterX + maxCenterX) * 0.5D);
+                out[1] = (float) ((minCenterY + maxCenterY) * 0.5D);
+                out[2] = (float) ((minCenterZ + maxCenterZ) * 0.5D);
+            }
+            centerDirty = false;
         }
-        if (!Double.isFinite(minCenterX) || !Double.isFinite(maxCenterX)) {
-            return new float[] { 0f, 0f, 0f };
-        }
-        return new float[] { (float) ((minCenterX + maxCenterX) * 0.5D), (float) ((minCenterY + maxCenterY) * 0.5D),
-            (float) ((minCenterZ + maxCenterZ) * 0.5D) };
+        return out;
+    }
+
+    public void markSpatialDirty() {
+        boundsDirty = true;
+        centerDirty = true;
     }
 
     public int getPrecipitationBlockingY(int x, int z, int minY, int maxY) {
@@ -751,6 +781,7 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
         }
         try {
             previewWorld.updateEntitiesForPreview();
+            markSpatialDirty();
         } catch (Throwable ignored) {
             tickPreviewTileEntitiesFallback();
         }
@@ -835,6 +866,7 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
         if (vehicle == null) {
             return;
         }
+        boolean spatialChanged = false;
         for (Entity rider : getEntitiesBySceneEntityId(riderSceneEntityId)) {
             if (rider == null) {
                 continue;
@@ -844,7 +876,11 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
             }
             if (rider.ridingEntity != vehicle) {
                 rider.mountEntity(vehicle);
+                spatialChanged = true;
             }
+        }
+        if (spatialChanged) {
+            markSpatialDirty();
         }
     }
 
@@ -874,15 +910,20 @@ public class GuidebookLevel implements IBlockAccess, GuidebookChunkSource {
         if (riderIds == null || riderIds.isEmpty()) {
             return;
         }
+        boolean spatialChanged = false;
         for (String riderSceneEntityId : riderIds) {
             SceneEntityMountState mountState = sceneEntityMountStates.remove(riderSceneEntityId);
             if (mountState != null) {
                 for (Entity rider : getEntitiesBySceneEntityId(riderSceneEntityId)) {
                     if (rider != null) {
                         rider.mountEntity(null);
+                        spatialChanged = true;
                     }
                 }
             }
+        }
+        if (spatialChanged) {
+            markSpatialDirty();
         }
     }
 

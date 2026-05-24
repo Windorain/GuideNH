@@ -89,7 +89,11 @@ public class PonderEntityAnimationRuntimeSupport {
             previewPose);
     }
 
-    public static void restoreBaseline(Entity entity, Baseline baseline) {
+    public static boolean restoreBaseline(Entity entity, Baseline baseline) {
+        boolean changed = Double.compare(entity.posX, baseline.posX) != 0
+            || Double.compare(entity.posY, baseline.posY) != 0
+            || Double.compare(entity.posZ, baseline.posZ) != 0
+            || entity.onGround != baseline.onGround;
         entity.setPosition(baseline.posX, baseline.posY, baseline.posZ);
         entity.rotationYaw = baseline.yaw;
         entity.rotationPitch = baseline.pitch;
@@ -108,11 +112,12 @@ public class PonderEntityAnimationRuntimeSupport {
         if (entity instanceof GuidebookPlayerPoseControllable poseControllable) {
             poseControllable.setGuidebookPreviewPlayerPose(baseline.previewPose);
         }
+        return changed;
     }
 
-    public static void apply(Entity entity, Baseline baseline, PonderKeyframeEntityAnimation animation,
+    public static boolean apply(Entity entity, Baseline baseline, PonderKeyframeEntityAnimation animation,
         int elapsedTicks) {
-        apply(
+        return apply(
             entity,
             baseline,
             animation,
@@ -121,40 +126,63 @@ public class PonderEntityAnimationRuntimeSupport {
             elapsedTicks);
     }
 
-    public static void apply(Entity entity, Baseline baseline, PonderKeyframeEntityAnimation animation,
+    public static boolean apply(Entity entity, Baseline baseline, PonderKeyframeEntityAnimation animation,
         @Nullable String preset, int elapsedTicks) {
-        apply(entity, baseline, animation, preset, Math.max(1, resolveDurationTicks(animation)), elapsedTicks);
+        return apply(entity, baseline, animation, preset, Math.max(1, resolveDurationTicks(animation)), elapsedTicks);
     }
 
-    public static void apply(Entity entity, Baseline baseline, PonderKeyframeEntityAnimation animation,
+    public static boolean apply(Entity entity, Baseline baseline, PonderKeyframeEntityAnimation animation,
         @Nullable String preset, int duration, int elapsedTicks) {
         if (preset == null || entity == null || baseline == null || elapsedTicks < 0) {
-            return;
+            return false;
         }
 
         int clampedElapsed = Math.min(elapsedTicks, duration - 1);
         float progress = duration <= 1 ? 1.0F : clampedElapsed / (float) (duration - 1);
 
         switch (preset) {
-            case "leftclick" -> applyLeftClick(entity, baseline, progress);
-            case "rightclick" -> applyRightClick(entity, baseline, progress);
-            case "jump" -> applyJump(entity, baseline, animation, progress);
-            case "hurt" -> applyHurt(entity, baseline, duration, elapsedTicks);
-            case "sneak" -> entity.setSneaking(true);
-            case "unsneak" -> entity.setSneaking(false);
-            case "walkto" -> applyMove(entity, baseline, animation, progress, true);
-            case "moveto" -> applyMove(entity, baseline, animation, progress, false);
-            default -> {}
+            case "leftclick" -> {
+                applyLeftClick(entity, baseline, progress);
+                return false;
+            }
+            case "rightclick" -> {
+                applyRightClick(entity, baseline, progress);
+                return false;
+            }
+            case "jump" -> {
+                return applyJump(entity, baseline, animation, progress);
+            }
+            case "hurt" -> {
+                applyHurt(entity, baseline, duration, elapsedTicks);
+                return false;
+            }
+            case "sneak" -> {
+                entity.setSneaking(true);
+                return false;
+            }
+            case "unsneak" -> {
+                entity.setSneaking(false);
+                return false;
+            }
+            case "walkto" -> {
+                return applyMove(entity, baseline, animation, progress, true);
+            }
+            case "moveto" -> {
+                return applyMove(entity, baseline, animation, progress, false);
+            }
+            default -> {
+                return false;
+            }
         }
     }
 
-    private static void applyMove(Entity entity, Baseline baseline, PonderKeyframeEntityAnimation animation,
+    private static boolean applyMove(Entity entity, Baseline baseline, PonderKeyframeEntityAnimation animation,
         float progress, boolean rotateWithPath) {
         Double targetX = animation.getX();
         Double targetY = animation.getY();
         Double targetZ = animation.getZ();
         if (targetX == null && targetY == null && targetZ == null) {
-            return;
+            return false;
         }
 
         double endX = targetX != null ? targetX : baseline.posX;
@@ -163,34 +191,43 @@ public class PonderEntityAnimationRuntimeSupport {
         double currentX = lerp(baseline.posX, endX, progress);
         double currentY = lerp(baseline.posY, endY, progress);
         double currentZ = lerp(baseline.posZ, endZ, progress);
+        boolean changed = Double.compare(entity.posX, currentX) != 0 || Double.compare(entity.posY, currentY) != 0
+            || Double.compare(entity.posZ, currentZ) != 0
+            || !entity.onGround;
         entity.setPosition(currentX, currentY, currentZ);
         entity.motionX = 0.0D;
         entity.motionY = 0.0D;
         entity.motionZ = 0.0D;
         entity.onGround = true;
         if (!rotateWithPath) {
-            return;
+            return changed;
         }
 
         applyWalkAnimation(entity, baseline, endX, endZ);
         double dx = endX - baseline.posX;
         double dz = endZ - baseline.posZ;
         if (Math.abs(dx) < 1.0E-5D && Math.abs(dz) < 1.0E-5D) {
-            return;
+            return changed;
         }
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         GuidebookSceneEntityStateSupport.applyOptionalRotation(entity, yaw, null, yaw, yaw);
+        return changed;
     }
 
-    private static void applyJump(Entity entity, Baseline baseline, PonderKeyframeEntityAnimation animation,
+    private static boolean applyJump(Entity entity, Baseline baseline, PonderKeyframeEntityAnimation animation,
         float progress) {
         double jumpHeight = animation.getHeight() != null ? animation.getHeight() : DEFAULT_JUMP_HEIGHT;
         double yOffset = 4.0D * jumpHeight * progress * (1.0D - progress);
+        boolean onGround = progress >= 0.999F;
+        boolean changed = Double.compare(entity.posX, baseline.posX) != 0
+            || Double.compare(entity.posY, baseline.posY + yOffset) != 0
+            || Double.compare(entity.posZ, baseline.posZ) != 0
+            || entity.onGround != onGround;
         entity.setPosition(baseline.posX, baseline.posY + yOffset, baseline.posZ);
         entity.motionX = 0.0D;
         entity.motionY = 0.0D;
         entity.motionZ = 0.0D;
-        entity.onGround = progress >= 0.999F;
+        entity.onGround = onGround;
         if (entity instanceof GuidebookPlayerPoseControllable poseControllable) {
             GuidebookPreviewPlayerPose pose = mergePose(
                 baseline.previewPose,
@@ -202,6 +239,7 @@ public class PonderEntityAnimationRuntimeSupport {
                 null);
             poseControllable.setGuidebookPreviewPlayerPose(pose);
         }
+        return changed;
     }
 
     private static void applyHurt(Entity entity, Baseline baseline, int duration, int elapsedTicks) {
