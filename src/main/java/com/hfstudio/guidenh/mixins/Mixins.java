@@ -5,13 +5,12 @@ import com.gtnewhorizon.gtnhmixins.builders.ITargetMod;
 import com.gtnewhorizon.gtnhmixins.builders.MixinBuilder;
 import com.hfstudio.guidenh.integration.Mods;
 
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public enum Mixins implements IMixins {
 
-    EARLY(Side.CLIENT, "forge.AccessorForgeHooksClient", "fml.AccessorFMLClientHandler",
+    EARLY(Side.CLIENT, "forge.AccessorForgeHooksClient", "forge.AccessorGuiIngameForge", "fml.AccessorFMLClientHandler",
         "minecraft.AccessorAbstractResourcePack", "forge.AccessorShapedOreRecipe", "forge.AccessorShapelessOreRecipe",
         "minecraft.MixinModelRendererSceneExportCapture", "minecraft.MixinTessellatorSceneExportCapture"),
 
@@ -28,9 +27,11 @@ public enum Mixins implements IMixins {
     LP_TILE_GENERIC_PIPE(Side.CLIENT, Phase.LATE, Mods.LogisticsPipes,
         "compat.logisticspipes.AccessorLogisticsTileGenericPipe"),
 
+    WR_CBE_UNLOADED_JAM_STATE(Side.CLIENT, Phase.LATE, Mods.WirelessRedstoneCore,
+        "compat.wirelessredstone.MixinRedstoneEther"),
+
     ;
 
-    @Getter
     private final MixinBuilder builder;
 
     Mixins(Side side, String... mixins) {
@@ -42,5 +43,10 @@ public enum Mixins implements IMixins {
         this.builder = new MixinBuilder().addSidedMixins(side, mixins)
             .setPhase(phase)
             .addRequiredMod(requiredMod);
+    }
+
+    @Override
+    public MixinBuilder getBuilder() {
+        return builder;
     }
 }

@@ -8,6 +8,7 @@ GuideNH scene annotations are child tags inside `<GameScene>` / `<Scene>`. They 
 - child content becomes the tooltip body
 - annotations can be hidden with the scene UI toggle
 - `alwaysOnTop` draws above scene geometry when supported by the annotation type
+- all scene annotations also accept optional `showWhenStructure`, `showWhenTier`, and `showWhenChannels` gates when the scene uses `<ImportStructureLib>`
 
 ## Supported Annotation Tags
 
@@ -18,6 +19,42 @@ GuideNH scene annotations are child tags inside `<GameScene>` / `<Scene>`. They 
 - `<TextAnnotation>`
 
 GuideNH also supports `<BlockAnnotationTemplate>`, which applies its child annotations to every already-placed matching block in the current scene.
+
+## StructureLib Conditions
+
+When a scene contains `<ImportStructureLib>`, every annotation tag may restrict its visibility to a specific
+StructureLib state:
+
+| Attribute | Meaning |
+| --- | --- |
+| `showWhenStructure` | bind the annotation to a named `<ImportStructureLib name="...">`; omit it when the scene only imports one StructureLib structure |
+| `showWhenTier` | tier filter such as `2`, `1..3`, `!2`, or `1..5,!3` |
+| `showWhenChannels` | per-channel filter such as `input:1..3, casing:!2, fluid:4` |
+
+Rules:
+
+- `showWhenTier` and `showWhenChannels` are combined with logical AND
+- `showWhenChannels` may mention multiple channels in one attribute
+- negated-only clauses like `!2` mean "any value except 2"
+- the same attributes are also supported by `<PlaySound>` and `<BlockAnnotationTemplate>` child annotations
+
+Example:
+
+````md
+<GameScene interactive={true}>
+  <ImportStructureLib name="main" controller="gregtech:gt.blockmachines:15411" />
+
+  <BlockAnnotation
+    pos="5 1 2"
+    color="#FFD24C"
+    showWhenStructure="main"
+    showWhenTier="2..4,!3"
+    showWhenChannels="input:1..3, casing:!2"
+  >
+    Only visible for the selected StructureLib state.
+  </BlockAnnotation>
+</GameScene>
+````
 
 ## `<BlockAnnotation>`
 
@@ -134,22 +171,37 @@ bubble text itself rather than a hover tooltip.
 | `pos` | no | `x y z` world-space anchor vector |
 | `x`, `y`, `z` | no | Alternative world-space anchor components when `pos` is omitted |
 | `text` | no | Bubble text; child markdown is used when omitted |
+| `textKey` | no | Translation key resolved from resource-pack `lang` files before falling back to `text` or child markdown |
 | `color` | no | Bubble border color; defaults to light grey |
 | `backgroundAlpha` | no | Background opacity from `0` to `255`; defaults to `204` |
 | `maxWidth` | no | Wrap width in pixels; `0` keeps a single line |
 | `independent` | no | `true` keeps the bubble fixed in screen space |
 | `yOffset` | no | Pixel offset from the scene center when `independent={true}` |
+| `connectorSide` | no | `bottom`, `top`, `left`, `right`, or `none`; defaults to `bottom` |
+| `connectorOffset` | no | Pixel offset along the bubble edge; positive moves right for top/bottom and down for left/right |
+| `connectorLength` | no | Pixel length of the connector line; defaults to `6` |
 | `hlMinX/Y/Z`, `hlMaxX/Y/Z` | no | Optional companion highlight box bounds |
 | `highlightColor` | no | Optional highlight box color |
 
-World-anchored bubbles draw a connector line down to their anchor. Independent bubbles are centered
-horizontally in the scene and use `yOffset` for vertical placement. The same runtime annotation is
-also used when importing Ponder `text` annotations.
+World-anchored bubbles draw a connector line to their anchor. Use `connectorSide` to choose which
+edge of the bubble points at the anchor, `connectorOffset` to move the attachment point along that
+edge, and `connectorLength` to control the gap between the bubble and anchor. Independent bubbles
+are centered horizontally in the scene and use `yOffset` for vertical placement. They do not draw a
+connector. The same runtime annotation is also used when importing Ponder `text` annotations.
 
 Example:
 
 ````md
-<TextAnnotation pos="1.5 2 1.5" color="#FF44AAFF" maxWidth={120} backgroundAlpha={180}>
+<TextAnnotation
+  pos="1.5 2 1.5"
+  textKey="guidenh.sample.scene.insert_items"
+  color="#FF44AAFF"
+  maxWidth={120}
+  backgroundAlpha={180}
+  connectorSide="right"
+  connectorOffset={8}
+  connectorLength={12}
+>
   Insert items here with **priority**.
 </TextAnnotation>
 ````

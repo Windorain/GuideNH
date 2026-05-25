@@ -2,7 +2,7 @@
 navigation:
   title: Annotations
   parent: index.md
-  position: 36
+  position: 164
 categories:
   - scenes
 ---
@@ -112,10 +112,13 @@ All three support `color="#AARRGGBB" or "#RRGGBB"`, `thickness` in pixel units (
 <GameScene width="256" height="192" zoom={4} interactive={true}>
   <TextAnnotation
     pos="1.5 2.0 1.5"
-    text="Insert items here"
+    textKey="guidenh.sample.scene.insert_items"
     color="#FF44AAFF"
     maxWidth={120}
     backgroundAlpha={180}
+    connectorSide="right"
+    connectorOffset={8}
+    connectorLength={12}
   />
 </GameScene>
 ```
@@ -138,11 +141,15 @@ Use `independent={true}` to place the bubble in fixed screen space instead of fo
 |-------|------|---------|-------------|
 | `x`, `y`, `z` | float | `0.0` | World-space anchor position. Ignored when `independent={true}`. |
 | `text` | string | - | Required. Text shown inside the bubble. |
+| `textKey` | string | - | Translation key resolved from resource-pack `lang` files before falling back to `text` or the tag body. |
 | `color` | string | `"0xFFAAAAAA"` | Bubble border color. |
 | `backgroundAlpha` | integer | `204` | Background opacity from `0` (transparent) to `255` (opaque). |
 | `maxWidth` | integer | `0` | Word-wrap width in pixels. `0` keeps the bubble on one line. |
 | `independent` | boolean | `false` | If true, the bubble follows the scene center instead of a world point. |
 | `yOffset` | integer | `0` | Pixel offset from the scene center when `independent={true}`. Positive values move downward. |
+| `connectorSide` | string | `"bottom"` | `bottom`, `top`, `left`, `right`, or `none`. Ignored in independent mode. |
+| `connectorOffset` | integer | `0` | Pixel offset along the bubble edge; positive moves right for top/bottom and down for left/right. |
+| `connectorLength` | integer | `6` | Pixel length of the connector line. |
 | `hlMinX/Y/Z` | float | `0.0` | Minimum corner of an optional highlight box. |
 | `hlMaxX/Y/Z` | float | `1.0` | Maximum corner of the optional highlight box. |
 | `highlightColor` | string | `"0x8000FFAA"` | Highlight box color. |
@@ -150,7 +157,8 @@ Use `independent={true}` to place the bubble in fixed screen space instead of fo
 There is no separate size parameter. The bubble grows from the text content and `maxWidth`.
 When any `hlMin/Max` value is present, a matching `InWorldBoxAnnotation` is also created.
 The bubble background is dark navy by default (`#CC0E0E20`), `backgroundAlpha` controls its
-opacity, and world-anchored mode adds a connector line down to the anchor point.
+opacity, and world-anchored mode adds a connector line to the anchor point. Use
+`connectorSide`, `connectorOffset`, and `connectorLength` to move that connector around the bubble.
 
 > **Rich text:** `text` supports the same inline markup used in GuideNH pages:
 > `**bold**`, `*italic*`, `~~strikethrough~~`, `<Color id="RED">colored</Color>`,

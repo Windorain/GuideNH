@@ -10,6 +10,7 @@ import com.gtnewhorizon.gtnhlib.config.Config.Sync;
 import com.gtnewhorizon.gtnhlib.config.ConfigException;
 import com.gtnewhorizon.gtnhlib.config.ConfigurationManager;
 import com.hfstudio.guidenh.GuideNH;
+import com.hfstudio.guidenh.guide.internal.item.RegionWandExportMode;
 
 @Config(modid = GuideNH.MODID, filename = "guidenh", configSubDirectory = "guidenh")
 @Config.LangKeyPattern(pattern = "guideme.gui.config.%cat.%field", fullyQualified = true)
@@ -38,6 +39,16 @@ public class ModConfig {
         @Comment("Whether guide book opens in full-width layout (no side margins)")
         @DefaultBoolean(false)
         public boolean fullWidth = false;
+
+        @Comment("Side margin ratio applied to each side of guide content while using the optional narrow reading mode "
+            + "in full-width layout. Set to 0 to disable. A value of 0.15 leaves about 15% margin on both sides.")
+        @DefaultFloat(0.0f)
+        @RangeFloat(min = 0.0f, max = 0.45f)
+        public float fullWidthNarrowReadingMarginRatio = 0.0f;
+
+        @Comment("Whether the guide navigation sidebar is pinned open by default.")
+        @DefaultBoolean(false)
+        public boolean guideNavigationPinned = false;
 
         @Comment("Global content zoom factor for the guide screen. "
             + "Individual pages can override this with the 'zoom' frontmatter field. "
@@ -100,6 +111,9 @@ public class ModConfig {
         @DefaultBoolean(true)
         public boolean regionWandPersistentSelectionRender = true;
 
+        @Comment("Client-global Region Wand export mode used for selection exports.")
+        public RegionWandExportMode regionWandExportMode = RegionWandExportMode.SNBT;
+
         @Comment("Maximum undo history entries kept by the scene editor.")
         public int sceneEditorUndoHistoryLimit = 15;
 
@@ -145,6 +159,18 @@ public class ModConfig {
         @DefaultBoolean(false)
         public boolean guideEditorAdvancedToolbarVisible = false;
 
+        @Comment("Whether GuideScreen editor shows the NEI item panel outside the guide window when not full-width.")
+        @DefaultBoolean(false)
+        public boolean guideEditorNeiItemPanelOutsideWindow = false;
+
+        @Comment("Manual GuideScreen window width in non-full-width layout, as a percentage of screen width. "
+            + "Set to 0 to use the automatic size. Valid values are clamped to 0 through 100.")
+        public int nonFullWidthWindowWidthPercent = 0;
+
+        @Comment("Manual GuideScreen window height in non-full-width layout, as a percentage of screen height. "
+            + "Set to 0 to use the automatic size. Valid values are clamped to 0 through 100.")
+        public int nonFullWidthWindowHeightPercent = 0;
+
         @Comment("Whether the guide editor saves shortly after edits and when closing the screen.")
         @DefaultBoolean(true)
         public boolean guideEditorAutosaveEnabled = true;
@@ -167,6 +193,22 @@ public class ModConfig {
         @Comment("How long page-wheel scrolling temporarily blocks 3D preview wheel interactions. "
             + "Value is in milliseconds. Default: 750.")
         public int sceneWheelInteractionDelayMillis = 750;
+
+        @Comment("Maximum recommended guide pages shown on the home page.")
+        public int homeRecommendedPageLimit = 30;
+
+        @Comment("Maximum bookmarked guide pages shown on the home page.")
+        public int homeBookmarkedPageLimit = 10;
+
+        @Comment("Maximum recent history guide pages shown on the home page.")
+        public int homeHistoryPageLimit = 10;
+
+        @Comment("Client-global bookmarked guide page ids, serialized as a pipe-delimited list.")
+        public String guideBookmarks = "";
+    }
+
+    public static int clampPositiveHomeLimit(int value, int fallback) {
+        return value >= 1 ? value : fallback;
     }
 
     public static void save() {

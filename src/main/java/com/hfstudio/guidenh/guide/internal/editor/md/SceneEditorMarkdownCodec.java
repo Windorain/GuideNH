@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -11,6 +12,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3f;
 
 import com.hfstudio.guidenh.guide.compiler.GuideMarkdownOptions;
 import com.hfstudio.guidenh.guide.compiler.tags.MdxAttrs;
@@ -20,12 +22,14 @@ import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneModel;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneNodeModel;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneNodeType;
 import com.hfstudio.guidenh.guide.internal.util.GuideStringLines;
+import com.hfstudio.guidenh.guide.scene.annotation.compiler.BlockAnnotationTemplateElementCompiler;
 import com.hfstudio.guidenh.libs.mdast.MdAst;
 import com.hfstudio.guidenh.libs.mdast.MdastOptions;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxAttribute;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxAttributeNode;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstNode;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstHTML;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstRoot;
 import com.hfstudio.guidenh.libs.mdx.MdxCommentMasker;
 import com.hfstudio.guidenh.libs.micromark.ParseException;
@@ -55,11 +59,12 @@ public class SceneEditorMarkdownCodec {
                 "centerY",
                 "centerZ",
                 "interactive",
+                "showBackground",
                 "allowLayerSlider")));
     public static final Set<String> IMPORT_STRUCTURE_ATTRIBUTES = Collections
         .unmodifiableSet(new HashSet<>(Collections.singletonList("src")));
-    public static final Set<String> IMPORT_STRUCTURE_LIB_ATTRIBUTES = Collections
-        .unmodifiableSet(new HashSet<>(Arrays.asList("controller", "piece", "facing", "rotation", "flip", "channel")));
+    public static final Set<String> IMPORT_STRUCTURE_LIB_ATTRIBUTES = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList("controller", "name", "piece", "facing", "rotation", "flip", "channel")));
     public static final Set<String> STRUCTURE_LIB_OPTION_ATTRIBUTES = Collections.unmodifiableSet(
         new HashSet<>(Arrays.asList("name", "id", "value", "expr", "tier", "facing", "rotation", "flip", "channel")));
     public static final Set<String> STRUCTURE_LIB_OPTION_TAGS = Collections.unmodifiableSet(
@@ -78,11 +83,30 @@ public class SceneEditorMarkdownCodec {
     public static final Set<String> REMOVE_BLOCKS_ATTRIBUTES = Collections
         .unmodifiableSet(new HashSet<>(Collections.singletonList("id")));
     public static final Set<String> BLOCK_ANNOTATION_TEMPLATE_ATTRIBUTES = Collections
-        .unmodifiableSet(new HashSet<>(Collections.singletonList("id")));
-    public static final Set<String> BLOCK_ATTRIBUTES = Collections
-        .unmodifiableSet(new HashSet<>(Arrays.asList("pos", "color", "thickness", "alwaysOnTop", "visible")));
-    public static final Set<String> BOX_ATTRIBUTES = Collections
-        .unmodifiableSet(new HashSet<>(Arrays.asList("min", "max", "color", "thickness", "alwaysOnTop", "visible")));
+        .unmodifiableSet(new HashSet<>(Arrays.asList("id", "showWhenStructure", "showWhenTier", "showWhenChannels")));
+    public static final Set<String> BLOCK_ATTRIBUTES = Collections.unmodifiableSet(
+        new HashSet<>(
+            Arrays.asList(
+                "pos",
+                "color",
+                "thickness",
+                "alwaysOnTop",
+                "visible",
+                "showWhenStructure",
+                "showWhenTier",
+                "showWhenChannels")));
+    public static final Set<String> BOX_ATTRIBUTES = Collections.unmodifiableSet(
+        new HashSet<>(
+            Arrays.asList(
+                "min",
+                "max",
+                "color",
+                "thickness",
+                "alwaysOnTop",
+                "visible",
+                "showWhenStructure",
+                "showWhenTier",
+                "showWhenChannels")));
     public static final Set<String> LINE_ATTRIBUTES = Collections.unmodifiableSet(
         new HashSet<>(
             Arrays.asList(
@@ -96,17 +120,58 @@ public class SceneEditorMarkdownCodec {
                 "visible",
                 "showPoints",
                 "pointColor",
-                "pointSize")));
-    public static final Set<String> DIAMOND_ATTRIBUTES = Collections
-        .unmodifiableSet(new HashSet<>(Arrays.asList("pos", "color", "alwaysOnTop", "visible")));
+                "pointSize",
+                "showWhenStructure",
+                "showWhenTier",
+                "showWhenChannels")));
+    public static final Set<String> DIAMOND_ATTRIBUTES = Collections.unmodifiableSet(
+        new HashSet<>(
+            Arrays.asList(
+                "pos",
+                "color",
+                "alwaysOnTop",
+                "visible",
+                "showWhenStructure",
+                "showWhenTier",
+                "showWhenChannels")));
     public static final Set<String> TEXT_ATTRIBUTES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList("pos", "x", "y", "z", "color", "maxWidth", "backgroundAlpha", "visible")));
+        new HashSet<>(
+            Arrays.asList(
+                "pos",
+                "x",
+                "y",
+                "z",
+                "color",
+                "maxWidth",
+                "backgroundAlpha",
+                "textKey",
+                "independent",
+                "yOffset",
+                "connectorSide",
+                "connectorOffset",
+                "connectorLength",
+                "hlMinX",
+                "hlMinY",
+                "hlMinZ",
+                "hlMaxX",
+                "hlMaxY",
+                "hlMaxZ",
+                "highlightColor",
+                "visible",
+                "showWhenStructure",
+                "showWhenTier",
+                "showWhenChannels")));
 
     public SceneEditorMarkdownParseResult parse(String markdown) {
-        String normalized = normalizeLineEndings(markdown != null ? markdown : "");
-
+        String normalized = normalizeLineEndings(markdown);
         String parseSource = MdxCommentMasker.mask(normalized);
-        MdAstRoot root = MdAst.fromMarkdown(parseSource, PARSE_OPTIONS);
+
+        MdAstRoot root;
+        try {
+            root = MdAst.fromMarkdown(parseSource, PARSE_OPTIONS);
+        } catch (ParseException e) {
+            return new SceneEditorMarkdownParseResult.SyntaxError(formatParseException(e));
+        }
 
         try {
             MdxJsxElementFields sceneElement = requireSingleRootScene(root, normalized);
@@ -116,8 +181,6 @@ public class SceneEditorMarkdownCodec {
             return new SceneEditorMarkdownParseResult.Unsupported(e.getMessage());
         } catch (InvalidSceneSyntaxException e) {
             return new SceneEditorMarkdownParseResult.SyntaxError(e.getMessage());
-        } catch (RuntimeException e) {
-            return new SceneEditorMarkdownParseResult.SyntaxError(formatParseException(e));
         }
     }
 
@@ -173,16 +236,17 @@ public class SceneEditorMarkdownCodec {
         model.setPreviewWidth(parseIntAttribute(sceneElement, "width", model.getPreviewWidth()));
         model.setPreviewHeight(parseIntAttribute(sceneElement, "height", model.getPreviewHeight()));
         model.setPerspectivePreset(parseOptionalStringAttribute(sceneElement, "perspective"));
-        model.setZoom(parseFloatAttribute(sceneElement, "zoom", model.getZoom()));
-        model.setRotationX(parseFloatAttribute(sceneElement, "rotateX", model.getRotationX()));
-        model.setRotationY(parseFloatAttribute(sceneElement, "rotateY", model.getRotationY()));
-        model.setRotationZ(parseFloatAttribute(sceneElement, "rotateZ", model.getRotationZ()));
-        model.setOffsetX(parseFloatAttribute(sceneElement, "offsetX", model.getOffsetX()));
-        model.setOffsetY(parseFloatAttribute(sceneElement, "offsetY", model.getOffsetY()));
-        model.setCenterX(parseFloatAttribute(sceneElement, "centerX", model.getCenterX()));
-        model.setCenterY(parseFloatAttribute(sceneElement, "centerY", model.getCenterY()));
-        model.setCenterZ(parseFloatAttribute(sceneElement, "centerZ", model.getCenterZ()));
+        model.setZoom(parseOptionalFloatAttribute(sceneElement, "zoom"));
+        model.setRotationX(parseOptionalFloatAttribute(sceneElement, "rotateX"));
+        model.setRotationY(parseOptionalFloatAttribute(sceneElement, "rotateY"));
+        model.setRotationZ(parseOptionalFloatAttribute(sceneElement, "rotateZ"));
+        model.setOffsetX(parseOptionalFloatAttribute(sceneElement, "offsetX"));
+        model.setOffsetY(parseOptionalFloatAttribute(sceneElement, "offsetY"));
+        model.setCenterX(parseOptionalFloatAttribute(sceneElement, "centerX"));
+        model.setCenterY(parseOptionalFloatAttribute(sceneElement, "centerY"));
+        model.setCenterZ(parseOptionalFloatAttribute(sceneElement, "centerZ"));
         model.setInteractive(parseBooleanAttribute(sceneElement, "interactive", model.isInteractive()));
+        model.setShowBackground(parseBooleanAttribute(sceneElement, "showBackground", model.isShowBackground()));
         model.setAllowLayerSlider(parseBooleanAttribute(sceneElement, "allowLayerSlider", model.isAllowLayerSlider()));
 
         for (Object child : sceneElement.children()) {
@@ -193,32 +257,11 @@ public class SceneEditorMarkdownCodec {
                 continue;
             }
             MdxJsxElementFields element = unwrapJsxElement(node, source);
-            if (element == null) {
+            if (element != null) {
+                appendParsedSceneChild(model, node, element, source);
                 continue;
             }
-            String tagName = element.name();
-            if ("ImportStructure".equals(tagName)) {
-                model.addSceneNode(parseImportStructureNode(element));
-                continue;
-            }
-            if ("ImportStructureLib".equals(tagName)) {
-                model.addSceneNode(parseImportStructureLibNode(element));
-                continue;
-            }
-            if ("RemoveBlocks".equals(tagName)) {
-                model.addSceneNode(parseRemoveBlocksNode(element));
-                continue;
-            }
-            if ("BlockAnnotationTemplate".equals(tagName)) {
-                model.addSceneNode(parseBlockAnnotationTemplateNode(element, source));
-                continue;
-            }
-
-            // Unknown element: try to parse as a known annotation type.
-            // If unsupported, preserve raw source text as an opaque passthrough node.
-            try {
-                model.addElement(parseElement(element, source));
-            } catch (UnsupportedSubsetException ignored) {
+            if (!appendParsedSceneChildFromRawText(model, node, source)) {
                 String rawText = extractRawNodeText(node, source);
                 if (rawText != null && !rawText.trim()
                     .isEmpty()) {
@@ -231,6 +274,76 @@ public class SceneEditorMarkdownCodec {
         }
 
         return model;
+    }
+
+    private void appendParsedSceneChild(SceneEditorSceneModel model, UnistNode node, MdxJsxElementFields element,
+        String source) {
+        String tagName = element.name();
+        if ("ImportStructure".equals(tagName)) {
+            model.addSceneNode(parseImportStructureNode(element));
+            return;
+        }
+        if ("ImportStructureLib".equals(tagName)) {
+            model.addSceneNode(parseImportStructureLibNode(element));
+            return;
+        }
+        if ("RemoveBlocks".equals(tagName)) {
+            model.addSceneNode(parseRemoveBlocksNode(element));
+            return;
+        }
+        if ("BlockAnnotationTemplate".equals(tagName)) {
+            model.addSceneNode(parseBlockAnnotationTemplateNode(element, source));
+            return;
+        }
+
+        try {
+            model.addElement(parseElement(element, source));
+        } catch (UnsupportedSubsetException ignored) {
+            String rawText = extractRawNodeText(node, source);
+            if (rawText != null && !rawText.trim()
+                .isEmpty()) {
+                SceneEditorSceneNodeModel opaqueNode = new SceneEditorSceneNodeModel(SceneEditorSceneNodeType.OPAQUE);
+                opaqueNode.setOpaqueText(rawText);
+                model.addSceneNode(opaqueNode);
+            }
+        }
+    }
+
+    private boolean appendParsedSceneChildFromRawText(SceneEditorSceneModel model, UnistNode node, String source) {
+        String rawText = extractRawNodeText(node, source);
+        if (rawText == null || rawText.trim()
+            .isEmpty() || rawText.indexOf('<') < 0 || rawText.indexOf('>') < 0) {
+            return false;
+        }
+        SceneEditorMarkdownParseResult nestedResult = parseSceneChildFragment(rawText);
+        if (!(nestedResult instanceof SceneEditorMarkdownParseResult.Success success)) {
+            return false;
+        }
+        mergeParsedSceneChild(model, success.model());
+        return true;
+    }
+
+    private SceneEditorMarkdownParseResult parseSceneChildFragment(String rawText) {
+        String trimmed = trimSceneChildRawText(rawText);
+        if (trimmed.isEmpty()) {
+            return new SceneEditorMarkdownParseResult.Unsupported("Empty scene child");
+        }
+        String wrapped = "<GameScene>\n" + trimmed + "\n</GameScene>";
+        return parse(wrapped);
+    }
+
+    private String trimSceneChildRawText(String rawText) {
+        String normalized = normalizeLineEndings(rawText);
+        if (normalized.indexOf('\n') < 0) {
+            return normalized.trim();
+        }
+        return trimCommonIndent(normalized);
+    }
+
+    private void mergeParsedSceneChild(SceneEditorSceneModel target, SceneEditorSceneModel parsed) {
+        for (SceneEditorSceneNodeModel sceneNode : parsed.getSceneNodes()) {
+            target.addSceneNode(sceneNode.duplicate());
+        }
     }
 
     private SceneEditorElementModel parseElement(MdxJsxElementFields element, String source) {
@@ -246,6 +359,7 @@ public class SceneEditorMarkdownCodec {
             model.setThickness(parseFloatAttribute(element, "thickness", model.getThickness()));
             model.setAlwaysOnTop(parseBooleanAttribute(element, "alwaysOnTop", model.isAlwaysOnTop()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
+            applyStructureLibConditionAttributes(model, element);
             model.setTooltipMarkdown(extractTooltipMarkdown(element, source));
             return model;
         }
@@ -261,6 +375,7 @@ public class SceneEditorMarkdownCodec {
             model.setThickness(parseFloatAttribute(element, "thickness", model.getThickness()));
             model.setAlwaysOnTop(parseBooleanAttribute(element, "alwaysOnTop", model.isAlwaysOnTop()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
+            applyStructureLibConditionAttributes(model, element);
             model.setTooltipMarkdown(extractTooltipMarkdown(element, source));
             return model;
         }
@@ -271,14 +386,17 @@ public class SceneEditorMarkdownCodec {
             if (points != null) {
                 applyPrimary(model, points[0]);
                 applySecondary(model, points[points.length - 1]);
+                model.setLinePoints(toLinePoints(points));
             } else {
                 applyPrimary(model, parseVectorAttribute(element, "from", new float[] { 0f, 0f, 0f }));
                 applySecondary(model, parseVectorAttribute(element, "to", new float[] { 0f, 0f, 0f }));
+                model.setLinePoints(createEndpointLinePoints(model));
             }
             model.setColorLiteral(parseColorAttribute(element, model.getColorLiteral()));
             model.setThickness(parseFloatAttribute(element, "thickness", model.getThickness()));
             model.setAlwaysOnTop(parseBooleanAttribute(element, "alwaysOnTop", model.isAlwaysOnTop()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
+            applyStructureLibConditionAttributes(model, element);
             model.setTooltipMarkdown(extractTooltipMarkdown(element, source));
             return model;
         }
@@ -292,6 +410,7 @@ public class SceneEditorMarkdownCodec {
             model.setColorLiteral(parseColorAttribute(element, model.getColorLiteral()));
             model.setAlwaysOnTop(parseBooleanAttribute(element, "alwaysOnTop", model.isAlwaysOnTop()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
+            applyStructureLibConditionAttributes(model, element);
             model.setTooltipMarkdown(extractTooltipMarkdown(element, source));
             return model;
         }
@@ -310,7 +429,24 @@ public class SceneEditorMarkdownCodec {
             model.setMaxWidth(parseIntAttribute(element, "maxWidth", model.getMaxWidth()));
             model.setBackgroundAlpha(parseAlphaAttribute(element, "backgroundAlpha", model.getBackgroundAlpha()));
             model.setVisible(parseBooleanAttribute(element, "visible", model.isVisible()));
+            applyStructureLibConditionAttributes(model, element);
+            model.setTextKey(parseOptionalStringAttribute(element, "textKey"));
             model.setTextMarkdown(parseTextAnnotationText(element, source, model.getTextMarkdown()));
+            applyExtraAttributes(
+                model,
+                element,
+                "independent",
+                "yOffset",
+                "connectorSide",
+                "connectorOffset",
+                "connectorLength",
+                "hlMinX",
+                "hlMinY",
+                "hlMinZ",
+                "hlMaxX",
+                "hlMaxY",
+                "hlMaxZ",
+                "highlightColor");
             return model;
         }
         SceneEditorElementType registeredType = SceneEditorElementType.getByTagName(tagName);
@@ -339,7 +475,9 @@ public class SceneEditorMarkdownCodec {
         if (type.supportsBackgroundAlpha()) {
             model.setBackgroundAlpha(parseAlphaAttribute(element, "backgroundAlpha", model.getBackgroundAlpha()));
         }
+        applyStructureLibConditionAttributes(model, element);
         if (type.supportsText()) {
+            model.setTextKey(parseOptionalStringAttribute(element, "textKey"));
             model.setTextMarkdown(parseTextAnnotationText(element, source, model.getTextMarkdown()));
         } else if (type.supportsTooltip()) {
             model.setTooltipMarkdown(extractTooltipMarkdown(element, source));
@@ -368,126 +506,13 @@ public class SceneEditorMarkdownCodec {
 
         SceneEditorSceneNodeModel node = new SceneEditorSceneNodeModel(SceneEditorSceneNodeType.IMPORT_STRUCTURE_LIB);
         node.setAttribute("controller", controller);
+        copyOptionalAttribute(element, node, "name");
         copyOptionalAttribute(element, node, "piece");
         copyOptionalAttribute(element, node, "facing");
         copyOptionalAttribute(element, node, "rotation");
         copyOptionalAttribute(element, node, "flip");
         copyOptionalIntegerAttribute(element, node, "channel");
-        copyStructureLibOptionChildren(element, node);
         return node;
-    }
-
-    private void copyStructureLibOptionChildren(MdxJsxElementFields element, SceneEditorSceneNodeModel node) {
-        for (Object child : element.children()) {
-            if (!(child instanceof UnistNode childNode)) {
-                continue;
-            }
-            MdxJsxElementFields childElement = unwrapJsxElement(childNode, "");
-            if (childElement == null || childElement.name() == null) {
-                continue;
-            }
-            if (!STRUCTURE_LIB_OPTION_TAGS.contains(childElement.name())) {
-                continue;
-            }
-            copyStructureLibOptionChild(childElement, node);
-        }
-    }
-
-    private void copyStructureLibOptionChild(MdxJsxElementFields childElement, SceneEditorSceneNodeModel node) {
-        ensureAllowedAttributes(childElement, STRUCTURE_LIB_OPTION_ATTRIBUTES, childElement.name());
-        String name = childElement.name();
-        switch (name) {
-            case "Tier":
-                copyStructureLibScalarOption(childElement, node, "tier");
-                break;
-            case "Channel":
-                copyStructureLibChannelOption(childElement, node);
-                break;
-            case "Facing":
-                copyStructureLibScalarOption(childElement, node, "defaultFacing");
-                break;
-            case "Rotation":
-                copyStructureLibScalarOption(childElement, node, "defaultRotation");
-                break;
-            case "Flip":
-                copyStructureLibScalarOption(childElement, node, "defaultFlip");
-                break;
-            case "Orientation":
-                copyStructureLibOrientationOption(childElement, node);
-                break;
-            case "GregTechActiveController":
-            case "GtActiveController":
-                node.setAttribute("gtActiveController", "true");
-                break;
-            case "GregTechPlaceHatches":
-            case "GtPlaceHatches":
-                node.setAttribute("gtPlaceHatches", "true");
-                break;
-            default:
-                break;
-        }
-    }
-
-    private void copyStructureLibScalarOption(MdxJsxElementFields element, SceneEditorSceneNodeModel node,
-        String targetAttribute) {
-        String value = firstOptionValue(element, "value", "expr", "name");
-        if (value != null && !value.isEmpty()) {
-            node.setAttribute(targetAttribute, value);
-        }
-    }
-
-    private void copyStructureLibChannelOption(MdxJsxElementFields element, SceneEditorSceneNodeModel node) {
-        String channelName = firstOptionValue(element, "name", "id");
-        String channelValue = firstOptionValue(element, "value", "expr", "channel");
-        if (channelName != null && !channelName.isEmpty() && channelValue != null && !channelValue.isEmpty()) {
-            node.setAttribute("channel." + channelName, channelValue);
-        }
-    }
-
-    private void copyStructureLibOrientationOption(MdxJsxElementFields element, SceneEditorSceneNodeModel node) {
-        String value = firstOptionValue(element, "value", "expr", "name");
-        if (value == null || value.isEmpty()) {
-            return;
-        }
-        String[] parts = value.split(":");
-        if (parts.length > 0) {
-            node.setAttribute("defaultFacing", parts[0]);
-        }
-        if (parts.length > 1) {
-            node.setAttribute("defaultRotation", parts[1]);
-        }
-        if (parts.length > 2) {
-            node.setAttribute("defaultFlip", parts[2]);
-        }
-    }
-
-    @Nullable
-    private String firstOptionValue(MdxJsxElementFields element, String... attributes) {
-        for (String attribute : attributes) {
-            String value = parseOptionalStringAttribute(element, attribute);
-            if (value != null && !value.isEmpty()) {
-                return value;
-            }
-        }
-        String text = extractOptionText(element);
-        return text != null && !text.isEmpty() ? text : null;
-    }
-
-    @Nullable
-    private String extractOptionText(MdxJsxElementFields element) {
-        if (element.children() == null || element.children()
-            .isEmpty()) {
-            return null;
-        }
-        StringBuilder builder = new StringBuilder();
-        for (Object child : element.children()) {
-            if (child instanceof MdAstNode node) {
-                builder.append(node.toText());
-            }
-        }
-        String text = builder.toString()
-            .trim();
-        return text.isEmpty() ? null : text;
     }
 
     private SceneEditorSceneNodeModel parseRemoveBlocksNode(MdxJsxElementFields element) {
@@ -512,6 +537,9 @@ public class SceneEditorMarkdownCodec {
         SceneEditorSceneNodeModel node = new SceneEditorSceneNodeModel(
             SceneEditorSceneNodeType.BLOCK_ANNOTATION_TEMPLATE);
         node.setAttribute("id", blockId);
+        copyOptionalAttribute(element, node, "showWhenStructure");
+        copyOptionalAttribute(element, node, "showWhenTier");
+        copyOptionalAttribute(element, node, "showWhenChannels");
 
         for (Object child : element.children()) {
             if (!(child instanceof UnistNode childNode)) {
@@ -524,10 +552,19 @@ public class SceneEditorMarkdownCodec {
             if (childElement == null) {
                 continue;
             }
+            ensureSupportedBlockAnnotationTemplateChild(childElement);
             node.addTemplateElement(parseElement(childElement, source));
         }
 
         return node;
+    }
+
+    private void ensureSupportedBlockAnnotationTemplateChild(MdxJsxElementFields childElement) {
+        if (BlockAnnotationTemplateElementCompiler.TEMPLATE_ANNOTATION_COMPILERS.containsKey(childElement.name())) {
+            return;
+        }
+        throw new InvalidSceneSyntaxException(
+            "Unsupported BlockAnnotationTemplate child <" + childElement.name() + ">");
     }
 
     private void copyOptionalAttribute(MdxJsxElementFields element, SceneEditorSceneNodeModel node, String attribute) {
@@ -535,6 +572,27 @@ public class SceneEditorMarkdownCodec {
         if (value != null && !value.isEmpty()) {
             node.setAttribute(attribute, value);
         }
+    }
+
+    private void applyExtraAttributes(SceneEditorElementModel model, MdxJsxElementFields element,
+        String... attributes) {
+        if (model == null || element == null || attributes == null || attributes.length == 0) {
+            return;
+        }
+        Map<String, String> extraAttributes = new LinkedHashMap<>();
+        for (String attribute : attributes) {
+            String value = parseOptionalStringAttribute(element, attribute);
+            if (value != null && !value.isEmpty()) {
+                extraAttributes.put(attribute, value);
+            }
+        }
+        model.setExtraAttributes(extraAttributes);
+    }
+
+    private void applyStructureLibConditionAttributes(SceneEditorElementModel model, MdxJsxElementFields element) {
+        model.setShowWhenStructure(parseOptionalStringAttribute(element, "showWhenStructure"));
+        model.setShowWhenTier(parseOptionalStringAttribute(element, "showWhenTier"));
+        model.setShowWhenChannels(parseOptionalStringAttribute(element, "showWhenChannels"));
     }
 
     private void appendRootAttributes(StringBuilder builder, SceneEditorSceneModel model) {
@@ -554,17 +612,20 @@ public class SceneEditorMarkdownCodec {
                 .append(escapeAttribute(model.getPerspectivePreset()))
                 .append('"');
         }
-        appendFloatAttribute(builder, "zoom", model.getZoom(), 1f);
-        appendFloatAttribute(builder, "rotateX", model.getRotationX(), 35f);
-        appendFloatAttribute(builder, "rotateY", model.getRotationY(), 45f);
-        appendFloatAttribute(builder, "rotateZ", model.getRotationZ(), 0f);
-        appendFloatAttribute(builder, "offsetX", model.getOffsetX(), 0f);
-        appendFloatAttribute(builder, "offsetY", model.getOffsetY(), 0f);
-        appendFloatAttribute(builder, "centerX", model.getCenterX(), 0f);
-        appendFloatAttribute(builder, "centerY", model.getCenterY(), 0f);
-        appendFloatAttribute(builder, "centerZ", model.getCenterZ(), 0f);
+        appendOptionalFloatAttribute(builder, "zoom", model.getZoom(), 1f);
+        appendOptionalFloatAttribute(builder, "rotateX", model.getRotationX(), 35f);
+        appendOptionalFloatAttribute(builder, "rotateY", model.getRotationY(), 45f);
+        appendOptionalFloatAttribute(builder, "rotateZ", model.getRotationZ(), 0f);
+        appendOptionalFloatAttribute(builder, "offsetX", model.getOffsetX(), 0f);
+        appendOptionalFloatAttribute(builder, "offsetY", model.getOffsetY(), 0f);
+        appendOptionalFloatAttribute(builder, "centerX", model.getCenterX(), 0f);
+        appendOptionalFloatAttribute(builder, "centerY", model.getCenterY(), 0f);
+        appendOptionalFloatAttribute(builder, "centerZ", model.getCenterZ(), 0f);
         if (!model.isInteractive()) {
             builder.append(" interactive={false}");
+        }
+        if (!model.isShowBackground()) {
+            builder.append(" showBackground={false}");
         }
         if (model.isAllowLayerSlider()) {
             builder.append(" allowLayerSlider={true}");
@@ -656,75 +717,13 @@ public class SceneEditorMarkdownCodec {
         builder.append("    <ImportStructureLib controller=\"")
             .append(escapeAttribute(controller))
             .append('"');
+        appendSceneNodeAttribute(builder, sceneNode, "name");
         appendSceneNodeAttribute(builder, sceneNode, "piece");
         appendSceneNodeAttribute(builder, sceneNode, "facing");
         appendSceneNodeAttribute(builder, sceneNode, "rotation");
         appendSceneNodeAttribute(builder, sceneNode, "flip");
         appendSceneNodeAttribute(builder, sceneNode, "channel");
-        if (!hasStructureLibOptionAttributes(sceneNode)) {
-            builder.append(" />\n");
-            return;
-        }
-        builder.append(">\n");
-        appendStructureLibOptionChildren(builder, sceneNode);
-        builder.append("    </ImportStructureLib>\n");
-    }
-
-    private boolean hasStructureLibOptionAttributes(SceneEditorSceneNodeModel sceneNode) {
-        return sceneNode.getAttribute("tier") != null || sceneNode.getAttribute("defaultFacing") != null
-            || sceneNode.getAttribute("defaultRotation") != null
-            || sceneNode.getAttribute("defaultFlip") != null
-            || "true".equals(sceneNode.getAttribute("gtActiveController"))
-            || "true".equals(sceneNode.getAttribute("gtPlaceHatches"))
-            || hasStructureLibChannelAttributes(sceneNode);
-    }
-
-    private boolean hasStructureLibChannelAttributes(SceneEditorSceneNodeModel sceneNode) {
-        for (String key : sceneNode.getAttributes()
-            .keySet()) {
-            if (key.startsWith("channel.")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void appendStructureLibOptionChildren(StringBuilder builder, SceneEditorSceneNodeModel sceneNode) {
-        appendStructureLibScalarOption(builder, "Tier", sceneNode.getAttribute("tier"));
-        appendStructureLibScalarOption(builder, "Facing", sceneNode.getAttribute("defaultFacing"));
-        appendStructureLibScalarOption(builder, "Rotation", sceneNode.getAttribute("defaultRotation"));
-        appendStructureLibScalarOption(builder, "Flip", sceneNode.getAttribute("defaultFlip"));
-        for (Map.Entry<String, String> entry : sceneNode.getAttributes()
-            .entrySet()) {
-            if (entry.getKey()
-                .startsWith("channel.")) {
-                builder.append("        <Channel name=\"")
-                    .append(
-                        escapeAttribute(
-                            entry.getKey()
-                                .substring("channel.".length())))
-                    .append("\" value=\"")
-                    .append(escapeAttribute(entry.getValue()))
-                    .append("\" />\n");
-            }
-        }
-        if ("true".equals(sceneNode.getAttribute("gtActiveController"))) {
-            builder.append("        <GregTechActiveController />\n");
-        }
-        if ("true".equals(sceneNode.getAttribute("gtPlaceHatches"))) {
-            builder.append("        <GregTechPlaceHatches />\n");
-        }
-    }
-
-    private void appendStructureLibScalarOption(StringBuilder builder, String tagName, @Nullable String value) {
-        if (value == null || value.isEmpty()) {
-            return;
-        }
-        builder.append("        <")
-            .append(tagName)
-            .append(" value=\"")
-            .append(escapeAttribute(value))
-            .append("\" />\n");
+        builder.append(" />\n");
     }
 
     private void appendRemoveBlocksNode(StringBuilder builder, SceneEditorSceneNodeModel sceneNode) {
@@ -747,13 +746,21 @@ public class SceneEditorMarkdownCodec {
             .isEmpty()) {
             builder.append("    <BlockAnnotationTemplate id=\"")
                 .append(escapeAttribute(blockId))
-                .append("\" />\n");
+                .append('"');
+            appendSceneNodeAttribute(builder, sceneNode, "showWhenStructure");
+            appendSceneNodeAttribute(builder, sceneNode, "showWhenTier");
+            appendSceneNodeAttribute(builder, sceneNode, "showWhenChannels");
+            builder.append(" />\n");
             return;
         }
 
         builder.append("    <BlockAnnotationTemplate id=\"")
             .append(escapeAttribute(blockId))
-            .append("\">\n");
+            .append('"');
+        appendSceneNodeAttribute(builder, sceneNode, "showWhenStructure");
+        appendSceneNodeAttribute(builder, sceneNode, "showWhenTier");
+        appendSceneNodeAttribute(builder, sceneNode, "showWhenChannels");
+        builder.append(">\n");
         for (SceneEditorElementModel templateElement : sceneNode.getTemplateElements()) {
             appendElement(builder, templateElement, "        ");
         }
@@ -823,11 +830,18 @@ public class SceneEditorMarkdownCodec {
 
     private void appendLineElement(StringBuilder builder, SceneEditorElementModel element, String indent) {
         StringBuilder tagBuilder = new StringBuilder();
-        tagBuilder.append("<LineAnnotation from=\"")
-            .append(formatVector(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()))
-            .append("\" to=\"")
-            .append(formatVector(element.getSecondaryX(), element.getSecondaryY(), element.getSecondaryZ()))
-            .append('"');
+        List<Vector3f> linePoints = normalizeLinePoints(element);
+        if (linePoints.size() > 2) {
+            tagBuilder.append("<LineAnnotation points=\"")
+                .append(formatLinePoints(linePoints))
+                .append('"');
+        } else {
+            tagBuilder.append("<LineAnnotation from=\"")
+                .append(formatVector(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()))
+                .append("\" to=\"")
+                .append(formatVector(element.getSecondaryX(), element.getSecondaryY(), element.getSecondaryZ()))
+                .append('"');
+        }
         appendElementStyleAttributes(tagBuilder, element, "#FFFFFFFF", true);
         appendElementTooltip(builder, indent, "LineAnnotation", tagBuilder, element.getTooltipMarkdown());
     }
@@ -862,9 +876,31 @@ public class SceneEditorMarkdownCodec {
                 .append(element.getBackgroundAlpha())
                 .append('"');
         }
+        if (!element.getTextKey()
+            .isEmpty()) {
+            tagBuilder.append(" textKey=\"")
+                .append(escapeAttribute(element.getTextKey()))
+                .append('"');
+        }
         if (!element.isVisible()) {
             tagBuilder.append(" visible={false}");
         }
+        appendExtraAttributes(
+            tagBuilder,
+            element,
+            "independent",
+            "yOffset",
+            "connectorSide",
+            "connectorOffset",
+            "connectorLength",
+            "hlMinX",
+            "hlMinY",
+            "hlMinZ",
+            "hlMaxX",
+            "hlMaxY",
+            "hlMaxZ",
+            "highlightColor");
+        appendStructureLibConditionAttributes(tagBuilder, element);
         appendTextElementBody(builder, indent, tagBuilder, element.getTextMarkdown());
     }
 
@@ -902,6 +938,15 @@ public class SceneEditorMarkdownCodec {
                 .append('"');
         }
         if (element.getType()
+            .supportsText()
+            && !element.getTextKey()
+                .isEmpty()) {
+            tagBuilder.append(" textKey=\"")
+                .append(escapeAttribute(element.getTextKey()))
+                .append('"');
+        }
+        appendStructureLibConditionAttributes(tagBuilder, element);
+        if (element.getType()
             .supportsText()) {
             appendTextElementBody(
                 builder,
@@ -938,6 +983,32 @@ public class SceneEditorMarkdownCodec {
         }
         if (!element.isVisible()) {
             builder.append(" visible={false}");
+        }
+    }
+
+    private void appendStructureLibConditionAttributes(StringBuilder builder, SceneEditorElementModel element) {
+        appendOptionalStringAttribute(builder, "showWhenStructure", element.getShowWhenStructure());
+        appendOptionalStringAttribute(builder, "showWhenTier", element.getShowWhenTier());
+        appendOptionalStringAttribute(builder, "showWhenChannels", element.getShowWhenChannels());
+    }
+
+    private void appendOptionalStringAttribute(StringBuilder builder, String attribute, String value) {
+        if (value == null || value.isEmpty()) {
+            return;
+        }
+        builder.append(' ')
+            .append(attribute)
+            .append("=\"")
+            .append(escapeAttribute(value))
+            .append('"');
+    }
+
+    private void appendExtraAttributes(StringBuilder builder, SceneEditorElementModel element, String... attributes) {
+        if (builder == null || element == null || attributes == null || attributes.length == 0) {
+            return;
+        }
+        for (String attribute : attributes) {
+            appendOptionalStringAttribute(builder, attribute, element.getExtraAttribute(attribute));
         }
     }
 
@@ -1010,10 +1081,6 @@ public class SceneEditorMarkdownCodec {
             if (!(attributeNode instanceof MdxJsxAttribute attribute)) {
                 throw new UnsupportedSubsetException("Spread attributes are not supported on <" + tagName + ">");
             }
-            if (!allowedAttributes.contains(attribute.name)) {
-                throw new UnsupportedSubsetException(
-                    "Unknown attribute '" + attribute.name + "' on <" + tagName + ">");
-            }
         }
     }
 
@@ -1069,11 +1136,19 @@ public class SceneEditorMarkdownCodec {
             return defaultValue;
         }
         try {
-            float value = Float.parseFloat(rawValue.trim());
-            if (Float.isNaN(value) || Float.isInfinite(value)) {
-                throw new InvalidSceneSyntaxException("Attribute '" + name + "' must be a finite number");
-            }
-            return value;
+            return Float.parseFloat(rawValue.trim());
+        } catch (NumberFormatException e) {
+            throw new InvalidSceneSyntaxException("Attribute '" + name + "' must be a number");
+        }
+    }
+
+    private float parseOptionalFloatAttribute(MdxJsxElementFields element, String name) {
+        String rawValue = getOptionalAttributeValue(element, name);
+        if (rawValue == null) {
+            return Float.NaN;
+        }
+        try {
+            return Float.parseFloat(rawValue.trim());
         } catch (NumberFormatException e) {
             throw new InvalidSceneSyntaxException("Attribute '" + name + "' must be a number");
         }
@@ -1265,10 +1340,6 @@ public class SceneEditorMarkdownCodec {
         int braceDepth = 0;
         for (int i = 0; i < rawElement.length(); i++) {
             char ch = rawElement.charAt(i);
-            if ((inSingleQuote || inDoubleQuote) && ch == '\\' && i + 1 < rawElement.length()) {
-                i++;
-                continue;
-            }
             if (ch == '\'' && !inDoubleQuote) {
                 inSingleQuote = !inSingleQuote;
                 continue;
@@ -1312,7 +1383,7 @@ public class SceneEditorMarkdownCodec {
     }
 
     private boolean isIgnorableNode(UnistNode node, String source) {
-        if (node instanceof MdxJsxElementFields) {
+        if (node instanceof MdxJsxElementFields || node instanceof MdAstHTML) {
             return false;
         }
         UnistPosition position = node.position();
@@ -1368,8 +1439,27 @@ public class SceneEditorMarkdownCodec {
         }
     }
 
+    private void appendOptionalFloatAttribute(StringBuilder builder, String name, float value, float defaultValue) {
+        if (Float.isNaN(value)) {
+            return;
+        }
+        appendFloatAttribute(builder, name, value, defaultValue);
+    }
+
     private String formatVector(float x, float y, float z) {
         return formatNumber(x) + ' ' + formatNumber(y) + ' ' + formatNumber(z);
+    }
+
+    private String formatLinePoints(List<Vector3f> points) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < points.size(); i++) {
+            if (i > 0) {
+                builder.append("; ");
+            }
+            Vector3f point = points.get(i);
+            builder.append(formatVector(point.x, point.y, point.z));
+        }
+        return builder.toString();
     }
 
     private String formatNumber(float value) {
@@ -1397,6 +1487,29 @@ public class SceneEditorMarkdownCodec {
         }
     }
 
+    private List<Vector3f> toLinePoints(float[][] points) {
+        List<Vector3f> result = new ArrayList<>(points.length);
+        for (float[] point : points) {
+            result.add(new Vector3f(point[0], point[1], point[2]));
+        }
+        return result;
+    }
+
+    private List<Vector3f> createEndpointLinePoints(SceneEditorElementModel model) {
+        List<Vector3f> result = new ArrayList<>(2);
+        result.add(new Vector3f(model.getPrimaryX(), model.getPrimaryY(), model.getPrimaryZ()));
+        result.add(new Vector3f(model.getSecondaryX(), model.getSecondaryY(), model.getSecondaryZ()));
+        return result;
+    }
+
+    private List<Vector3f> normalizeLinePoints(SceneEditorElementModel element) {
+        List<Vector3f> linePoints = element.getLinePoints();
+        if (linePoints.size() >= 2) {
+            return linePoints;
+        }
+        return createEndpointLinePoints(element);
+    }
+
     private void applyPrimary(SceneEditorElementModel model, float[] values) {
         model.setPrimaryX(values[0]);
         model.setPrimaryY(values[1]);
@@ -1411,8 +1524,6 @@ public class SceneEditorMarkdownCodec {
 
     private String escapeAttribute(String value) {
         return value.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
             .replace("\"", "&quot;");
     }
 
@@ -1420,27 +1531,17 @@ public class SceneEditorMarkdownCodec {
         return GuideStringLines.normalizeLineEndings(markdown);
     }
 
-    private String formatParseException(RuntimeException exception) {
-        if (!(exception instanceof ParseException parseException)) {
-            return describeException(exception);
+    private String formatParseException(ParseException exception) {
+        if (exception.getFrom() == null) {
+            return exception.getMessage();
         }
-        if (parseException.getFrom() == null) {
-            return parseException.getMessage();
-        }
-        return parseException.getMessage() + " (line "
-            + parseException.getFrom()
+        return exception.getMessage() + " (line "
+            + exception.getFrom()
                 .line()
             + ", column "
-            + parseException.getFrom()
+            + exception.getFrom()
                 .column()
             + ")";
-    }
-
-    private String describeException(RuntimeException exception) {
-        String message = exception.getMessage();
-        return message != null && !message.isEmpty() ? message
-            : exception.getClass()
-                .getSimpleName();
     }
 
     public static class UnsupportedSubsetException extends RuntimeException {

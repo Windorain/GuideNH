@@ -91,11 +91,6 @@ public class StructureLibSceneBuilder {
                 placedBlock.getMeta(),
                 placedBlock.getTileTag(),
                 placedBlock.getBlockId());
-            level.setExplicitBlockId(
-                placedBlock.getX(),
-                placedBlock.getY(),
-                placedBlock.getZ(),
-                placedBlock.getBlockId());
         }
         return StructureLibSceneBuildResult.success(level, warnings, result.getMetadata());
     }

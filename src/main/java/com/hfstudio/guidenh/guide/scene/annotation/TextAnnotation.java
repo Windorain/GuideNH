@@ -2,6 +2,7 @@ package com.hfstudio.guidenh.guide.scene.annotation;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
@@ -47,13 +48,21 @@ public class TextAnnotation extends OverlayAnnotation {
     private final ColorValue borderColor;
     private final boolean independent;
     private final float screenYOffset;
+    private ConnectorSide connectorSide = ConnectorSide.BOTTOM;
+    private int connectorOffset;
+    private int connectorLength = CONNECTOR_HEIGHT;
     private int backgroundAlpha = DEFAULT_BACKGROUND_ALPHA;
 
     @Nullable
     private List<String> resolvedLines;
+    private int resolvedWrapWidth = Integer.MIN_VALUE;
 
     @Nullable
     private LytParagraph richContent;
+
+    @Nullable
+    private LayoutMeasure cachedMeasure;
+    private int cachedMeasureWrapWidth = Integer.MIN_VALUE;
 
     public TextAnnotation(Vector3f worldPos, String text, int borderArgb) {
         this(worldPos, text, new ConstantColor(borderArgb), 0);
@@ -112,6 +121,8 @@ public class TextAnnotation extends OverlayAnnotation {
             s -> s.dropShadow(true)
                 .color(ConstantColor.WHITE));
         this.richContent = para;
+        this.cachedMeasure = null;
+        this.cachedMeasureWrapWidth = Integer.MIN_VALUE;
     }
 
     public int getBackgroundAlpha() {
@@ -120,6 +131,16 @@ public class TextAnnotation extends OverlayAnnotation {
 
     public void setBackgroundAlpha(int backgroundAlpha) {
         this.backgroundAlpha = clampAlpha(backgroundAlpha);
+    }
+
+    public void setConnector(ConnectorSide connectorSide, int connectorOffset, int connectorLength) {
+        this.connectorSide = connectorSide != null ? connectorSide : ConnectorSide.BOTTOM;
+        this.connectorOffset = connectorOffset;
+        this.connectorLength = Math.max(0, connectorLength);
+    }
+
+    public ColorValue getBorderColor() {
+        return borderColor;
     }
 
     public Vector3f getWorldPos() {
@@ -134,20 +155,48 @@ public class TextAnnotation extends OverlayAnnotation {
         return text;
     }
 
-    private List<String> getLines(FontRenderer fr) {
-        if (resolvedLines != null) {
+    public int getMaxWidth() {
+        return maxWidth;
+    }
+
+    public float getScreenYOffset() {
+        return screenYOffset;
+    }
+
+    public ConnectorSide getConnectorSide() {
+        return connectorSide;
+    }
+
+    public int getConnectorOffset() {
+        return connectorOffset;
+    }
+
+    public int getConnectorLength() {
+        return connectorLength;
+    }
+
+    @Nullable
+    public LytParagraph getRichContent() {
+        return richContent;
+    }
+
+    private List<String> getLines(FontRenderer fr, int contentWidth) {
+        if (resolvedLines != null && resolvedWrapWidth == contentWidth) {
             return resolvedLines;
         }
         if (text == null || text.isEmpty()) {
             resolvedLines = Collections.emptyList();
+            resolvedWrapWidth = contentWidth;
             return resolvedLines;
         }
-        if (maxWidth <= 0) {
+        if (contentWidth <= 0) {
             resolvedLines = Collections.singletonList(text);
+            resolvedWrapWidth = contentWidth;
             return resolvedLines;
         }
-        List<String> wrapped = fr.listFormattedStringToWidth(text, maxWidth);
+        List<String> wrapped = fr.listFormattedStringToWidth(text, contentWidth);
         resolvedLines = wrapped.isEmpty() ? Collections.singletonList(text) : wrapped;
+        resolvedWrapWidth = contentWidth;
         return resolvedLines;
     }
 
@@ -162,27 +211,8 @@ public class TextAnnotation extends OverlayAnnotation {
             cx = viewport.x() + viewport.width() / 2 + Math.round(screen.x);
             cy = viewport.y() + viewport.height() / 2 + Math.round(screen.y);
         }
-        int boxW, boxH;
-        if (richContent != null) {
-            var lctx = new LayoutContext(new MinecraftFontMetrics());
-            int availW = maxWidth > 0 ? maxWidth : 10000;
-            LytRect cb = richContent.layout(lctx, 0, 0, availW);
-            boxW = cb.width() + PADDING_X * 2;
-            boxH = cb.height() + PADDING_Y * 2;
-        } else {
-            Minecraft mc = Minecraft.getMinecraft();
-            FontRenderer fr = mc.fontRenderer;
-            List<String> lines = getLines(fr);
-            int lineCount = Math.max(1, lines.size());
-            int maxLineW = 0;
-            for (String line : lines) {
-                int w = fr.getStringWidth(line);
-                if (w > maxLineW) maxLineW = w;
-            }
-            boxW = maxLineW + PADDING_X * 2;
-            boxH = fr.FONT_HEIGHT * lineCount + LINE_GAP * (lineCount - 1) + PADDING_Y * 2;
-        }
-        return new LytRect(cx - boxW / 2, cy - boxH - CONNECTOR_HEIGHT - 1, boxW, boxH);
+        LayoutMeasure measure = measureLayout(viewport.width());
+        return constrainBubbleRect(bubbleRect(cx, cy, measure.boxWidth(), measure.boxHeight()), viewport);
     }
 
     @Override
@@ -206,30 +236,43 @@ public class TextAnnotation extends OverlayAnnotation {
             cy = viewport.y() + viewport.height() / 2 + Math.round(screen.y) - docOy + scroll;
         }
 
+        LytRect localViewport = new LytRect(
+            viewport.x() - docOx,
+            viewport.y() - docOy + scroll,
+            viewport.width(),
+            viewport.height());
         float fade = getFade();
         int borderArgb = borderColor.resolve(context.lightDarkMode());
+        LayoutMeasure measure = measureLayout(localViewport.width());
 
         if (richContent != null) {
-            var lctx = new LayoutContext(new MinecraftFontMetrics());
-            int availW = maxWidth > 0 ? maxWidth : 10000;
-            LytRect cb = richContent.layout(lctx, 0, 0, availW);
-            int boxW = cb.width() + PADDING_X * 2;
-            int boxH = cb.height() + PADDING_Y * 2;
-            int bx = cx - boxW / 2;
-            int by = cy - boxH - CONNECTOR_HEIGHT - 1;
+            LytRect bubble = constrainBubbleRect(
+                bubbleRect(cx, cy, measure.boxWidth(), measure.boxHeight()),
+                localViewport);
+            int bx = bubble.x();
+            int by = bubble.y();
+            LayoutContext layoutContext = new LayoutContext(new MinecraftFontMetrics());
 
             GL11.glDisable(GL11.GL_DEPTH_TEST);
             GL11.glDisable(GL11.GL_TEXTURE_2D);
             GL11.glEnable(GL11.GL_BLEND);
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
-            drawFilledRect(bx - 1, by - 1, bx + boxW + 1, by + boxH + 1, applyFade(borderArgb, fade));
-            drawFilledRect(bx, by, bx + boxW, by + boxH, applyFade(getBackgroundArgb(), fade));
-            if (!independent) {
-                drawFilledRect(cx - 1, by + boxH, cx + 1, cy, applyFade(borderArgb, fade));
-            }
+            drawFilledRect(
+                bx - 1,
+                by - 1,
+                bx + measure.boxWidth() + 1,
+                by + measure.boxHeight() + 1,
+                applyFade(borderArgb, fade));
+            drawFilledRect(
+                bx,
+                by,
+                bx + measure.boxWidth(),
+                by + measure.boxHeight(),
+                applyFade(getBackgroundArgb(), fade));
+            drawConnector(cx, cy, bubble, applyFade(borderArgb, fade));
 
-            richContent.layout(lctx, bx + PADDING_X, by + PADDING_Y, availW);
+            richContent.layout(layoutContext, bx + PADDING_X, by + PADDING_Y, measure.availableWidth());
             GL11.glEnable(GL11.GL_TEXTURE_2D);
             richContent.render(context);
             GL11.glColor4f(1f, 1f, 1f, 1f);
@@ -239,31 +282,28 @@ public class TextAnnotation extends OverlayAnnotation {
 
         Minecraft mc = Minecraft.getMinecraft();
         FontRenderer fr = mc.fontRenderer;
-        List<String> lines = getLines(fr);
+        List<String> lines = measure.lines();
         if (lines.isEmpty()) return;
 
-        int lineCount = lines.size();
-        int maxLineW = 0;
-        for (String line : lines) {
-            int w = fr.getStringWidth(line);
-            if (w > maxLineW) maxLineW = w;
-        }
-        int boxW = maxLineW + PADDING_X * 2;
-        int boxH = fr.FONT_HEIGHT * lineCount + LINE_GAP * (lineCount - 1) + PADDING_Y * 2;
-
-        int bx = cx - boxW / 2;
-        int by = cy - boxH - CONNECTOR_HEIGHT - 1;
+        LytRect bubble = constrainBubbleRect(
+            bubbleRect(cx, cy, measure.boxWidth(), measure.boxHeight()),
+            localViewport);
+        int bx = bubble.x();
+        int by = bubble.y();
 
         GL11.glDisable(GL11.GL_DEPTH_TEST);
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
-        drawFilledRect(bx - 1, by - 1, bx + boxW + 1, by + boxH + 1, applyFade(borderArgb, fade));
-        drawFilledRect(bx, by, bx + boxW, by + boxH, applyFade(getBackgroundArgb(), fade));
-        if (!independent) {
-            drawFilledRect(cx - 1, by + boxH, cx + 1, cy, applyFade(borderArgb, fade));
-        }
+        drawFilledRect(
+            bx - 1,
+            by - 1,
+            bx + measure.boxWidth() + 1,
+            by + measure.boxHeight() + 1,
+            applyFade(borderArgb, fade));
+        drawFilledRect(bx, by, bx + measure.boxWidth(), by + measure.boxHeight(), applyFade(getBackgroundArgb(), fade));
+        drawConnector(cx, cy, bubble, applyFade(borderArgb, fade));
 
         GL11.glEnable(GL11.GL_TEXTURE_2D);
 
@@ -297,7 +337,159 @@ public class TextAnnotation extends OverlayAnnotation {
         return (backgroundAlpha << 24) | BACKGROUND_RGB;
     }
 
+    private LayoutMeasure measureLayout(int viewportWidth) {
+        int wrapWidth = resolveContentWrapWidth(viewportWidth);
+        if (cachedMeasure != null && cachedMeasureWrapWidth == wrapWidth) {
+            return cachedMeasure;
+        }
+        if (richContent != null) {
+            LayoutContext layoutContext = new LayoutContext(new MinecraftFontMetrics());
+            int availableWidth = wrapWidth > 0 ? wrapWidth : Integer.MAX_VALUE;
+            LytRect contentBounds = richContent.layout(layoutContext, 0, 0, availableWidth);
+            cachedMeasure = new LayoutMeasure(
+                contentBounds.width() + PADDING_X * 2,
+                contentBounds.height() + PADDING_Y * 2,
+                Collections.emptyList(),
+                availableWidth);
+            cachedMeasureWrapWidth = wrapWidth;
+            return cachedMeasure;
+        }
+
+        Minecraft mc = Minecraft.getMinecraft();
+        FontRenderer fr = mc.fontRenderer;
+        List<String> lines = getLines(fr, wrapWidth);
+        int lineCount = Math.max(1, lines.size());
+        int maxLineW = 0;
+        for (String line : lines) {
+            maxLineW = Math.max(maxLineW, fr.getStringWidth(line));
+        }
+        cachedMeasure = new LayoutMeasure(
+            maxLineW + PADDING_X * 2,
+            fr.FONT_HEIGHT * lineCount + LINE_GAP * (lineCount - 1) + PADDING_Y * 2,
+            lines,
+            wrapWidth);
+        cachedMeasureWrapWidth = wrapWidth;
+        return cachedMeasure;
+    }
+
+    private int resolveContentWrapWidth(int viewportWidth) {
+        int viewportContentWidth = Math.max(1, viewportWidth - PADDING_X * 2 - 2);
+        if (maxWidth > 0) {
+            return Math.max(1, Math.min(maxWidth, viewportContentWidth));
+        }
+        return viewportContentWidth;
+    }
+
+    private LytRect bubbleRect(int anchorX, int anchorY, int boxW, int boxH) {
+        return switch (connectorSide) {
+            case TOP -> new LytRect(anchorX - boxW / 2 - connectorOffset, anchorY + connectorLength + 1, boxW, boxH);
+            case LEFT -> new LytRect(anchorX + connectorLength + 1, anchorY - boxH / 2 - connectorOffset, boxW, boxH);
+            case RIGHT -> new LytRect(
+                anchorX - boxW - connectorLength - 1,
+                anchorY - boxH / 2 - connectorOffset,
+                boxW,
+                boxH);
+            case NONE -> new LytRect(anchorX - boxW / 2 - connectorOffset, anchorY - boxH - 1, boxW, boxH);
+            case BOTTOM -> new LytRect(
+                anchorX - boxW / 2 - connectorOffset,
+                anchorY - boxH - connectorLength - 1,
+                boxW,
+                boxH);
+        };
+    }
+
+    private LytRect constrainBubbleRect(LytRect bubble, LytRect viewport) {
+        if (bubble == null || viewport == null || viewport.isEmpty()) {
+            return bubble;
+        }
+        int constrainedX = bubble.x();
+        int constrainedY = bubble.y();
+        int maxX = viewport.right() - bubble.width();
+        int maxY = viewport.bottom() - bubble.height();
+        constrainedX = Math.max(viewport.x(), Math.min(maxX, constrainedX));
+        constrainedY = Math.max(viewport.y(), Math.min(maxY, constrainedY));
+        return new LytRect(constrainedX, constrainedY, bubble.width(), bubble.height());
+    }
+
+    private void drawConnector(int anchorX, int anchorY, LytRect bubble, int argb) {
+        if (independent || connectorSide == ConnectorSide.NONE || connectorLength <= 0) {
+            return;
+        }
+        switch (connectorSide) {
+            case TOP -> drawFilledRect(anchorX - 1, anchorY, anchorX + 1, bubble.y(), argb);
+            case LEFT -> drawFilledRect(anchorX, anchorY - 1, bubble.x(), anchorY + 1, argb);
+            case RIGHT -> drawFilledRect(bubble.right(), anchorY - 1, anchorX, anchorY + 1, argb);
+            case BOTTOM -> drawFilledRect(anchorX - 1, bubble.bottom(), anchorX + 1, anchorY, argb);
+            case NONE -> {}
+        }
+    }
+
     private static int clampAlpha(int value) {
         return Math.max(0, Math.min(255, value));
+    }
+
+    private static class LayoutMeasure {
+
+        private final int boxWidth;
+        private final int boxHeight;
+        private final List<String> lines;
+        private final int availableWidth;
+
+        private LayoutMeasure(int boxWidth, int boxHeight, List<String> lines, int availableWidth) {
+            this.boxWidth = boxWidth;
+            this.boxHeight = boxHeight;
+            this.lines = lines;
+            this.availableWidth = availableWidth;
+        }
+
+        private int boxWidth() {
+            return boxWidth;
+        }
+
+        private int boxHeight() {
+            return boxHeight;
+        }
+
+        private List<String> lines() {
+            return lines;
+        }
+
+        private int availableWidth() {
+            return availableWidth;
+        }
+    }
+
+    public enum ConnectorSide {
+
+        BOTTOM("bottom"),
+        TOP("top"),
+        LEFT("left"),
+        RIGHT("right"),
+        NONE("none");
+
+        private final String serializedName;
+
+        ConnectorSide(String serializedName) {
+            this.serializedName = serializedName;
+        }
+
+        public String serializedName() {
+            return serializedName;
+        }
+
+        public static ConnectorSide fromSerializedName(String raw) {
+            if (raw == null || raw.trim()
+                .isEmpty()) {
+                return BOTTOM;
+            }
+            String normalized = raw.trim()
+                .toLowerCase(Locale.ROOT);
+            for (ConnectorSide side : values()) {
+                if (side.serializedName.equals(normalized)) {
+                    return side;
+                }
+            }
+            throw new IllegalArgumentException("connectorSide must be bottom, top, left, right, or none.");
+        }
     }
 }

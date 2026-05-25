@@ -1,5 +1,7 @@
 package com.hfstudio.guidenh.integration.structurelib;
 
+import java.util.Objects;
+
 import org.jetbrains.annotations.Nullable;
 
 public class StructureLibImportRequest {
@@ -87,6 +89,28 @@ public class StructureLibImportRequest {
 
     public StructureLibSceneOptions getSceneOptions() {
         return sceneOptions;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof StructureLibImportRequest other)) {
+            return false;
+        }
+        return controller.equals(other.controller) && Objects.equals(piece, other.piece)
+            && Objects.equals(facing, other.facing)
+            && Objects.equals(rotation, other.rotation)
+            && Objects.equals(flip, other.flip)
+            && Objects.equals(channel, other.channel)
+            && previewSelection.equals(other.previewSelection)
+            && Objects.equals(sceneOptions, other.sceneOptions);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(controller, piece, facing, rotation, flip, channel, previewSelection, sceneOptions);
     }
 
     public static String requireController(@Nullable String controller) {

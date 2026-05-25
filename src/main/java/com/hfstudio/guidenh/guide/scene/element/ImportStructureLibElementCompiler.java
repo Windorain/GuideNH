@@ -7,12 +7,16 @@ import java.util.Set;
 import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
 
+import org.jetbrains.annotations.Nullable;
+
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.compiler.tags.MdxAttrs;
 import com.hfstudio.guidenh.guide.document.LytErrorSink;
 import com.hfstudio.guidenh.guide.scene.CameraSettings;
 import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
+import com.hfstudio.guidenh.guide.scene.StructureLibSceneBinding;
 import com.hfstudio.guidenh.guide.scene.annotation.compiler.AnnotationTagCompiler;
+import com.hfstudio.guidenh.guide.scene.cache.GuideSceneStructureCompileScope;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookPreviewBlockPlacer;
 import com.hfstudio.guidenh.integration.gregtech.GregTechHelpers;
@@ -45,6 +49,9 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
     @Override
     public void compile(GuidebookLevel level, CameraSettings camera, PageCompiler compiler, LytErrorSink errorSink,
         MdxJsxElementFields el) {
+        if (!GuideSceneStructureCompileScope.isStructureMutationEnabled()) {
+            return;
+        }
         LytGuidebookScene scene = AnnotationTagCompiler.CURRENT_SCENE.get();
         if (scene == null) {
             errorSink.appendError(compiler, "ImportStructureLib used outside <GameScene>", el);
@@ -65,7 +72,11 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
         StructureLibSceneOptions childOptions = StructureLibSceneOptionParser.parseChildren(compiler, errorSink, el);
         StructureLibSceneOptions legacyOptions = StructureLibSceneOptionParser.parseAttributes(compiler, errorSink, el);
         StructureLibSceneOptions sceneOptions = legacyOptions.merge(childOptions);
-        StructureLibPreviewSelection selectionOverride = scene.getPendingStructureLibPreviewSelection();
+        String structureName = MdxAttrs.getString(compiler, errorSink, el, "name", null);
+        StructureLibSceneBinding binding = scene.registerStructureLibBinding(structureName);
+        StructureLibPreviewSelection selectionOverride = binding.getPendingSelection() != null
+            ? binding.getPendingSelection()
+            : scene.getPendingStructureLibPreviewSelection();
         StructureLibPreviewSelection defaultSelection = sceneOptions
             .createSelection(requestedChannel == Integer.MIN_VALUE ? null : Integer.valueOf(requestedChannel));
         StructureLibPreviewSelection selection = selectionOverride != null
@@ -74,19 +85,16 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
         StructureLibImportRequest request = new StructureLibImportRequest(
             controller,
             MdxAttrs.getString(compiler, errorSink, el, "piece", null),
-            StructureLibSceneOptions
-                .resolveFacing(MdxAttrs.getString(compiler, errorSink, el, "facing", null), sceneOptions),
-            StructureLibSceneOptions
-                .resolveRotation(MdxAttrs.getString(compiler, errorSink, el, "rotation", null), sceneOptions),
-            StructureLibSceneOptions
-                .resolveFlip(MdxAttrs.getString(compiler, errorSink, el, "flip", null), sceneOptions),
+            StructureLibSceneOptions.resolveFacing(MdxAttrs.getString(compiler, errorSink, el, "facing", null), sceneOptions),
+            StructureLibSceneOptions.resolveRotation(MdxAttrs.getString(compiler, errorSink, el, "rotation", null), sceneOptions),
+            StructureLibSceneOptions.resolveFlip(MdxAttrs.getString(compiler, errorSink, el, "flip", null), sceneOptions),
             Integer.valueOf(selection.getMasterTier()),
             applyControllerDefaults(controller, selection, sceneOptions),
             sceneOptions);
         scene.setStructureLibInitialSelection(request.getPreviewSelection());
 
         StructureLibImportResult result = importService.importScene(request);
-        attachMetadata(scene, request, result);
+        attachMetadata(scene, structureName, request, result);
 
         if (!result.isSuccess()) {
             errorSink.appendError(compiler, resolveFailureMessage(result.getErrors(), request.getController()), el);
@@ -98,34 +106,31 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
             if (block == null || block == Blocks.air) {
                 continue;
             }
+            int clampedY = Math.max(0, Math.min(placedBlock.getY() + offsetY, level.getHeight() - 1));
 
             GuidebookPreviewBlockPlacer.place(
                 level,
                 placedBlock.getX() + offsetX,
-                Math.max(0, Math.min(placedBlock.getY() + offsetY, level.getHeight() - 1)),
+                clampedY,
                 placedBlock.getZ() + offsetZ,
                 block,
                 placedBlock.getMeta(),
                 placedBlock.getTileTag(),
                 placedBlock.getBlockId());
-            level.setExplicitBlockId(
-                placedBlock.getX() + offsetX,
-                Math.max(0, Math.min(placedBlock.getY() + offsetY, level.getHeight() - 1)),
-                placedBlock.getZ() + offsetZ,
-                placedBlock.getBlockId());
         }
     }
 
-    public static void attachMetadata(LytGuidebookScene scene, StructureLibImportRequest request,
-        StructureLibImportResult result) {
+    public static void attachMetadata(LytGuidebookScene scene, @Nullable String structureName,
+        StructureLibImportRequest request, StructureLibImportResult result) {
         StructureLibSceneMetadata metadata = result.getMetadata();
         if (metadata != null) {
-            scene.setStructureLibSceneMetadata(metadata);
+            scene.setStructureLibSceneMetadata(structureName, metadata);
             return;
         }
 
         if (result.isSuccess()) {
             scene.setStructureLibSceneMetadata(
+                structureName,
                 new StructureLibSceneMetadata(
                     request.getController(),
                     request.getPiece(),

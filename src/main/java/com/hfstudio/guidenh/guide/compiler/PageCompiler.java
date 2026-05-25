@@ -20,7 +20,6 @@ import java.util.regex.Pattern;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 
-import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import com.github.bsideup.jabel.Desugar;
@@ -39,6 +38,8 @@ import com.hfstudio.guidenh.guide.document.block.LytBlock;
 import com.hfstudio.guidenh.guide.document.block.LytBlockContainer;
 import com.hfstudio.guidenh.guide.document.block.LytCodeBlock;
 import com.hfstudio.guidenh.guide.document.block.LytDocument;
+import com.hfstudio.guidenh.guide.document.block.LytDocumentFloat;
+import com.hfstudio.guidenh.guide.document.block.LytFloatAwareBlock;
 import com.hfstudio.guidenh.guide.document.block.LytHeading;
 import com.hfstudio.guidenh.guide.document.block.LytImage;
 import com.hfstudio.guidenh.guide.document.block.LytItemImage;
@@ -83,6 +84,7 @@ import com.hfstudio.guidenh.guide.internal.markdown.MarkdownRuntimeBlocks.QuoteI
 import com.hfstudio.guidenh.guide.internal.markdown.MarkdownRuntimeBlocks.QuoteIconSpec;
 import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapParser;
 import com.hfstudio.guidenh.guide.internal.util.GuideStringLines;
+import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.guide.render.GuidePageTexture;
 import com.hfstudio.guidenh.guide.sound.GuideSoundParsers;
 import com.hfstudio.guidenh.guide.style.BorderStyle;
@@ -154,6 +156,7 @@ public class PageCompiler {
     private final PageCollection pages;
     private final ExtensionCollection extensions;
     private final String sourcePack;
+    private final String language;
     private final ResourceLocation pageId;
     private final String pageContent;
     private final Map<String, MdAstDefinition> definitions = new HashMap<>();
@@ -163,12 +166,20 @@ public class PageCompiler {
     // Data associated with the current page being compiled, this is used by
     // compilers to communicate with each other within the current page.
     private final Map<State<?>, Object> compilerState = new IdentityHashMap<>();
+    private final Map<MdxJsxElementFields, BlockTagChildrenCacheEntry> blockTagChildrenCache = new IdentityHashMap<>();
+    private final Map<String, ParsedGuidePage> inlineMarkdownParseCache = new HashMap<>();
 
     public PageCompiler(PageCollection pages, ExtensionCollection extensions, String sourcePack,
+        ResourceLocation pageId, String pageContent) {
+        this(pages, extensions, sourcePack, LangUtil.ENGLISH_LANGUAGE, pageId, pageContent);
+    }
+
+    public PageCompiler(PageCollection pages, ExtensionCollection extensions, String sourcePack, String language,
         ResourceLocation pageId, String pageContent) {
         this.pages = pages;
         this.extensions = extensions;
         this.sourcePack = sourcePack;
+        this.language = language;
         this.pageId = pageId;
         this.pageContent = pageContent;
 
@@ -205,22 +216,49 @@ public class PageCompiler {
 
     public static ParsedGuidePage parse(String sourcePack, String language, ResourceLocation id, String pageContent) {
         pageContent = pageContent != null ? pageContent : "";
+        long parseStartedAt = System.nanoTime();
+        long stageStartedAt = parseStartedAt;
+        pageContent = normalizeLineEndings(pageContent);
+        long normalizeNs = System.nanoTime() - stageStartedAt;
+
+        stageStartedAt = System.nanoTime();
+        pageContent = FootnotePreprocessor.preprocess(pageContent);
+        long footnoteNs = System.nanoTime() - stageStartedAt;
+
+        stageStartedAt = System.nanoTime();
+        var sourceFrontmatter = parseFrontmatterFromSource(id, pageContent);
+        long sourceFrontmatterNs = System.nanoTime() - stageStartedAt;
+
+        stageStartedAt = System.nanoTime();
+        MarkdownLatexShorthand.MaskResult latexMask = MarkdownLatexShorthand.mask(pageContent);
+        long latexMaskNs = System.nanoTime() - stageStartedAt;
+
+        stageStartedAt = System.nanoTime();
+        String parseContent = MdxCommentMasker.mask(latexMask.source());
+        long commentMaskNs = System.nanoTime() - stageStartedAt;
+
         MdAstRoot astRoot;
-        Frontmatter sourceFrontmatter = new Frontmatter(null, Collections.emptyMap());
         String parseFailureMessage = null;
         UnistPoint parseFailureFrom = null;
         UnistPoint parseFailureTo = null;
+        long markdownParseNs;
+        long latexRestoreNs = 0L;
+        long htmlNormalizeNs = 0L;
         try {
-            pageContent = normalizeLineEndings(pageContent);
-            pageContent = FootnotePreprocessor.preprocess(pageContent);
-            sourceFrontmatter = parseFrontmatterFromSource(id, pageContent);
-            MarkdownLatexShorthand.MaskResult latexMask = MarkdownLatexShorthand.mask(pageContent);
-            String parseContent = MdxCommentMasker.mask(latexMask.source());
+            stageStartedAt = System.nanoTime();
             astRoot = MdAst.fromMarkdown(parseContent, PARSE_OPTIONS);
+            markdownParseNs = System.nanoTime() - stageStartedAt;
+
+            stageStartedAt = System.nanoTime();
             MarkdownLatexShorthand.restore(astRoot, latexMask);
+            latexRestoreNs = System.nanoTime() - stageStartedAt;
+
+            stageStartedAt = System.nanoTime();
             MarkdownHtmlRuntimeNormalizer.normalize(astRoot);
+            htmlNormalizeNs = System.nanoTime() - stageStartedAt;
         } catch (RuntimeException t) {
             if (t instanceof ParseException e) {
+                markdownParseNs = System.nanoTime() - stageStartedAt;
                 parseFailureFrom = e.getFrom();
                 parseFailureTo = e.getTo();
             }
@@ -231,8 +269,30 @@ public class PageCompiler {
         }
 
         // Find front-matter
-        var frontmatter = parseFailureMessage == null ? sourceFrontmatter : parseFrontmatter(id, astRoot);
-        if (parseFailureMessage != null && sourceFrontmatter.navigationEntry() != null) frontmatter = sourceFrontmatter;
+        stageStartedAt = System.nanoTime();
+        var frontmatter = parseFrontmatter(id, astRoot);
+        long astFrontmatterNs = System.nanoTime() - stageStartedAt;
+        if (parseFailureMessage != null && sourceFrontmatter.navigationEntry() != null) {
+            frontmatter = sourceFrontmatter;
+        }
+
+        long totalNs = System.nanoTime() - parseStartedAt;
+        FMLLog.getLogger()
+            .info(
+                "[GuideNH] [PageCompiler] Parsed page {} lang={} totalNs={} normalizeNs={} footnoteNs={} sourceFrontmatterNs={} latexMaskNs={} commentMaskNs={} markdownParseNs={} latexRestoreNs={} htmlNormalizeNs={} astFrontmatterNs={} parseFailed={}",
+                id,
+                language,
+                totalNs,
+                normalizeNs,
+                footnoteNs,
+                sourceFrontmatterNs,
+                latexMaskNs,
+                commentMaskNs,
+                markdownParseNs,
+                latexRestoreNs,
+                htmlNormalizeNs,
+                astFrontmatterNs,
+                parseFailureMessage != null);
 
         return new ParsedGuidePage(
             sourcePack,
@@ -262,15 +322,6 @@ public class PageCompiler {
             id,
             language,
             positionText,
-            sourcePack);
-    }
-
-    private static String formatCompileFailureMessage(ResourceLocation id, String language, String sourcePack) {
-        return String.format(
-            Locale.ROOT,
-            "Failed to compile GuideME page %s (lang: %s) from resource pack %s",
-            id,
-            language,
             sourcePack);
     }
 
@@ -309,34 +360,18 @@ public class PageCompiler {
 
     public static GuidePage compile(PageCollection pages, ExtensionCollection extensions, ParsedGuidePage parsedPage) {
         // Translate page tree over to layout pages
-        PageCompiler compiler = new PageCompiler(
+        var document = new PageCompiler(
             pages,
             extensions,
             parsedPage.getSourcePack(),
+            parsedPage.getLanguage(),
             parsedPage.getId(),
-            parsedPage.getSource());
-        try {
-            var document = compiler.compile(parsedPage.getAstRoot());
-            var titleHeading = extractPageTitleHeading(document);
-            FrontmatterPageMeta pageMeta = parsedPage.getFrontmatter() != null ? parsedPage.getFrontmatter()
-                .parseMeta() : null;
-            if (pageMeta != null && pageMeta.isEmpty()) pageMeta = null;
-            return new GuidePage(parsedPage.getSourcePack(), parsedPage.getId(), document, titleHeading, pageMeta);
-        } catch (RuntimeException t) {
-            String errorMessage = formatCompileFailureMessage(
-                parsedPage.getId(),
-                parsedPage.getLanguage(),
-                parsedPage.getSourcePack());
-            logError("[GuideNH] [PageCompiler] {}", t, errorMessage);
-            return buildErrorGuidePage(
-                pages,
-                extensions,
-                parsedPage.getSourcePack(),
-                parsedPage.getId(),
-                parsedPage.getSource(),
-                "COMPILATION ERROR",
-                errorMessage + ": \n" + t);
-        }
+            parsedPage.getSource()).compile(parsedPage.getAstRoot());
+        var titleHeading = extractPageTitleHeading(document);
+        FrontmatterPageMeta pageMeta = parsedPage.getFrontmatter() != null ? parsedPage.getFrontmatter()
+            .parseMeta() : null;
+        if (pageMeta != null && pageMeta.isEmpty()) pageMeta = null;
+        return new GuidePage(parsedPage.getSourcePack(), parsedPage.getId(), document, titleHeading, pageMeta);
     }
 
     /**
@@ -383,13 +418,15 @@ public class PageCompiler {
         for (var child : root.children()) {
             if (child instanceof MdAstYamlFrontmatter frontmatter) {
                 if (result != null) {
-                    logError("[GuideNH] [PageCompiler] Found more than one frontmatter!");
+                    FMLLog.getLogger()
+                        .error("[GuideNH] [PageCompiler] Found more than one frontmatter!");
                     continue;
                 }
                 try {
                     result = Frontmatter.parse(pageId, frontmatter.value);
                 } catch (Exception e) {
-                    logFrontmatterFailure(pageId, e);
+                    FMLLog.getLogger()
+                        .error("[GuideNH] [PageCompiler] Failed to parse frontmatter for page {}", pageId, e);
                     break;
                 }
             }
@@ -407,13 +444,10 @@ public class PageCompiler {
         try {
             return Frontmatter.parse(pageId, yamlText);
         } catch (Exception e) {
-            logFrontmatterFailure(pageId, e);
+            FMLLog.getLogger()
+                .error("[GuideNH] [PageCompiler] Failed to parse frontmatter for page {}", pageId, e);
             return new Frontmatter(null, Collections.emptyMap());
         }
-    }
-
-    private static void logFrontmatterFailure(ResourceLocation pageId, Exception e) {
-        logWarn("[GuideNH] [PageCompiler] Failed to parse frontmatter for page {}: {}", pageId, describeThrowable(e));
     }
 
     public static @Nullable String extractFrontmatterText(String pageContent) {
@@ -439,17 +473,24 @@ public class PageCompiler {
     }
 
     public void compileBlockTagChildren(MdxJsxElementFields element, LytBlockContainer layoutParent) {
-        BlockTagChildSource reparsed = extractBlockTagChildrenSource(element);
-        if (reparsed == null) {
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.source() == null || cachedChildren.parsedPage() == null) {
             compileBlockContextInSourceContext(element.children(), layoutParent);
             return;
         }
 
-        MdAstRoot root = parseFragmentRoot(reparsed.source());
         Map<String, MdAstDefinition> previousDefinitions = new HashMap<>(definitions);
-        definitions.putAll(GuideMarkdownDefinitions.collect(root));
+        definitions.putAll(
+            GuideMarkdownDefinitions.collect(
+                cachedChildren.parsedPage()
+                    .getAstRoot()));
         try {
-            withSourceSlice(reparsed.source(), () -> compileBlockContext(root, layoutParent));
+            withSourceSlice(
+                cachedChildren.source(),
+                () -> compileBlockContext(
+                    cachedChildren.parsedPage()
+                        .getAstRoot(),
+                    layoutParent));
         } finally {
             definitions.clear();
             definitions.putAll(previousDefinitions);
@@ -457,11 +498,13 @@ public class PageCompiler {
     }
 
     public List<? extends MdAstAnyContent> reparseBlockTagChildren(MdxJsxElementFields element) {
-        BlockTagChildSource reparsed = extractBlockTagChildrenSource(element);
-        if (reparsed == null) {
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.parsedPage() == null) {
             return element.children();
         }
-        return parseFragmentRoot(reparsed.source()).children();
+        return cachedChildren.parsedPage()
+            .getAstRoot()
+            .children();
     }
 
     /**
@@ -470,8 +513,11 @@ public class PageCompiler {
      * Useful for tag compilers whose body is parsed by a non-Markdown grammar (file trees, etc.).
      */
     public @Nullable String getBlockTagChildrenSource(MdxJsxElementFields element) {
-        BlockTagChildSource reparsed = extractBlockTagChildrenSource(element);
-        return reparsed != null ? reparsed.source() : null;
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.source() != null) {
+            return cachedChildren.source();
+        }
+        return sourceForChildren(element.children());
     }
 
     /**
@@ -484,15 +530,22 @@ public class PageCompiler {
         if (source == null || source.isEmpty()) {
             return;
         }
-        if (isPlainInlineMarkdown(source)) {
-            layoutParent.appendText(source);
-            return;
+        ParsedGuidePage parsed = inlineMarkdownParseCache.get(source);
+        if (parsed == null) {
+            parsed = parse(sourcePack, "en_us", pageId, source);
+            inlineMarkdownParseCache.put(source, parsed);
         }
-        MdAstRoot root = parseFragmentRoot(source);
-        for (MdAstAnyContent child : root.children()) {
+        compileInlineFragment(
+            parsed.getAstRoot()
+                .children(),
+            layoutParent);
+    }
+
+    public void compileInlineFragment(Collection<? extends MdAstAnyContent> children, LytFlowParent layoutParent) {
+        for (MdAstAnyContent child : children) {
             if (child instanceof MdAstParagraph paragraph) {
                 compileFlowContext(paragraph, layoutParent);
-            } else if (child instanceof MdAstParent<?>nestedParent) {
+            } else if (child instanceof MdAstParent<?>nestedParent && !(child instanceof MdAstPhrasingContent)) {
                 for (var nestedChild : nestedParent.children()) {
                     compileFlowContent(layoutParent, nestedChild);
                 }
@@ -502,78 +555,26 @@ public class PageCompiler {
         }
     }
 
-    private MdAstRoot parseFragmentRoot(String source) {
-        String fragmentSource = source != null ? source : "";
-        try {
-            fragmentSource = normalizeLineEndings(fragmentSource);
-            fragmentSource = FootnotePreprocessor.preprocess(fragmentSource);
-            MarkdownLatexShorthand.MaskResult latexMask = MarkdownLatexShorthand.mask(fragmentSource);
-            String parseContent = MdxCommentMasker.mask(latexMask.source());
-            MdAstRoot root = MdAst.fromMarkdown(parseContent, PARSE_OPTIONS);
-            MarkdownLatexShorthand.restore(root, latexMask);
-            MarkdownHtmlRuntimeNormalizer.normalize(root);
-            return root;
-        } catch (RuntimeException e) {
-            UnistPoint from = e instanceof ParseException parseException ? parseException.getFrom() : null;
-            String errorMessage = formatFragmentParseFailureMessage(pageId, sourcePack, from);
-            logError("[GuideNH] [PageCompiler] {}", e, errorMessage);
-            return buildErrorPage(errorMessage + ": \n" + e);
-        }
-    }
-
-    private static String formatFragmentParseFailureMessage(ResourceLocation id, String sourcePack,
-        @Nullable UnistPoint position) {
-        String positionText = "";
-        if (position != null) {
-            positionText = " at line " + position.line() + " column " + position.column();
-        }
-        return String.format(
-            Locale.ROOT,
-            "Failed to parse GuideME markdown fragment in page %s%s from %s",
-            id,
-            positionText,
-            sourcePack);
-    }
-
-    private static boolean isPlainInlineMarkdown(String source) {
-        for (int i = 0; i < source.length(); i++) {
-            char current = source.charAt(i);
-            switch (current) {
-                case '<':
-                case '[':
-                case ']':
-                case '(':
-                case ')':
-                case '*':
-                case '_':
-                case '`':
-                case '\\':
-                case '&':
-                case '$':
-                case '=':
-                case '~':
-                case '\n':
-                case '\r':
-                    return false;
-                default:
-                    break;
-            }
-        }
-        return true;
-    }
-
     public void compileBlockContextInSourceContext(List<? extends MdAstAnyContent> children,
         LytBlockContainer layoutParent) {
         withChildrenSourceContext(children, () -> compileBlockContext(children, layoutParent));
     }
 
     public void withBlockTagChildrenSourceContext(MdxJsxElementFields element, Runnable action) {
-        BlockTagChildSource reparsed = extractBlockTagChildrenSource(element);
-        if (reparsed != null) {
-            withSourceSlice(reparsed.source(), action);
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.source() != null) {
+            withSourceSlice(cachedChildren.source(), action);
             return;
         }
         withChildrenSourceContext(element.children(), action);
+    }
+
+    public void withSourceContext(String sourceText, Runnable action) {
+        if (sourceText == null) {
+            action.run();
+            return;
+        }
+        withSourceSlice(sourceText, action);
     }
 
     public void compileBlockContext(List<? extends MdAstAnyContent> children, LytBlockContainer layoutParent) {
@@ -621,15 +622,7 @@ public class PageCompiler {
                     layoutChild = createErrorBlock("Unhandled MDX element in block context", child);
                 } else {
                     layoutChild = null;
-                    try {
-                        compiler.compileBlockContext(this, layoutParent, el);
-                    } catch (RuntimeException e) {
-                        appendUnexpectedNodeError(
-                            layoutParent,
-                            "Failed to compile MDX block <" + el.name() + ">",
-                            el,
-                            e);
-                    }
+                    compiler.compileBlockContext(this, layoutParent, el);
                 }
             } else if (child instanceof MdAstPhrasingContent phrasingContent) {
                 // Wrap in a paragraph with no margins, but try appending to an existing paragraph before this
@@ -646,6 +639,7 @@ public class PageCompiler {
             }
 
             if (layoutChild != null) {
+                layoutChild = wrapFloatAwareIfNeeded(layoutChild);
                 if (child instanceof MdAstNode astNode) {
                     layoutChild.setSourceNode(astNode);
                 }
@@ -696,7 +690,7 @@ public class PageCompiler {
                 alertBox.setMarginBottom(DEFAULT_ELEMENT_SPACING);
                 compileDirectiveBody(directive, alertBox);
                 normalizeBlockMargins(alertBox);
-                return alertBox;
+                return wrapFloatAwareIfNeeded(alertBox);
             }
 
             var quoteBox = new LytQuoteBox();
@@ -706,7 +700,7 @@ public class PageCompiler {
             compileDirectiveBody(directive, quoteBox);
             normalizeBlockMargins(quoteBox);
             shiftFirstParagraphDown(quoteBox, 1);
-            return quoteBox;
+            return wrapFloatAwareIfNeeded(quoteBox);
         }
 
         var blockquote = new LytVBox();
@@ -719,7 +713,7 @@ public class PageCompiler {
         compileBlockContext(astBlockquote, blockquote);
         normalizeBlockMargins(blockquote);
         shiftFirstParagraphDown(blockquote, 1);
-        return blockquote;
+        return wrapFloatAwareIfNeeded(blockquote);
     }
 
     private void normalizeBlockMargins(LytNode box) {
@@ -819,7 +813,9 @@ public class PageCompiler {
             var itemImage = new LytItemImage(stack);
             itemImage.setInline(true);
             itemImage.setTooltipSuppressed(true);
-            return LytFlowInlineBlock.of(itemImage);
+            itemImage.setInlineYOffsetOverride(-1);
+            var inlineBlock = LytFlowInlineBlock.of(itemImage);
+            return inlineBlock;
         }
 
         if (icon.kind() == QuoteIconKind.PNG) {
@@ -861,7 +857,7 @@ public class PageCompiler {
                         .build());
                 displayBlock.setMarginTop(DEFAULT_ELEMENT_SPACING);
                 displayBlock.setMarginBottom(DEFAULT_ELEMENT_SPACING);
-                parent.append(displayBlock);
+                parent.append(wrapFloatAwareIfNeeded(displayBlock));
                 return;
             }
         }
@@ -873,7 +869,7 @@ public class PageCompiler {
             .isEmpty() && paragraph.isEmpty()) {
             return;
         }
-        parent.append(paragraph);
+        parent.append(wrapFloatAwareIfNeeded(paragraph));
     }
 
     private LytBlock compileTable(GfmTable astTable, List<Integer> widthHints) {
@@ -930,7 +926,14 @@ public class PageCompiler {
             rowIndex++;
         }
 
-        return table;
+        return wrapFloatAwareIfNeeded(table);
+    }
+
+    public static LytBlock wrapFloatAwareIfNeeded(LytBlock block) {
+        if (block instanceof LytParagraph || block instanceof LytDocumentFloat || block instanceof LytFloatAwareBlock) {
+            return block;
+        }
+        return new LytFloatAwareBlock(block);
     }
 
     private @Nullable String getTableRowText(GfmTableRow row) {
@@ -1033,11 +1036,7 @@ public class PageCompiler {
                 layoutChild = createErrorFlowContent("Unhandled MDX element in flow context", content);
             } else {
                 layoutChild = null;
-                try {
-                    compiler.compileFlowContext(this, layoutParent, el);
-                } catch (RuntimeException e) {
-                    appendUnexpectedNodeError(layoutParent, "Failed to compile MDX inline <" + el.name() + ">", el, e);
-                }
+                compiler.compileFlowContext(this, layoutParent, el);
             }
         } else {
             layoutChild = createErrorFlowContent("Unhandled Markdown node in flow context", content);
@@ -1054,36 +1053,36 @@ public class PageCompiler {
         }
 
         List<MarkdownActionLink.Segment> segments = MarkdownActionLink.split(text);
-        boolean foundLink = false;
-        for (var segment : segments) {
-            if (segment.isLink() && GuideSoundParsers.parseActionUri(this, segment.href()) != null) {
-                foundLink = true;
-                break;
-            }
-        }
-        if (!foundLink) {
-            return false;
-        }
-
+        ArrayList<LytFlowContent> rendered = new ArrayList<>(segments.size());
+        boolean foundSoundLink = false;
         for (var segment : segments) {
             if (!segment.isLink()) {
                 if (!segment.text()
                     .isEmpty()) {
-                    layoutParent.appendText(segment.text());
+                    rendered.add(LytFlowText.of(segment.text()));
                 }
                 continue;
             }
 
             var sound = GuideSoundParsers.parseActionUri(this, segment.href());
             if (sound == null) {
-                layoutParent.appendText("&[" + segment.text() + "](" + segment.href() + ")");
+                rendered.add(LytFlowText.of("&[" + segment.text() + "](" + segment.href() + ")"));
                 continue;
             }
+
             var link = new LytFlowLink();
             link.setClickSoundSpec(sound);
             link.setClickCallback(uiHost -> {});
             link.appendText(segment.text());
-            layoutParent.append(link);
+            rendered.add(link);
+            foundSoundLink = true;
+        }
+        if (!foundSoundLink) {
+            return false;
+        }
+
+        for (var content : rendered) {
+            layoutParent.append(content);
         }
         return true;
     }
@@ -1135,6 +1134,13 @@ public class PageCompiler {
 
     private LytFlowContent compileLink(MdAstLink astLink, LytErrorSink errorSink) {
         var link = new LytFlowLink();
+        var sound = GuideSoundParsers.parseActionUri(this, astLink.url);
+        if (sound != null) {
+            link.setClickSoundSpec(sound);
+            link.setClickCallback(uiHost -> {});
+            compileFlowContext(astLink, link);
+            return link;
+        }
         if (astLink.title != null && !astLink.title.isEmpty()) {
             link.setTooltip(new TextTooltip(astLink.title));
         }
@@ -1204,7 +1210,7 @@ public class PageCompiler {
             return FileTreeCompiler.compile(this, astCode.value);
         }
         if (isFunctionGraphFence(astCode.lang)) {
-            return compileFunctionGraphCodeBlock(astCode);
+            return FunctionGraphFenceParser.parse(astCode.value);
         }
         if ("mermaid".equals(language.id())) {
             LytMermaidMindmap mermaidBlock = tryCompileMermaidMindmap(astCode.value);
@@ -1247,14 +1253,6 @@ public class PageCompiler {
         String trimmed = fenceLanguage.trim();
         return "funcgraph".equalsIgnoreCase(trimmed) || "function".equalsIgnoreCase(trimmed)
             || "functiongraph".equalsIgnoreCase(trimmed);
-    }
-
-    private LytBlock compileFunctionGraphCodeBlock(MdAstCode astCode) {
-        try {
-            return FunctionGraphFenceParser.parse(astCode.value);
-        } catch (RuntimeException e) {
-            return createErrorBlock("Invalid function graph fence: " + describeThrowable(e), astCode);
-        }
     }
 
     private LytBlock compileCsvCodeBlock(MdAstCode astCode) {
@@ -1490,28 +1488,34 @@ public class PageCompiler {
     }
 
     private @Nullable BlockTagChildSource extractBlockTagChildrenSource(MdxJsxElementFields element) {
-        UnistPosition position = element.position();
-        if (position == null || position.start() == null || position.end() == null) {
-            return null;
-        }
-
-        int sourceStart = position.start()
-            .offset();
-        int sourceEnd = position.end()
-            .offset();
         String sourceText = getCurrentSourceText();
-        if (sourceStart < 0 || sourceEnd <= sourceStart || sourceEnd > sourceText.length()) {
+        String body = MdxBlockTagSourceExtractor.extractRawBody(element, sourceText);
+        if (body == null && !Objects.equals(sourceText, pageContent)) {
+            body = MdxBlockTagSourceExtractor.extractRawBody(element, pageContent);
+        }
+        if (body == null) {
             return null;
         }
 
-        String raw = sourceText.substring(sourceStart, sourceEnd);
-        int openingTagEnd = raw.indexOf('>');
-        int closingTagStart = raw.lastIndexOf("</");
-        if (openingTagEnd < 0 || closingTagStart < 0 || closingTagStart <= openingTagEnd) {
-            return null;
+        return new BlockTagChildSource(dedentBlockTagBody(body));
+    }
+
+    private BlockTagChildrenCacheEntry getBlockTagChildrenCacheEntry(MdxJsxElementFields element) {
+        BlockTagChildrenCacheEntry cachedEntry = blockTagChildrenCache.get(element);
+        if (cachedEntry != null) {
+            return cachedEntry;
         }
 
-        return new BlockTagChildSource(dedentBlockTagBody(raw.substring(openingTagEnd + 1, closingTagStart)));
+        BlockTagChildSource extractedSource = extractBlockTagChildrenSource(element);
+        if (extractedSource == null) {
+            cachedEntry = new BlockTagChildrenCacheEntry(null, null);
+        } else {
+            cachedEntry = new BlockTagChildrenCacheEntry(
+                extractedSource.source(),
+                parse(sourcePack, "en_us", pageId, extractedSource.source()));
+        }
+        blockTagChildrenCache.put(element, cachedEntry);
+        return cachedEntry;
     }
 
     private String dedentBlockTagBody(String body) {
@@ -1595,17 +1599,19 @@ public class PageCompiler {
         try {
             String normalized = MermaidMindmapParser.normalize(source);
             LytMermaidMindmap block = new LytMermaidMindmap(MermaidMindmapParser.parse(normalized), normalized);
-            logInfo(
-                "[GuideNH] [PageCompiler] Compiled fenced Mermaid runtime block for page {} ({} chars)",
-                pageId,
-                normalized.length());
+            FMLLog.getLogger()
+                .info(
+                    "[GuideNH] [PageCompiler] Compiled fenced Mermaid runtime block for page {} ({} chars)",
+                    pageId,
+                    normalized.length());
             return block;
         } catch (IllegalArgumentException e) {
-            logWarn(
-                "[GuideNH] [PageCompiler] Failed to compile fenced Mermaid runtime block for page {} from source: {}",
-                e,
-                pageId,
-                source);
+            FMLLog.getLogger()
+                .warn(
+                    "[GuideNH] [PageCompiler] Failed to compile fenced Mermaid runtime block for page {} from source: {}",
+                    pageId,
+                    source,
+                    e);
             return null;
         }
     }
@@ -1659,12 +1665,14 @@ public class PageCompiler {
             var imageId = IdUtils.resolveLink(astImage.url, pageId);
             var imageContent = pages.loadAsset(imageId);
             if (imageContent == null) {
-                logError("[GuideNH] [PageCompiler] Couldn't find image {}", astImage.url);
+                FMLLog.getLogger()
+                    .error("[GuideNH] [PageCompiler] Couldn't find image {}", astImage.url);
                 image.setTitle("Missing image: " + astImage.url);
             }
             image.setImage(imageId, imageContent);
         } catch (IllegalArgumentException e) {
-            logError("[GuideNH] [PageCompiler] Invalid image id: {}", astImage.url);
+            FMLLog.getLogger()
+                .error("[GuideNH] [PageCompiler] Invalid image id: {}", astImage.url);
             image.setTitle("Invalid image URL: " + astImage.url);
         }
         return image;
@@ -1676,26 +1684,23 @@ public class PageCompiler {
         return paragraph;
     }
 
-    private void appendUnexpectedNodeError(LytErrorSink errorSink, String message, UnistNode node, RuntimeException e) {
-        logWarn("[GuideNH] [PageCompiler] {} in page {}", e, message, pageId);
-        errorSink.appendError(this, message + ": " + describeThrowable(e), node);
-    }
-
     public LytFlowContent createErrorFlowContent(String text, UnistNode child) {
         LytFlowSpan span = new LytFlowSpan();
         span.modifyStyle(
             style -> style.color(SymbolicColor.ERROR_TEXT)
                 .whiteSpace(WhiteSpaceMode.PRE));
 
+        // Find the position in the source
         var position = child.position();
-        var pos = position != null ? position.start() : null;
-        if (pos != null) {
+        if (position != null) {
+            var pos = position.start();
             String sourceText = getCurrentSourceText();
-            int safeOffset = Math.max(0, Math.min(pos.offset(), sourceText.length()));
-            var startOfLine = sourceText.lastIndexOf('\n', safeOffset) + 1;
-            var endOfLine = sourceText.indexOf('\n', safeOffset);
-            if (endOfLine == -1) endOfLine = sourceText.length();
-            var line = sourceText.substring(Math.min(startOfLine, sourceText.length()), endOfLine);
+            var startOfLine = sourceText.lastIndexOf('\n', pos.offset()) + 1;
+            var endOfLine = sourceText.indexOf('\n', pos.offset() + 1);
+            if (endOfLine == -1) {
+                endOfLine = sourceText.length();
+            }
+            var line = sourceText.substring(startOfLine, endOfLine);
 
             text += " " + child.type() + " (" + MdAstPosition.stringify(pos) + ")";
 
@@ -1705,76 +1710,18 @@ public class PageCompiler {
             span.appendText(line);
             span.appendBreak();
 
-            String tildes = repeatChar('~', Math.max(0, pos.column() - 1));
+            String tildes = new String(new char[pos.column() - 1]).replace('\0', '~');
             span.appendText(tildes + "^");
             span.appendBreak();
 
-            logWarn("[GuideNH] [PageCompiler] {}\n{}\n{}\n", text, line, tildes + "^");
+            FMLLog.getLogger()
+                .warn("[GuideNH] [PageCompiler] {}\n{}\n{}\n", text, line, tildes + "^");
         } else {
-            logWarn("[GuideNH] [PageCompiler] {}\n", text);
+            FMLLog.getLogger()
+                .warn("[GuideNH] [PageCompiler] {}\n", text);
         }
 
         return span;
-    }
-
-    private static String repeatChar(char value, int count) {
-        if (count <= 0) {
-            return "";
-        }
-        StringBuilder builder = new StringBuilder(count);
-        for (int i = 0; i < count; i++) {
-            builder.append(value);
-        }
-        return builder.toString();
-    }
-
-    private static void logInfo(String message, Object... args) {
-        Logger logger = FMLLog.getLogger();
-        if (logger != null) {
-            logger.info(message, args);
-        }
-    }
-
-    private static void logWarn(String message, Object... args) {
-        Logger logger = FMLLog.getLogger();
-        if (logger != null) {
-            logger.warn(message, args);
-        }
-    }
-
-    private static void logWarn(String message, Throwable throwable, Object... args) {
-        Logger logger = FMLLog.getLogger();
-        if (logger != null) {
-            logger.warn(message, appendThrowable(args, throwable));
-        }
-    }
-
-    private static void logError(String message, Object... args) {
-        Logger logger = FMLLog.getLogger();
-        if (logger != null) {
-            logger.error(message, args);
-        }
-    }
-
-    private static void logError(String message, Throwable throwable, Object... args) {
-        Logger logger = FMLLog.getLogger();
-        if (logger != null) {
-            logger.error(message, appendThrowable(args, throwable));
-        }
-    }
-
-    private static Object[] appendThrowable(Object[] args, Throwable throwable) {
-        Object[] combined = new Object[args.length + 1];
-        System.arraycopy(args, 0, combined, 0, args.length);
-        combined[args.length] = throwable;
-        return combined;
-    }
-
-    private static String describeThrowable(Throwable throwable) {
-        String message = throwable.getMessage();
-        return message != null && !message.isEmpty() ? message
-            : throwable.getClass()
-                .getSimpleName();
     }
 
     public ResourceLocation resolveId(String idText) {
@@ -1790,6 +1737,10 @@ public class PageCompiler {
 
     public ResourceLocation getGuideId() {
         return pages.getId();
+    }
+
+    public String getLanguage() {
+        return language;
     }
 
     public PageCollection getPageCollection() {
@@ -1925,6 +1876,9 @@ public class PageCompiler {
 
     @Desugar
     private record BlockTagChildSource(String source) {}
+
+    @Desugar
+    private record BlockTagChildrenCacheEntry(@Nullable String source, @Nullable ParsedGuidePage parsedPage) {}
 
     @Desugar
     private record SourceSlice(String source) {}

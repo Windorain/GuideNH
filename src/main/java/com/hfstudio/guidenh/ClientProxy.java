@@ -8,6 +8,8 @@ import net.minecraftforge.common.MinecraftForge;
 import com.hfstudio.guidenh.client.RegionWandRenderer;
 import com.hfstudio.guidenh.client.command.GuideNhClientBridgeController;
 import com.hfstudio.guidenh.client.command.GuideNhClientCommand;
+import com.hfstudio.guidenh.client.hotkey.CycleRegionWandModeHotkey;
+import com.hfstudio.guidenh.client.hotkey.OpenGuideHomeHotkey;
 import com.hfstudio.guidenh.client.hotkey.OpenGuideHotkey;
 import com.hfstudio.guidenh.client.hotkey.OpenSceneEditorHotkey;
 import com.hfstudio.guidenh.guide.internal.GuideDevWatcherPump;
@@ -16,6 +18,7 @@ import com.hfstudio.guidenh.guide.internal.GuideME;
 import com.hfstudio.guidenh.guide.internal.GuideOnStartup;
 import com.hfstudio.guidenh.guide.internal.GuideRegistry;
 import com.hfstudio.guidenh.guide.internal.GuideReloadListener;
+import com.hfstudio.guidenh.guide.internal.GuideScreenMemory;
 import com.hfstudio.guidenh.guide.internal.GuideWarmupPump;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.TagAttributeRegistry;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.AnchorProvider;
@@ -41,10 +44,13 @@ import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.NumericV
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.OreDictProvider;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.PageReferenceProvider;
 import com.hfstudio.guidenh.guide.internal.editor.autocomplete.provider.TagNameProvider;
+import com.hfstudio.guidenh.guide.internal.home.GuideScreenHomeHistory;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookFakeWorld;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.integration.GuideNhClientIntegrationBootstrap;
+import com.hfstudio.guidenh.integration.Mods;
 import com.hfstudio.guidenh.integration.ae2.network.Ae2NetworkRegistration;
+import com.hfstudio.guidenh.integration.nei.GuideScreenNeiBridge;
 import com.hfstudio.guidenh.network.GuideNhClientBridgeHandler;
 import com.hfstudio.guidenh.network.GuideNhClientBridgeMessage;
 import com.hfstudio.guidenh.network.GuideNhNetwork;
@@ -87,6 +93,10 @@ public class ClientProxy extends CommonProxy {
         ClientCommandHandler.instance.registerCommand(new GuideNhClientCommand());
         StructureExportBootstrap.registerClientCommands();
         GuideNhClientBridgeController.init();
+        if (Mods.NotEnoughItems.isModLoaded()) {
+            GuideScreenNeiBridge.init();
+        }
+        OpenGuideHomeHotkey.init();
         OpenGuideHotkey.init();
         OpenSceneEditorHotkey.init();
         AutocompleteProviders.register(new ItemIdProvider());
@@ -114,6 +124,7 @@ public class ClientProxy extends CommonProxy {
         AutocompleteProviders.register(new FrontmatterValueProvider());
 
         AutocompleteProviders.register(new ImagePathProvider());
+        CycleRegionWandModeHotkey.init();
         MinecraftForge.EVENT_BUS.register(new RegionWandRenderer());
         GuideWarmupPump.init();
         MinecraftForge.EVENT_BUS.register(this);
@@ -135,6 +146,9 @@ public class ClientProxy extends CommonProxy {
     @SubscribeEvent
     public void onClientDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         GuideME.closeSearch();
+        GuideScreenMemory.clear();
+        GuideScreenHomeHistory.shared()
+            .clear();
         for (var guide : GuideRegistry.getAll()) {
             guide.resetWarmup();
         }

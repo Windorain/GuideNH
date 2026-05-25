@@ -2,7 +2,7 @@
 navigation:
   title: Block Scenes
   parent: index.md
-  position: 30
+  position: 170
 categories:
   - scenes
 ---
@@ -39,6 +39,26 @@ statistics.
 </GameScene>
 ```
 
+## Static Particles
+
+`<Particle>` adds a stationary particle inside the scene. When `name` is omitted it uses the
+default billboard particle, which is useful for glow markers or highlighting a precise point
+without adding a full annotation shape.
+
+| Attribute | Default | Description |
+| --- | --- | --- |
+| `name` | `billboard` | Particle appearance. Supported values: `billboard`, `smoke`, `largesmoke`, `explode`, `flash`, `largeexplode`, `hugeexplosion`. `particle`, `quad`, and `sheet` are accepted aliases for `billboard`. |
+| `x`, `y`, `z` | `0.5`, `0.5`, `0.5` | World-space particle origin. |
+| `size` | `0.18` | Particle half-size in block units. |
+
+```mdx
+<GameScene width="192" height="128" zoom={5} interactive={false}>
+  <Block id="minecraft:furnace" x="1" />
+  <Particle x="1.5" y="1.85" z="0.5" size="0.22" />
+  <Particle name="smoke" x="1.5" y="1.35" z="0.5" size="0.18" />
+</GameScene>
+```
+
 ## Block Parameters
 
 `<Block>` places one block into the preview world.
@@ -56,7 +76,7 @@ statistics.
 <GameScene zoom={4} interactive={true}>
   <Block id="minecraft:furnace" x="2" facing="south" />
   <Block ore="logWood" x="3" />
-  <Block id="minecraft:chest" x="4" nbt="{id:\"Chest\",Items:[{Slot:0b,id:\"minecraft:diamond\",Count:1b,Damage:0s}]}" />
+  <Block id="minecraft:chest" x="4" nbt='{id:"Chest",Items:[{Slot:0b,id:"minecraft:diamond",Count:1b,Damage:0s}]}' />
 </GameScene>
 ```
 
@@ -283,4 +303,23 @@ actual collision or render bounds for hover and statistics highlight selection.
   <Block id="minecraft:fence" x="6" z="1" />
   <Block id="minecraft:trapdoor" x="8" />
 </GameScene>
+
+## Static Weather
+
+`<Weather>` is a dedicated scene component for animated rain and snow. It is separate from
+billboard particles, loops during normal `GameScene` rendering, and follows the same precipitation
+column rules as the Ponder weather runtime.
+
+<GameScene width="256" height="160" zoom={4} interactive={false}>
+  <Block id="minecraft:stone" x="0" y="0" z="0" />
+  <Block id="minecraft:stone" x="1" y="0" z="0" />
+  <Block id="minecraft:stone" x="2" y="0" z="0" />
+  <Block id="minecraft:glass" x="1" y="1" z="0" />
+  <Weather weather="rain" x="0 1" z="0 0" density="10" />
+  <Weather weather="snow" x="2" z="0" density="7" />
+</GameScene>
+
+- `x` and `z` accept either one value or endpoint arrays.
+- Weather ignores `y`; the runtime derives vertical range from scene bounds and precipitation blockers.
+- The same `x/z` column never stacks multiple weather effects at the same time.
 

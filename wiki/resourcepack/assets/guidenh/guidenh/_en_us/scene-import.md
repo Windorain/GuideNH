@@ -2,7 +2,7 @@
 navigation:
   title: Import Structure
   parent: index.md
-  position: 38
+  position: 162
 categories:
   - scenes
 ---
@@ -33,6 +33,25 @@ correctly:
     <GregTechActiveController />
     <GregTechPlaceHatches />
   </ImportStructureLib>
+Named StructureLib imports can drive conditional annotations and sounds:
+
+<GameScene width="384" height="256" zoom={4} interactive={true}>
+  <ImportStructureLib name="main" controller="botanichorizons:automatedCraftingPool" />
+  <BlockAnnotation
+    pos="5 1 2"
+    color="#FFD24C"
+    showWhenStructure="main"
+    showWhenTier="1..3"
+    showWhenChannels="input:1..3"
+  >
+    This marker follows the selected `main` StructureLib state.
+  </BlockAnnotation>
+  <PlaySound
+    sound="guidenh:guide.sample_click"
+    trigger="click"
+    showWhenStructure="main"
+    showWhenTier="2..3"
+  />
 </GameScene>
 
 ## ImportStructure + RemoveBlocks
