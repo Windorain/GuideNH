@@ -597,6 +597,7 @@ public class PageCompiler {
     }
 
     public void compileBlockContext(List<? extends MdAstAnyContent> children, LytBlockContainer layoutParent) {
+        LytBlock previousLayoutChild = null;
         for (int i = 0; i < children.size(); i++) {
             var child = children.get(i);
             LytBlock layoutChild = null;
@@ -616,7 +617,14 @@ public class PageCompiler {
                 }
                 }
             } else if (child instanceof MdxJsxTextElement el) {
-                // Inline element at block level — wrap in a paragraph
+                // Inline element at block level — merge into previous paragraph when possible
+                if (previousLayoutChild instanceof LytParagraph paragraph) {
+                    var flowCompiler = tagCompilers.get(el.name());
+                    if (flowCompiler != null) {
+                        flowCompiler.compileFlowContext(this, paragraph, el);
+                    }
+                    continue;
+                }
                 var paragraph = new LytParagraph();
                 var flowCompiler = tagCompilers.get(el.name());
                 if (flowCompiler != null) {
@@ -624,6 +632,13 @@ public class PageCompiler {
                 }
                 layoutChild = paragraph;
             } else if (child instanceof MdAstText text) {
+                // Orphan text — merge into previous paragraph when possible
+                if (previousLayoutChild instanceof LytParagraph paragraph) {
+                    var flowText = new LytFlowText();
+                    flowText.setText(text.value);
+                    paragraph.append(flowText);
+                    continue;
+                }
                 var paragraph = new LytParagraph();
                 var flowText = new LytFlowText();
                 flowText.setText(text.value);
@@ -632,16 +647,6 @@ public class PageCompiler {
             } else if (child instanceof MdAstDefinition) {
                 layoutChild = null; // handled via <definition> element
             } else {
-                // Fallback: unconverted MdAst types that survived the converter.
-                // Log details to help trace which code path produces them.
-                if (child instanceof MdAstNode) {
-                    MdAstNode astNode = (MdAstNode) child;
-                    FMLLog.getLogger()
-                        .warn("[GuideNH] [PageCompiler] Unconverted {} (type={}) position={}",
-                            child.getClass().getSimpleName(),
-                            astNode.type(),
-                            astNode.position());
-                }
                 layoutChild = createErrorBlock(
                     "Unhandled node in block context: " + child.getClass().getSimpleName(), child);
             }
@@ -653,6 +658,7 @@ public class PageCompiler {
                 }
                 layoutParent.append(layoutChild);
             }
+            previousLayoutChild = layoutChild;
         }
     }
 
