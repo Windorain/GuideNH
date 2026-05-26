@@ -207,7 +207,14 @@ public final class MdAstToMdxConverter {
             MdxJsxFlowElement replacement = null;
 
             if (child instanceof MdAstParagraph p) {
-                replacement = createFlow("p", p.children());
+                String kramdownMeta = extractKramdownMeta(p);
+                if (kramdownMeta != null) {
+                    replacement = new MdxJsxFlowElement();
+                    replacement.setName("table-meta");
+                    replacement.addAttribute("content", kramdownMeta);
+                } else {
+                    replacement = createFlow("p", p.children());
+                }
             } else if (child instanceof MdAstHeading h) {
                 MdxJsxFlowElement el = createFlow("h" + h.depth, h.children());
                 el.addAttribute("depth", h.depth);
@@ -364,5 +371,18 @@ public final class MdAstToMdxConverter {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * Extracts the expression from a kramdown-style attribute paragraph
+     * ({@code {: ...}}), or returns null if not a kramdown meta line.
+     */
+    @Nullable
+    private static String extractKramdownMeta(MdAstParagraph p) {
+        if (p.children().size() != 1) return null;
+        if (!(p.children().get(0) instanceof MdAstText t)) return null;
+        String v = t.value.trim();
+        if (v.startsWith("{:") && v.endsWith("}")) return v;
+        return null;
     }
 }

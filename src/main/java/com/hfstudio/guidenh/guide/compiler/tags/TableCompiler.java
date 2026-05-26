@@ -30,6 +30,19 @@ public class TableCompiler extends BlockTagCompiler {
         boolean firstRow = true;
         int rowIndex = 0;
         for (var child : el.children()) {
+            // Skip kramdown {: widths=... } meta lines
+            if (child instanceof MdxJsxFlowElement meta && "table-meta".equals(meta.name())) {
+                String content = meta.getAttributeString("content", "");
+                if (!content.isEmpty()) {
+                    java.util.List<Integer> widths = com.hfstudio.guidenh.guide.compiler.tags.CsvTableCompiler
+                        .parseWidthHints(extractKramdownExpression(content));
+                    var columns = table.getColumns();
+                    for (int wi = 0; wi < widths.size() && wi < columns.size(); wi++) {
+                        columns.get(wi).setPreferredWidth(widths.get(wi));
+                    }
+                }
+                continue;
+            }
             if (child instanceof MdxJsxFlowElement tr && "tr".equals(tr.name())) {
                 LytTableRow row = table.appendRow();
                 if (firstRow) {
@@ -61,5 +74,14 @@ public class TableCompiler extends BlockTagCompiler {
             }
         }
         parent.append(table);
+    }
+
+    private static String extractKramdownExpression(String content) {
+        int start = content.indexOf('{');
+        int end = content.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            return content.substring(start + 1, end).trim();
+        }
+        return "";
     }
 }

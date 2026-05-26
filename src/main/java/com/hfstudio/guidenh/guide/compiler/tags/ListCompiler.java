@@ -23,11 +23,19 @@ public class ListCompiler extends BlockTagCompiler {
     @Override
     protected void compile(PageCompiler compiler, LytBlockContainer parent, MdxJsxElementFields el) {
         boolean ordered = "ol".equals(el.name());
-        int start = Integer.parseInt(el.getAttributeString("start", "1"));
+        int start = parseIntSafe(el.getAttributeString("start", "1"), 1);
         LytList list = new LytList(ordered, start);
         for (var child : el.children()) {
             compiler.compileBlockContext(Collections.singletonList(child), list);
         }
         parent.append(list);
+    }
+
+    private static int parseIntSafe(String s, int fallback) {
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 }

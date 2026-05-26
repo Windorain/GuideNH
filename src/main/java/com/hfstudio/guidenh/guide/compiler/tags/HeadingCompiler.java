@@ -23,9 +23,17 @@ public class HeadingCompiler extends BlockTagCompiler {
     @Override
     protected void compile(PageCompiler compiler, LytBlockContainer parent, MdxJsxElementFields el) {
         LytHeading heading = new LytHeading();
-        int depth = Integer.parseInt(el.getAttributeString("depth", "0"));
-        heading.setDepth(depth);
+        int depth = parseIntSafe(el.getAttributeString("depth", "1"), 1);
+        heading.setDepth(Math.max(1, Math.min(depth, 6)));
         compiler.compileFlowContext(el.children(), heading);
         parent.append(heading);
+    }
+
+    private static int parseIntSafe(String s, int fallback) {
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 }
