@@ -505,8 +505,74 @@ public class GuideSiteHtmlCompiler {
     private String compileCodeBlockMdx(MdxJsxElementFields el) {
         String codeText = extractTextFromElement(el);
         String lang = el.getAttributeString("lang", null);
-        String langClass = lang != null ? " class=\"language-" + escapeAttribute(lang) + "\"" : "";
-        return "<pre><code" + langClass + ">" + escapeHtml(codeText) + "</code></pre>";
+        String meta = el.getAttributeString("meta", null);
+        if (lang != null) {
+            lang = lang.toLowerCase(Locale.ROOT);
+        }
+
+        // Sub-language rendering
+        if ("csv".equals(lang)) {
+            return GuideSiteGraphRenderer.renderCsvTable(codeText, true);
+        }
+        if ("tree".equals(lang) || "filetree".equals(lang)) {
+            return GuideSiteGraphRenderer.renderFileTree(codeText);
+        }
+        if ("mermaid".equals(lang)) {
+            try {
+                MermaidMindmapDocument doc = MermaidMindmapParser.parse(codeText);
+                return GuideSiteGraphRenderer.renderMermaidTree(doc);
+            } catch (Exception ignored) {
+                return "<pre><code class=\"language-mermaid\">" + escapeHtml(codeText) + "</code></pre>";
+            }
+        }
+        if ("funcgraph".equals(lang) || "functiongraph".equals(lang)) {
+            try {
+                LytFunctionGraph graph = FunctionGraphFenceParser.parse(codeText);
+                return GuideSiteGraphRenderer.renderFunctionGraph(graph);
+            } catch (RuntimeException ignored) {
+                return "<pre><code class=\"language-" + escapeAttribute(lang)
+                    + "\">" + escapeHtml(codeText) + "</code></pre>";
+            }
+        }
+
+        // Plain code block with optional size constraints
+        Integer width = parseMetaInt(meta, "width");
+        Integer height = parseMetaInt(meta, "height");
+        StringBuilder html = new StringBuilder();
+        html.append("<pre");
+        if (width != null || height != null) {
+            html.append(" class=\"guide-code-sized\" style=\"");
+            if (width != null) {
+                html.append("width:").append(width).append("px;max-width:100%;");
+            }
+            if (height != null) {
+                html.append("height:").append(height).append("px;overflow:auto;");
+            }
+            html.append("\"");
+        }
+        html.append("><code");
+        if (lang != null && !lang.isEmpty()) {
+            html.append(" class=\"language-").append(escapeAttribute(lang)).append("\"");
+        }
+        html.append(">").append(escapeHtml(codeText)).append("</code></pre>");
+        return html.toString();
+    }
+
+    @Nullable
+    private static Integer parseMetaInt(String meta, String key) {
+        if (meta == null || meta.isEmpty()) {
+            return null;
+        }
+        Matcher m = Pattern.compile("(?:^|\\s)" + Pattern.quote(key) + "\\s*=\\s*\"?'?([0-9]+)\"?'?")
+            .matcher(meta);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private String compileTableMdx(MdxJsxElementFields el, GuideSiteTemplateRegistry templates,

@@ -22,6 +22,7 @@ import com.hfstudio.guidenh.guide.internal.markdown.CodeBlockLanguageDetector;
 import com.hfstudio.guidenh.guide.internal.markdown.FileTreeCompiler;
 import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapParser;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
+import com.hfstudio.guidenh.guide.compiler.tags.functiongraph.FunctionGraphFenceParser;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstText;
 
 import cpw.mods.fml.common.FMLLog;
@@ -67,7 +68,7 @@ public class PreCompiler extends BlockTagCompiler {
 
         // Function graph
         if (isFunctionGraphFence(lang)) {
-            parent.append(com.hfstudio.guidenh.guide.compiler.tags.functiongraph.FunctionGraphFenceParser.parse(codeText));
+            parent.append(FunctionGraphFenceParser.parse(codeText));
             return;
         }
 

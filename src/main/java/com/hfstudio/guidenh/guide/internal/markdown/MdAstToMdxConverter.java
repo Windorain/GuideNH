@@ -75,13 +75,27 @@ public final class MdAstToMdxConverter {
     }
 
     private static boolean isPhrasingParent(MdAstParent<?> parent) {
-        return parent instanceof MdAstParagraph || parent instanceof MdxJsxTextElement
-            || "link".equals(parent.type())
-            || "strong".equals(parent.type())
-            || "emphasis".equals(parent.type())
-            || "delete".equals(parent.type())
-            || "heading".equals(parent.type());
+        if (parent instanceof MdAstParagraph || parent instanceof MdxJsxTextElement) {
+            return true;
+        }
+        // New MdxJsxFlowElement containers that hold phrasing/inline children
+        if (parent instanceof MdxJsxFlowElement el) {
+            String name = el.name();
+            return name != null && PHRASING_CONTAINER_NAMES.contains(name);
+        }
+        String type = parent.type();
+        return "link".equals(type)
+            || "strong".equals(type)
+            || "emphasis".equals(type)
+            || "delete".equals(type)
+            || "heading".equals(type);
     }
+
+    private static final java.util.Set<String> PHRASING_CONTAINER_NAMES =
+        new java.util.HashSet<>(java.util.Arrays.asList(
+            "p", "h1", "h2", "h3", "h4", "h5", "h6",
+            "li", "td", "th", "blockquote", "div", "summary", "a",
+            "strong", "em", "del", "u", "wavy", "dotted", "mark", "code", "span"));
 
     @SuppressWarnings("unchecked")
     private static List<MdAstPhrasingContent> castPhrasingChildren(List<?> children) {

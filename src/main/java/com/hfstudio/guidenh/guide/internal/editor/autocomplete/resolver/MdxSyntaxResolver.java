@@ -1,5 +1,7 @@
 package com.hfstudio.guidenh.guide.internal.editor.autocomplete.resolver;
 
+import java.util.Collections;
+
 import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.guide.compiler.GuideMarkdownOptions;
@@ -43,7 +45,7 @@ public class MdxSyntaxResolver implements SyntaxContextResolver {
             root = cachedRoot;
         } else {
             root = MdAst.fromMarkdown(text, PARSE_OPTIONS);
-            MdAstToMdxConverter.convert(root, java.util.Collections.emptyMap());
+            MdAstToMdxConverter.convert(root, Collections.emptyMap());
             cachedText = text;
             cachedRoot = root;
         }

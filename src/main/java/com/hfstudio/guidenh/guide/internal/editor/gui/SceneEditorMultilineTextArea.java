@@ -19,6 +19,7 @@ import com.hfstudio.guidenh.guide.compiler.GuideMarkdownOptions;
 import com.hfstudio.guidenh.guide.internal.markdown.MdAstToMdxConverter;
 import com.hfstudio.guidenh.guide.internal.util.DisplayScale;
 import com.hfstudio.guidenh.libs.mdast.MdAst;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstDefinition;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstList;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstListContent;
 import com.hfstudio.guidenh.libs.mdast.model.MdAstListItem;
@@ -692,7 +693,7 @@ public class SceneEditorMultilineTextArea {
 
         // 1. Try AST-based list continuation
         MdAstRoot root = MdAst.fromMarkdown(text, GuideMarkdownOptions.runtime());
-        MdAstToMdxConverter.convert(root, Collections.<String, com.hfstudio.guidenh.libs.mdast.model.MdAstDefinition>emptyMap());
+        MdAstToMdxConverter.convert(root, Collections.<String, MdAstDefinition>emptyMap());
         MdAstListItem item = findEnclosingListItem(root, cursor);
         if (item != null) {
             int lineStart = findLineStart(text, cursor - 1);

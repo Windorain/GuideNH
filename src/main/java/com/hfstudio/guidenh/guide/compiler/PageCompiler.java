@@ -242,6 +242,7 @@ public class PageCompiler {
         String parseFailureMessage = null;
         UnistPoint parseFailureFrom = null;
         UnistPoint parseFailureTo = null;
+        Frontmatter frontmatter;
         long markdownParseNs = 0L;
         long latexRestoreNs = 0L;
         long htmlNormalizeNs = 0L;
@@ -259,8 +260,15 @@ public class PageCompiler {
             MarkdownHtmlRuntimeNormalizer.normalize(astRoot);
             htmlNormalizeNs = System.nanoTime() - stageStartedAt;
 
+            // Collect definitions before conversion (converter needs them
+            // for link/image reference resolution).
             stageStartedAt = System.nanoTime();
             Map<String, MdAstDefinition> definitions = GuideMarkdownDefinitions.collect(astRoot);
+
+            // Parse frontmatter BEFORE conversion — the converter removes
+            // MdAstYamlFrontmatter from children.
+            frontmatter = parseFrontmatter(id, astRoot);
+
             MdAstToMdxConverter.convert(astRoot, definitions);
             mdAstConvertNs = System.nanoTime() - stageStartedAt;
         } catch (RuntimeException t) {
@@ -274,11 +282,9 @@ public class PageCompiler {
                 .error("[GuideNH] [PageCompiler] {}", errorMessage, t);
             parseFailureMessage = errorMessage + ": \n" + t;
             astRoot = buildErrorPage(parseFailureMessage);
+            frontmatter = new Frontmatter(null, Collections.emptyMap());
         }
 
-        // Find front-matter
-        stageStartedAt = System.nanoTime();
-        var frontmatter = parseFrontmatter(id, astRoot);
         long astFrontmatterNs = System.nanoTime() - stageStartedAt;
         if (parseFailureMessage != null && sourceFrontmatter.navigationEntry() != null) {
             frontmatter = sourceFrontmatter;
@@ -596,13 +602,18 @@ public class PageCompiler {
             LytBlock layoutChild = null;
 
             if (child instanceof MdxJsxFlowElement el) {
-                var compiler = tagCompilers.get(el.name());
-                if (compiler == null) {
-                    layoutChild = createErrorBlock(
-                        "Unhandled MDX element in block context: " + el.name(), child);
+                // Definition elements are metadata, not rendered
+                if ("definition".equals(el.name())) {
+                    layoutChild = null;
                 } else {
+                    var compiler = tagCompilers.get(el.name());
+                    if (compiler == null) {
+                        layoutChild = createErrorBlock(
+                            "Unhandled MDX element in block context: " + el.name(), child);
+                    } else {
                     layoutChild = null;
                     compiler.compileBlockContext(this, layoutParent, el);
+                }
                 }
             } else if (child instanceof MdxJsxTextElement el) {
                 // Inline element at block level — wrap in a paragraph
@@ -916,13 +927,19 @@ public class PageCompiler {
                 layoutChild = text;
             }
         } else if (content instanceof MdxJsxTextElement el) {
-            var compiler = tagCompilers.get(el.name());
-            if (compiler == null) {
-                layoutChild = createErrorFlowContent(
-                    "Unhandled MDX element in flow context: " + el.name(), content);
+            // "span" wraps residual inline HTML — pass through children
+            if ("span".equals(el.name())) {
+                compileFlowContext(el, layoutParent);
+                layoutChild = null;
             } else {
+                var compiler = tagCompilers.get(el.name());
+                if (compiler == null) {
+                    layoutChild = createErrorFlowContent(
+                        "Unhandled MDX element in flow context: " + el.name(), content);
+                } else {
                 layoutChild = null;
                 compiler.compileFlowContext(this, layoutParent, el);
+                }
             }
         } else {
             layoutChild = createErrorFlowContent(
