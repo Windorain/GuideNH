@@ -104,6 +104,7 @@ import com.hfstudio.guidenh.guide.internal.home.HomePageLayout;
 import com.hfstudio.guidenh.guide.internal.item.RegionWandItem;
 import com.hfstudio.guidenh.guide.internal.markdown.CodeBlockClipboardService;
 import com.hfstudio.guidenh.ClientProxy;
+import com.hfstudio.guidenh.guide.internal.host.NavigationState;
 import com.hfstudio.guidenh.guide.internal.screen.GuideIconButton;
 import com.hfstudio.guidenh.guide.internal.screen.GuideNavBar;
 import com.hfstudio.guidenh.guide.internal.screen.GuideNavBar.ContextTarget;
@@ -494,7 +495,7 @@ public class GuideScreen extends GuiContainer
         } catch (Throwable ignored) {
             navBar.setPinned(false);
         }
-        navBar.restoreState(GuideScreenMemory.recallNavigationState(), bookmarkState);
+        navBar.restoreState(ClientProxy.getLytHost().getNavigation().recallNavigationState(), bookmarkState);
     }
 
     public static void open(ResourceLocation guideId, @Nullable PageAnchor anchor) {
@@ -506,7 +507,7 @@ public class GuideScreen extends GuiContainer
     }
 
     public static void openFromHomeHotkey() {
-        GuideScreenViewState remembered = ClientProxy.getLytHost().getNavigation().recallLastContentState();
+        GuideScreenViewState remembered = ClientProxy.getLytHost().getNavigation().consumeValidLastContentState();
         open(remembered != null ? remembered : GuideScreenViewState.home(), false);
     }
 
@@ -539,7 +540,7 @@ public class GuideScreen extends GuiContainer
             return null;
         }
         if (anchor == null) {
-            GuideScreenViewState remembered = ClientProxy.getLytHost().getNavigation().recallLastContentState();
+            GuideScreenViewState remembered = ClientProxy.getLytHost().getNavigation().consumeValidLastContentState();
             if (remembered != null && remembered.route() != null) {
                 return remembered.route();
             }
@@ -2695,6 +2696,7 @@ public class GuideScreen extends GuiContainer
         if (scrollY < 0) scrollY = 0;
         if (scrollY > max) scrollY = max;
         ClientProxy.getLytHost().getViewport().updateContent(contentW, contentH);
+        ClientProxy.getLytHost().getViewport().scrollTo(scrollY);
     }
 
     @Override
@@ -4740,6 +4742,7 @@ public class GuideScreen extends GuiContainer
             }
             if (result != null && result.bookmarkTogglePageId() != null) {
                 ClientProxy.getLytHost().getNavigation().toggleBookmark(result.bookmarkTogglePageId());
+                bookmarkState.toggle(result.bookmarkTogglePageId());
                 mc.getSoundHandler()
                     .playSound(PositionedSoundRecord.func_147674_a(new ResourceLocation("gui.button.press"), 1.0F));
                 return;
@@ -6679,12 +6682,13 @@ public class GuideScreen extends GuiContainer
         if (currentRoute == null || !currentRoute.isContent()
             || currentAnchor == null
             || currentAnchor.pageId() == null
-            || !GuideScreenMemory.isSupportedContentAnchor(currentAnchor)
+            || !NavigationState.isSupportedContentAnchor(currentAnchor)
             || guide == null
             || !guide.pageExists(currentAnchor.pageId())) {
             return;
         }
         ClientProxy.getLytHost().getNavigation().recordHomeHistory(guide.getId(), currentAnchor.pageId());
+        homeHistory.record(guide.getId(), currentAnchor.pageId());
     }
 
     private boolean isInsideSearchField(int mouseX, int mouseY) {

@@ -14,7 +14,10 @@ import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.guide.PageAnchor;
+import com.hfstudio.guidenh.guide.internal.GuideRegistry;
+import com.hfstudio.guidenh.guide.internal.GuideScreenRoute;
 import com.hfstudio.guidenh.guide.internal.GuideScreenViewState;
+import com.hfstudio.guidenh.guide.internal.MutableGuide;
 import com.hfstudio.guidenh.guide.internal.screen.GuideNavBarState;
 
 public class NavigationState {
@@ -72,6 +75,45 @@ public class NavigationState {
         homeHistory.add(0, new HomeHistoryEntry(guideId, pageId));
     }
     public List<HomeHistoryEntry> homeHistory() { return homeHistory; }
+
+    public GuideNavBarState recallNavigationState() {
+        GuideNavBarState currentGuideState = currentGuideId != null
+            ? navBarStates.get(currentGuideId)
+            : null;
+        return currentGuideState != null ? currentGuideState : GuideNavBarState.defaultState();
+    }
+
+    @Nullable
+    public GuideScreenViewState consumeValidLastContentState() {
+        GuideScreenViewState state = lastContentViewState;
+        if (state == null) return null;
+        if (!isValidContentRoute(state.route())) {
+            lastContentViewState = null;
+            return null;
+        }
+        return state;
+    }
+
+    public boolean isRememberable(@Nullable GuideScreenViewState state) {
+        if (state == null) return false;
+        GuideScreenRoute route = state.route();
+        if (route == null || !route.isContent()) return false;
+        PageAnchor anchor = route.anchor();
+        return anchor != null && isSupportedContentAnchor(anchor) && isValidContentRoute(route);
+    }
+
+    public static boolean isSupportedContentAnchor(@Nullable PageAnchor anchor) {
+        return anchor != null;
+    }
+
+    public boolean isValidContentRoute(@Nullable GuideScreenRoute route) {
+        if (route == null || !route.isContent()) return false;
+        ResourceLocation guideId = route.guideId();
+        PageAnchor anchor = route.anchor();
+        if (guideId == null || anchor == null) return false;
+        MutableGuide guide = GuideRegistry.getById(guideId);
+        return guide != null && guide.pageExists(anchor.pageId());
+    }
 
     public void clear() {
         backStack.clear();
