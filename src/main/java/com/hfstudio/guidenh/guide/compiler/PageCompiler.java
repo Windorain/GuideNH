@@ -347,17 +347,17 @@ public class PageCompiler {
     public static MdAstRoot buildErrorPage(String headingText, String errorText) {
         var root = new MdAstRoot();
 
-        var heading = new MdAstHeading();
+        var heading = new MdxJsxFlowElement();
+        heading.setName("h1");
+        heading.addAttribute("depth", 1);
         root.addChild(heading);
-
-        heading.depth = 1;
         var headingTextNode = new MdAstText();
         headingTextNode.setValue(headingText);
         heading.addChild(headingTextNode);
 
-        var errorParagraph = new MdAstParagraph();
+        var errorParagraph = new MdxJsxFlowElement();
+        errorParagraph.setName("p");
         root.addChild(errorParagraph);
-
         var errorTextNode = new MdAstText();
         errorTextNode.setValue(errorText);
         errorParagraph.addChild(errorTextNode);
@@ -632,6 +632,16 @@ public class PageCompiler {
             } else if (child instanceof MdAstDefinition) {
                 layoutChild = null; // handled via <definition> element
             } else {
+                // Fallback: unconverted MdAst types that survived the converter.
+                // Log details to help trace which code path produces them.
+                if (child instanceof MdAstNode) {
+                    MdAstNode astNode = (MdAstNode) child;
+                    FMLLog.getLogger()
+                        .warn("[GuideNH] [PageCompiler] Unconverted {} (type={}) position={}",
+                            child.getClass().getSimpleName(),
+                            astNode.type(),
+                            astNode.position());
+                }
                 layoutChild = createErrorBlock(
                     "Unhandled node in block context: " + child.getClass().getSimpleName(), child);
             }

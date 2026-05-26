@@ -68,7 +68,7 @@ public final class MdAstToMdxConverter {
 
         // Then convert the current level's children in-place.
         if (isPhrasingParent(parent)) {
-            convertPhrasingChildren(castPhrasingChildren(parent.children()), definitions);
+            convertPhrasingChildren(parent.children(), definitions);
         } else {
             convertFlowChildren(castAnyChildren(parent.children()), definitions);
         }
@@ -91,16 +91,12 @@ public final class MdAstToMdxConverter {
             || "heading".equals(type);
     }
 
+    // Containers whose children are inline/phrasing content only
     private static final java.util.Set<String> PHRASING_CONTAINER_NAMES =
         new java.util.HashSet<>(java.util.Arrays.asList(
             "p", "h1", "h2", "h3", "h4", "h5", "h6",
-            "li", "td", "th", "blockquote", "div", "summary", "a",
+            "td", "th", "summary", "a",
             "strong", "em", "del", "u", "wavy", "dotted", "mark", "code", "span"));
-
-    @SuppressWarnings("unchecked")
-    private static List<MdAstPhrasingContent> castPhrasingChildren(List<?> children) {
-        return (List<MdAstPhrasingContent>) (List<?>) children;
-    }
 
     @SuppressWarnings("unchecked")
     private static List<MdAstAnyContent> castAnyChildren(List<?> children) {
@@ -108,15 +104,18 @@ public final class MdAstToMdxConverter {
     }
 
     // -----------------------------------------------------------------------
-    //  Phrasing (inline) children conversion
+    //  Phrasing (inline) children conversion — also handles block nodes that
+    //  may appear inside phrasing containers (e.g. MdAstParagraph inside <td>).
     // -----------------------------------------------------------------------
 
-    private static void convertPhrasingChildren(List<MdAstPhrasingContent> children,
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void convertPhrasingChildren(List<?> children,
                                                  Map<String, MdAstDefinition> definitions) {
         for (int i = 0; i < children.size(); i++) {
-            MdAstPhrasingContent child = children.get(i);
-            MdxJsxTextElement replacement = null;
+            Object child = children.get(i);
+            Object replacement = null;
 
+            // Inline phrasing types → MdxJsxTextElement
             if (child instanceof MdAstStrong) {
                 replacement = createText("strong", ((MdAstStrong) child).children());
             } else if (child instanceof MdAstEmphasis) {
@@ -180,13 +179,20 @@ public final class MdAstToMdxConverter {
             } else if (child instanceof MdAstBreak) {
                 replacement = createText("br", new ArrayList<>());
             }
+            // Flow block types that can appear inside phrasing containers
+            else if (child instanceof MdAstParagraph p) {
+                replacement = createFlow("p", p.children());
+            }
 
             if (replacement != null) {
-                children.set(i, replacement);
-                convertParent(replacement, definitions);
+                ((List) children).set(i, replacement);
+                if (replacement instanceof MdxJsxTextElement) {
+                    convertParent((MdxJsxTextElement) replacement, definitions);
+                } else if (replacement instanceof MdxJsxFlowElement) {
+                    convertParent((MdxJsxFlowElement) replacement, definitions);
+                }
             }
-            // MdAstText, MdxJsxTextElement, MdxJsxFlowElement, MdxJsxAttribute,
-            // MdxJsxExpressionAttribute are silently passed through.
+            // MdAstText, MdxJsxTextElement, MdxJsxFlowElement: silently pass through
         }
     }
 
