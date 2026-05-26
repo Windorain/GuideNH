@@ -18,8 +18,8 @@ import com.hfstudio.guidenh.guide.scene.CameraSettings;
 import com.hfstudio.guidenh.guide.scene.cache.GuideSceneStructureCompileScope;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookPreviewBlockPlacer;
-import com.hfstudio.guidenh.integration.gregtech.GregTechPreviewStateFlags;
-import com.hfstudio.guidenh.integration.gregtech.GregTechSceneOptions;
+import com.hfstudio.guidenh.guide.scene.support.ScenePreviewFormedState;
+import com.hfstudio.guidenh.guide.scene.support.SceneStructureOptions;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
 
 public class BlockElementCompiler implements SceneElementTagCompiler {
@@ -57,11 +57,11 @@ public class BlockElementCompiler implements SceneElementTagCompiler {
                 errorSink.appendError(compiler, "Bad NBT: " + e.getMessage(), el);
             }
         }
-        boolean formed = GregTechSceneOptions.isFormed(compiler, errorSink, el);
+        boolean formed = SceneStructureOptions.isFormed(compiler, errorSink, el);
         String explicitBlockId = blockReference.registryId()
             .toString();
         GuidebookPreviewBlockPlacer.place(level, x, y, z, block, meta, tileTag, explicitBlockId);
-        GregTechPreviewStateFlags.updateAfterPlacement(level, x, y, z, formed);
+        ScenePreviewFormedState.updateAfterPlacement(level, x, y, z, formed);
     }
 
     public static int resolvePlacementMeta(ResolvedBlockReference blockReference, String facing) {

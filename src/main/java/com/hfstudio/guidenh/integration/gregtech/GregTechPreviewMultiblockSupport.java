@@ -9,6 +9,7 @@ import net.minecraft.tileentity.TileEntity;
 import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
+import com.hfstudio.guidenh.guide.scene.support.ScenePreviewFormedState;
 
 public class GregTechPreviewMultiblockSupport {
 
@@ -59,7 +60,7 @@ public class GregTechPreviewMultiblockSupport {
         if (level == null || controller == null) {
             return false;
         }
-        return !GregTechPreviewStateFlags
+        return !ScenePreviewFormedState
             .shouldSkipFormedSync(level, controller.xCoord, controller.yCoord, controller.zCoord);
     }
 }

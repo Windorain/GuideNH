@@ -60,8 +60,8 @@ public class SceneEditorMarkdownCodec {
                 "interactive",
                 "showBackground",
                 "allowLayerSlider")));
-    public static final Set<String> IMPORT_STRUCTURE_ATTRIBUTES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList("src", "x", "y", "z", "offsetX", "offsetY", "offsetZ", "gtFormed")));
+    public static final Set<String> IMPORT_STRUCTURE_ATTRIBUTES = Collections
+        .unmodifiableSet(new HashSet<>(Arrays.asList("src", "x", "y", "z", "offsetX", "offsetY", "offsetZ", "formed")));
     public static final Set<String> IMPORT_STRUCTURE_LIB_ATTRIBUTES = Collections.unmodifiableSet(
         new HashSet<>(
             Arrays.asList(
@@ -75,7 +75,7 @@ public class SceneEditorMarkdownCodec {
                 "offsetX",
                 "offsetY",
                 "offsetZ",
-                "gtFormed")));
+                "formed")));
     public static final Set<String> REMOVE_BLOCKS_ATTRIBUTES = Collections
         .unmodifiableSet(new HashSet<>(Collections.singletonList("id")));
     public static final Set<String> BLOCK_ANNOTATION_TEMPLATE_ATTRIBUTES = Collections
@@ -295,6 +295,9 @@ public class SceneEditorMarkdownCodec {
         try {
             model.addElement(parseElement(element, source));
         } catch (UnsupportedSubsetException ignored) {
+            if (isKnownSceneTag(tagName)) {
+                throw ignored;
+            }
             String rawText = extractRawNodeText(node, source);
             if (rawText != null && !rawText.trim()
                 .isEmpty()) {
@@ -312,6 +315,15 @@ public class SceneEditorMarkdownCodec {
             return false;
         }
         SceneEditorMarkdownParseResult nestedResult = parseSceneChildFragment(rawText);
+        String rawTagName = extractLeadingTagName(rawText);
+        if (nestedResult instanceof SceneEditorMarkdownParseResult.Unsupported unsupported
+            && isKnownSceneTag(rawTagName)) {
+            throw new UnsupportedSubsetException(unsupported.message());
+        }
+        if (nestedResult instanceof SceneEditorMarkdownParseResult.SyntaxError syntaxError
+            && isKnownSceneTag(rawTagName)) {
+            throw new InvalidSceneSyntaxException(syntaxError.message());
+        }
         if (!(nestedResult instanceof SceneEditorMarkdownParseResult.Success success)) {
             return false;
         }
@@ -496,7 +508,7 @@ public class SceneEditorMarkdownCodec {
         copyOptionalIntegerAttribute(element, node, "offsetX");
         copyOptionalIntegerAttribute(element, node, "offsetY");
         copyOptionalIntegerAttribute(element, node, "offsetZ");
-        copyOptionalAttribute(element, node, "gtFormed");
+        copyOptionalAttribute(element, node, "formed");
         return node;
     }
 
@@ -518,7 +530,7 @@ public class SceneEditorMarkdownCodec {
         copyOptionalIntegerAttribute(element, node, "offsetX");
         copyOptionalIntegerAttribute(element, node, "offsetY");
         copyOptionalIntegerAttribute(element, node, "offsetZ");
-        copyOptionalAttribute(element, node, "gtFormed");
+        copyOptionalAttribute(element, node, "formed");
         return node;
     }
 
@@ -720,7 +732,7 @@ public class SceneEditorMarkdownCodec {
         appendSceneNodeAttribute(builder, sceneNode, "offsetX");
         appendSceneNodeAttribute(builder, sceneNode, "offsetY");
         appendSceneNodeAttribute(builder, sceneNode, "offsetZ");
-        appendSceneNodeBooleanAttribute(builder, sceneNode, "gtFormed");
+        appendSceneNodeBooleanAttribute(builder, sceneNode, "formed");
         builder.append(" />\n");
     }
 
@@ -741,7 +753,7 @@ public class SceneEditorMarkdownCodec {
         appendSceneNodeAttribute(builder, sceneNode, "offsetX");
         appendSceneNodeAttribute(builder, sceneNode, "offsetY");
         appendSceneNodeAttribute(builder, sceneNode, "offsetZ");
-        appendSceneNodeBooleanAttribute(builder, sceneNode, "gtFormed");
+        appendSceneNodeBooleanAttribute(builder, sceneNode, "formed");
         builder.append(" />\n");
     }
 
@@ -1113,7 +1125,52 @@ public class SceneEditorMarkdownCodec {
             if (!(attributeNode instanceof MdxJsxAttribute attribute)) {
                 throw new UnsupportedSubsetException("Spread attributes are not supported on <" + tagName + ">");
             }
+            String attributeName = attribute.name;
+            if (attributeName == null || !allowedAttributes.contains(attributeName)) {
+                throw new UnsupportedSubsetException(
+                    "Attribute '" + attributeName + "' is not supported on <" + tagName + ">");
+            }
         }
+    }
+
+    private boolean isKnownSceneTag(@Nullable String tagName) {
+        if (tagName == null) {
+            return false;
+        }
+        return "ImportStructure".equals(tagName) || "ImportStructureLib".equals(tagName)
+            || "RemoveBlocks".equals(tagName)
+            || "BlockAnnotationTemplate".equals(tagName)
+            || "BlockAnnotation".equals(tagName)
+            || "BoxAnnotation".equals(tagName)
+            || "LineAnnotation".equals(tagName)
+            || "DiamondAnnotation".equals(tagName)
+            || "TextAnnotation".equals(tagName);
+    }
+
+    @Nullable
+    private String extractLeadingTagName(String rawText) {
+        String trimmed = trimSceneChildRawText(rawText);
+        if (trimmed.isEmpty() || trimmed.charAt(0) != '<') {
+            return null;
+        }
+        int start = 1;
+        while (start < trimmed.length() && Character.isWhitespace(trimmed.charAt(start))) {
+            start++;
+        }
+        if (start >= trimmed.length() || trimmed.charAt(start) == '/'
+            || trimmed.charAt(start) == '!'
+            || trimmed.charAt(start) == '?') {
+            return null;
+        }
+        int end = start;
+        while (end < trimmed.length()) {
+            char ch = trimmed.charAt(end);
+            if (Character.isWhitespace(ch) || ch == '>' || ch == '/') {
+                break;
+            }
+            end++;
+        }
+        return end > start ? trimmed.substring(start, end) : null;
     }
 
     @Nullable

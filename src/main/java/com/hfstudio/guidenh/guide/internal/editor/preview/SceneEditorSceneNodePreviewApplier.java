@@ -49,7 +49,7 @@ import com.hfstudio.guidenh.guide.scene.support.BlockAnnotationTemplateExpander;
 import com.hfstudio.guidenh.guide.scene.support.GuideBlockMatcher;
 import com.hfstudio.guidenh.guide.scene.support.GuideDebugLog;
 import com.hfstudio.guidenh.guide.scene.support.RemoveBlocksExecutor;
-import com.hfstudio.guidenh.integration.gregtech.GregTechPreviewStateFlags;
+import com.hfstudio.guidenh.guide.scene.support.ScenePreviewFormedState;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibImportRequest;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibImportResult;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibPreviewSelection;
@@ -210,7 +210,7 @@ public class SceneEditorSceneNodePreviewApplier {
         int offsetZ = parseIntegerAttributeOrDefault(
             node.getAttribute("offsetZ") != null ? node.getAttribute("offsetZ") : node.getAttribute("z"),
             0);
-        boolean formed = parseBooleanAttribute(node.getAttribute("gtFormed"));
+        boolean formed = parseBooleanAttribute(node.getAttribute("formed"));
         return loadStructureIntoLevel(level, structureText, offsetX, offsetY, offsetZ, formed);
     }
 
@@ -227,7 +227,7 @@ public class SceneEditorSceneNodePreviewApplier {
         int offsetX = parseIntegerAttributeOrDefault(node.getAttribute("offsetX"), 0);
         int offsetY = parseIntegerAttributeOrDefault(node.getAttribute("offsetY"), 0);
         int offsetZ = parseIntegerAttributeOrDefault(node.getAttribute("offsetZ"), 0);
-        boolean formed = parseBooleanAttribute(node.getAttribute("gtFormed"));
+        boolean formed = parseBooleanAttribute(node.getAttribute("formed"));
         Integer requestedChannel = parseIntegerAttribute(node.getAttribute("channel"));
         String structureName = normalizeAttribute(node.getAttribute("name"));
         StructureLibSceneBinding binding = scene.registerStructureLibBinding(structureName);
@@ -269,7 +269,7 @@ public class SceneEditorSceneNodePreviewApplier {
                 placedBlock.getMeta(),
                 placedBlock.getTileTag(),
                 placedBlock.getBlockId());
-            GregTechPreviewStateFlags.updateAfterPlacement(
+            ScenePreviewFormedState.updateAfterPlacement(
                 level,
                 placedBlock.getX() + offsetX,
                 clampedY,
@@ -452,7 +452,7 @@ public class SceneEditorSceneNodePreviewApplier {
             NBTTagCompound tileTag = blockTag.hasKey("nbt", 10) ? blockTag.getCompoundTag("nbt") : null;
             GuidebookPreviewBlockPlacer.place(level, px, py, pz, block, meta, tileTag, palette[state], blockTag);
             level.setExplicitBlockId(px, py, pz, palette[state]);
-            GregTechPreviewStateFlags.updateAfterPlacement(level, px, py, pz, formed);
+            ScenePreviewFormedState.updateAfterPlacement(level, px, py, pz, formed);
         }
 
         // Spawn entities stored in the "entities" list (produced by snbt+entities export mode).

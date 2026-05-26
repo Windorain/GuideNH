@@ -1,18 +1,19 @@
-package com.hfstudio.guidenh.integration.gregtech;
+package com.hfstudio.guidenh.guide.scene.support;
 
 import net.minecraft.tileentity.TileEntity;
 
 import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
+import com.hfstudio.guidenh.integration.gregtech.GregTechHelpers;
 
-public class GregTechPreviewStateFlags {
+public class ScenePreviewFormedState {
 
-    public static final String SUPPLEMENT_ID = "guidenh.gregtech.unformed";
+    public static final String SUPPLEMENT_ID = "guidenh.scene.unformed";
 
     private static final byte[] UNFORMED = new byte[] { 1 };
 
-    protected GregTechPreviewStateFlags() {}
+    protected ScenePreviewFormedState() {}
 
     public static void updateAfterPlacement(@Nullable GuidebookLevel level, int x, int y, int z, boolean formed) {
         if (level == null) {

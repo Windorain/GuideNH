@@ -26,10 +26,10 @@ controller rejects the requested combination, GuideNH automatically falls back t
 alignment. GregTech controller previews also default to the opposite horizontal facing from the
 older preview orientation, rotating the visible front by 180 degrees around the Y axis.
 
-Add `gtFormed={false}` when a GT controller should remain unformed in preview even if the
-surrounding multiblock is otherwise valid.
+Add `formed={false}` when a controller should remain unformed in preview even if the surrounding
+structure is otherwise valid. GregTech controllers are the main built-in example today.
 
-Default unformed GT controller preview:
+Default unformed controller preview:
 
 ```mdx
 <GameScene width="384" height="256" zoom={4} interactive={true}>
@@ -37,11 +37,11 @@ Default unformed GT controller preview:
 </GameScene>
 ```
 
-Explicit formed GT controller preview:
+Explicit formed controller preview:
 
 ```mdx
 <GameScene width="384" height="256" zoom={4} interactive={true}>
-  <ImportStructureLib controller="gregtech:gt.blockmachines:2741" gtFormed={true} />
+  <ImportStructureLib controller="gregtech:gt.blockmachines:2741" formed={true} />
 </GameScene>
 ```
 
@@ -108,7 +108,7 @@ are provided:
 
 Add `from_nbt` to narrow the match to blocks whose TileEntity NBT contains specific keys, and
 `to_nbt` to supply tile entity data for the replacement block. If the replacement result includes a
-GT controller, `gtFormed={false}` keeps that controller unformed.
+controller, `formed={false}` keeps that controller unformed.
 
 ## PlaceBlock
 
@@ -120,12 +120,12 @@ already there. Use `dx`/`dy`/`dz` to fill multi-block regions:
   <PlaceBlock id="minecraft:glass" y="1" dx="5" dz="5" />
 </GameScene>
 
-If the filled region includes GT controllers, set `gtFormed={false}` to keep every affected
-controller unformed in preview.
+If the filled region includes controllers, set `formed={false}` to keep every affected controller
+unformed in preview.
 
 ```mdx
 <GameScene width="384" height="256" zoom={4} interactive={true}>
-  <PlaceBlock id="gregtech:gt.blockmachines:15411" dx="3" dz="3" gtFormed={false} />
+  <PlaceBlock id="gregtech:gt.blockmachines:15411" dx="3" dz="3" formed={false} />
 </GameScene>
 ```
 

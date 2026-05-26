@@ -15,7 +15,7 @@ import com.hfstudio.guidenh.guide.scene.cache.GuideSceneStructureCompileScope;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.guide.scene.support.GuideBlockMatcher;
 import com.hfstudio.guidenh.guide.scene.support.ReplaceBlockExecutor;
-import com.hfstudio.guidenh.integration.gregtech.GregTechSceneOptions;
+import com.hfstudio.guidenh.guide.scene.support.SceneStructureOptions;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
 
 public class ReplaceBlockElementCompiler implements SceneElementTagCompiler {
@@ -104,7 +104,7 @@ public class ReplaceBlockElementCompiler implements SceneElementTagCompiler {
         int bdx = Math.max(1, MdxAttrs.getInt(compiler, errorSink, el, "dx", 1));
         int bdy = Math.max(1, MdxAttrs.getInt(compiler, errorSink, el, "dy", 1));
         int bdz = Math.max(1, MdxAttrs.getInt(compiler, errorSink, el, "dz", 1));
-        boolean formed = GregTechSceneOptions.isFormed(compiler, errorSink, el);
+        boolean formed = SceneStructureOptions.isFormed(compiler, errorSink, el);
 
         ReplaceBlockExecutor.execute(
             level,
