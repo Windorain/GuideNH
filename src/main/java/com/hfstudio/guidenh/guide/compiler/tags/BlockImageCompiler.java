@@ -46,18 +46,18 @@ public class BlockImageCompiler extends BlockTagCompiler {
      * Placeholder block that stores all extracted block-image configuration for deferred scene
      * creation by {@code BlockImageScript}.
      */
-    static class BlockImagePlaceholder extends LytParagraph {
-        @Nullable final String id;
-        @Nullable final String ore;
-        final int meta;
-        @Nullable final String nbt;
-        final float scale;
-        @Nullable final String perspective;
-        final int width;
-        final int height;
+    public static class BlockImagePlaceholder extends LytParagraph {
+        @Nullable public final String id;
+        @Nullable public final String ore;
+        public final int meta;
+        @Nullable public final String nbt;
+        public final float scale;
+        @Nullable public final String perspective;
+        public final int width;
+        public final int height;
 
-        BlockImagePlaceholder(@Nullable String id, @Nullable String ore, int meta, @Nullable String nbt,
-                              float scale, @Nullable String perspective, int width, int height) {
+        public BlockImagePlaceholder(@Nullable String id, @Nullable String ore, int meta, @Nullable String nbt,
+                                     float scale, @Nullable String perspective, int width, int height) {
             this.id = id;
             this.ore = ore;
             this.meta = meta;

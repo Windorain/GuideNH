@@ -131,7 +131,8 @@ public class SceneTagCompiler extends BlockTagCompiler {
             centerX, centerY, centerZ, explicitCenter,
             interactive, showBackground,
             allowLayerSlider, gridButtonEnabled, showGrid,
-            childrenSource
+            childrenSource,
+            compiler.getPageId().getResourceDomain()
         );
         placeholder.setStyleClass(styleClass);
         placeholder.setStyle(LytParagraph.LOADING_STYLE);
@@ -152,32 +153,33 @@ public class SceneTagCompiler extends BlockTagCompiler {
      */
     public static class ScenePlaceholder extends LytParagraph {
 
-        final int width;
-        final int height;
-        final boolean explicitWidth;
-        final boolean explicitHeight;
-        final float zoom;
-        final boolean explicitZoom;
-        @Nullable final String perspective;
-        final float rotateX;
-        final float rotateY;
-        final float rotateZ;
-        final float offsetX;
-        final float offsetY;
-        final boolean explicitOffsetX;
-        final boolean explicitOffsetY;
-        final float centerX;
-        final float centerY;
-        final float centerZ;
-        final boolean explicitCenter;
-        final boolean interactive;
-        final boolean showBackground;
-        final boolean allowLayerSlider;
-        final boolean gridButtonEnabled;
-        final boolean showGrid;
-        @Nullable final String childrenSource;
+        public final int width;
+        public final int height;
+        public final boolean explicitWidth;
+        public final boolean explicitHeight;
+        public final float zoom;
+        public final boolean explicitZoom;
+        @Nullable public final String perspective;
+        public final float rotateX;
+        public final float rotateY;
+        public final float rotateZ;
+        public final float offsetX;
+        public final float offsetY;
+        public final boolean explicitOffsetX;
+        public final boolean explicitOffsetY;
+        public final float centerX;
+        public final float centerY;
+        public final float centerZ;
+        public final boolean explicitCenter;
+        public final boolean interactive;
+        public final boolean showBackground;
+        public final boolean allowLayerSlider;
+        public final boolean gridButtonEnabled;
+        public final boolean showGrid;
+        @Nullable public final String childrenSource;
+        public final String pageDomain;
 
-        ScenePlaceholder(
+        public ScenePlaceholder(
             int width, int height,
             boolean explicitWidth, boolean explicitHeight,
             float zoom, boolean explicitZoom,
@@ -190,7 +192,8 @@ public class SceneTagCompiler extends BlockTagCompiler {
             boolean interactive, boolean showBackground,
             boolean allowLayerSlider, boolean gridButtonEnabled,
             boolean showGrid,
-            @Nullable String childrenSource) {
+            @Nullable String childrenSource,
+            String pageDomain) {
             this.width = width;
             this.height = height;
             this.explicitWidth = explicitWidth;
@@ -215,6 +218,7 @@ public class SceneTagCompiler extends BlockTagCompiler {
             this.gridButtonEnabled = gridButtonEnabled;
             this.showGrid = showGrid;
             this.childrenSource = childrenSource;
+            this.pageDomain = pageDomain;
         }
     }
 

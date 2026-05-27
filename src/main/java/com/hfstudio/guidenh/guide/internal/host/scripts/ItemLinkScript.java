@@ -2,6 +2,7 @@ package com.hfstudio.guidenh.guide.internal.host.scripts;
 
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.ResourceLocation;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -33,7 +34,7 @@ public class ItemLinkScript implements LytScript {
             ItemStack stack = resolveItemStack(itemId);
             if (stack == null) return;
 
-            PageAnchor anchor = findLinkTarget(stack, linksTo);
+            PageAnchor anchor = findLinkTarget(stack, linksTo, ctx);
             if (anchor != null) {
                 link.setPageLink(anchor);
             }
@@ -66,10 +67,24 @@ public class ItemLinkScript implements LytScript {
     }
 
     @Nullable
-    private static PageAnchor findLinkTarget(ItemStack stack, @Nullable String linksTo) {
-        // FIXME: Index lookup requires per-guide PageCollection reference.
-        // ItemLinkScript needs access to the guide's index registry via ScriptContext.
-        // For now, manual linksTo will be parsed later; auto-index lookup deferred.
+    private static PageAnchor findLinkTarget(ItemStack stack, @Nullable String linksTo, ScriptContext ctx) {
+        if (linksTo != null && !linksTo.isEmpty()) {
+            try {
+                ResourceLocation pageId = new ResourceLocation(linksTo);
+                return PageAnchor.page(pageId);
+            } catch (Exception ignored) {}
+        }
+        com.hfstudio.guidenh.guide.indices.ItemIndex itemIdx = ctx.getIndex(
+            com.hfstudio.guidenh.guide.indices.ItemIndex.class);
+        if (itemIdx != null) {
+            PageAnchor anchor = itemIdx.findByStack(stack);
+            if (anchor != null) return anchor;
+        }
+        com.hfstudio.guidenh.guide.indices.OreIndex oreIdx = ctx.getIndex(
+            com.hfstudio.guidenh.guide.indices.OreIndex.class);
+        if (oreIdx != null) {
+            return oreIdx.findByStack(stack);
+        }
         return null;
     }
 }

@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.hfstudio.guidenh.guide.PageCollection;
 import com.hfstudio.guidenh.guide.document.block.LytBlock;
 import com.hfstudio.guidenh.guide.document.block.LytDocument;
 import com.hfstudio.guidenh.guide.document.block.LytNode;
@@ -21,6 +22,7 @@ import com.hfstudio.guidenh.guide.document.interaction.InteractiveElement;
 public class LytHost {
 
     @Nullable private LytDocument document;
+    @Nullable private PageCollection currentPageCollection;
     private final Map<String, LytScript> scripts = new HashMap<>();
     private final Map<String, PageCacheEntry> cachedDocuments = new LinkedHashMap<>();
     private final Map<String, AtomicInteger> pageNodeCounters = new HashMap<>();
@@ -78,6 +80,15 @@ public class LytHost {
         this.currentPageId = pageId;
     }
 
+    public void setCurrentPageCollection(@Nullable PageCollection pageCollection) {
+        this.currentPageCollection = pageCollection;
+    }
+
+    @Nullable
+    public PageCollection getCurrentPageCollection() {
+        return currentPageCollection;
+    }
+
     public boolean hasPreheatWork() {
         return false; // placeholder, real impl later
     }
@@ -133,19 +144,12 @@ public class LytHost {
         if (cls != null) {
             LytScript script = scripts.get(cls);
             if (script != null) {
-                try {
-                    ScriptContextImpl ctx = new ScriptContextImpl(node, this, document);
-                    script.onEvent(node, new LytEvent(EventType.MOUNT, node), ctx);
-                } catch (Exception e) {
-                    // Error boundary: log and continue
-                    e.printStackTrace();
-                }
+                dispatchScript(script, node);
             }
         }
         for (var child : node.getChildren()) {
             dispatchMountEvents(child);
         }
-        // Also traverse into flow content for inline-level styleClass nodes
         dispatchMountEventsFlow(node);
     }
 
@@ -162,12 +166,7 @@ public class LytHost {
         if (cls != null) {
             LytScript script = scripts.get(cls);
             if (script != null) {
-                try {
-                    ScriptContextImpl ctx = new ScriptContextImpl(fc, this, document);
-                    script.onEvent(fc, new LytEvent(EventType.MOUNT, fc), ctx);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                dispatchScript(script, fc);
             }
         }
         if (fc instanceof LytFlowSpan span) {
@@ -180,15 +179,54 @@ public class LytHost {
             if (innerCls != null) {
                 LytScript script = scripts.get(innerCls);
                 if (script != null) {
-                    try {
-                        ScriptContextImpl ctx = new ScriptContextImpl(inlineBlock, this, document);
-                        script.onEvent(inlineBlock, new LytEvent(EventType.MOUNT, inlineBlock), ctx);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    dispatchScript(script, inlineBlock);
                 }
             }
         }
+    }
+
+    private void dispatchScript(LytScript script, Object node) {
+        if (script.isAsync()) {
+            taskQueue.addLast(new MaterializeTask(script, node, new ScriptContextImpl(node, this, document)));
+        } else {
+            try {
+                ScriptContextImpl ctx = new ScriptContextImpl(node, this, document);
+                script.onEvent(node, new LytEvent(EventType.MOUNT, node), ctx);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static class MaterializeTask implements DeferredTask {
+        private boolean done;
+        private final LytScript script;
+        private final Object node;
+        private final ScriptContextImpl ctx;
+
+        MaterializeTask(LytScript script, Object node, ScriptContextImpl ctx) {
+            this.script = script;
+            this.node = node;
+            this.ctx = ctx;
+        }
+
+        @Override
+        public Priority priority() { return Priority.HIGH; }
+
+        @Override
+        public TaskResult step(long deadlineNs) {
+            if (done) return TaskResult.DONE;
+            try {
+                script.onEvent(node, new LytEvent(EventType.MOUNT, node), ctx);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            done = true;
+            return TaskResult.DONE;
+        }
+
+        @Override
+        public boolean isDone() { return done; }
     }
 
     // ===== Sync events =====
@@ -255,6 +293,7 @@ public class LytHost {
 
     public void clear() {
         document = null;
+        currentPageCollection = null;
         scripts.clear();
         cachedDocuments.clear();
         pageNodeCounters.clear();

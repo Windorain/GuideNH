@@ -21,7 +21,7 @@ public class LytHostWorkItem implements WorkItem {
     @Override
     public WorkResult tick(long deadlineNs) {
         host.step(deadlineNs);
-        return host.hasWork() ? WorkResult.YIELD : WorkResult.DONE;
+        return WorkResult.YIELD; // never leave the queue — shouldRun guards when idle
     }
 
     @Override

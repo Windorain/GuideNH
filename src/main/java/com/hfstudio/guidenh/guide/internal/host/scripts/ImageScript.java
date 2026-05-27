@@ -1,33 +1,72 @@
 package com.hfstudio.guidenh.guide.internal.host.scripts;
 
+import net.minecraft.util.ResourceLocation;
+
+import com.hfstudio.guidenh.guide.document.block.ImageRegionAnnotation;
+import com.hfstudio.guidenh.guide.document.block.LytImage;
+import com.hfstudio.guidenh.guide.document.block.LytImageBlock;
+import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
+import com.hfstudio.guidenh.guide.internal.host.EventType;
 import com.hfstudio.guidenh.guide.internal.host.LytEvent;
 import com.hfstudio.guidenh.guide.internal.host.LytScript;
 import com.hfstudio.guidenh.guide.internal.host.ScriptContext;
 import com.hfstudio.guidenh.guide.internal.host.ScriptType;
-import com.hfstudio.guidenh.guide.document.block.LytNode;
 
-/**
- * Script that materializes image content for blocks with styleClass "Img".
- * For Phase 3 initial implementation, this is a stub that will be wired to
- * the asset loading system in a later task.
- */
 public class ImageScript implements LytScript {
 
     @Override
-    public ScriptType type() {
-        return ScriptType.JAVA;
-    }
+    public ScriptType type() { return ScriptType.JAVA; }
 
     @Override
-    public String styleClass() {
-        return "Img";
-    }
+    public String styleClass() { return "Img"; }
+
+    @Override
+    public boolean isAsync() { return true; }
 
     @Override
     public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
-        // TODO: Load image asset and replace placeholder
-        // For Phase 3 initial implementation, this is a stub.
-        // The actual image loading will be added when the script infrastructure
-        // is fully wired to the asset loading system.
+        if (event.type() != EventType.MOUNT) return;
+
+        LytImageBlock placeholder;
+        boolean isWrapped = node instanceof LytFlowInlineBlock w && w.getBlock() instanceof LytImageBlock p;
+        if (isWrapped) {
+            placeholder = (LytImageBlock) ((LytFlowInlineBlock) node).getBlock();
+        } else if (node instanceof LytImageBlock p) {
+            placeholder = p;
+        } else {
+            return;
+        }
+
+        String src = placeholder.getSrc();
+        if (src == null || src.isEmpty()) return;
+
+        ResourceLocation imageId;
+        try {
+            imageId = new ResourceLocation(src);
+        } catch (Exception e) {
+            return;
+        }
+
+        byte[] imageData = ctx.loadAsset(imageId);
+        LytImage image = new LytImage();
+        image.setImage(imageId, imageData);
+
+        String alt = placeholder.getAlt();
+        if (alt != null && !alt.isEmpty()) image.setAlt(alt);
+        String title = placeholder.getTitle();
+        if (title != null && !title.isEmpty()) image.setTitle(title);
+        image.setExplicitWidth(placeholder.getExplicitWidth());
+        image.setExplicitHeight(placeholder.getExplicitHeight());
+        for (ImageRegionAnnotation ann : placeholder.getAnnotations()) {
+            image.addAnnotation(ann);
+        }
+
+        if (isWrapped) {
+            LytFlowInlineBlock newWrapper = new LytFlowInlineBlock();
+            newWrapper.setBlock(image);
+            ctx.replace(newWrapper);
+        } else {
+            ctx.replace(image);
+        }
     }
 }

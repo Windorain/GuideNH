@@ -80,6 +80,8 @@ import com.hfstudio.guidenh.guide.internal.host.scripts.ItemLinkScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.KeyBindScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.MermaidScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.PlayerNameScript;
+import com.hfstudio.guidenh.guide.internal.host.scripts.QuestCardScript;
+import com.hfstudio.guidenh.guide.internal.host.scripts.QuestLinkScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.RecipeScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.SceneScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.SoundLinkScript;
@@ -177,6 +179,8 @@ public class ClientProxy extends CommonProxy {
         lytHost.registerScript("BlockImage", new BlockImageScript());
         lytHost.registerScript("CsvTable", new CsvTableScript());
         lytHost.registerScript("Mermaid", new MermaidScript());
+        lytHost.registerScript("QuestLink", new QuestLinkScript());
+        lytHost.registerScript("QuestCard", new QuestCardScript());
         // Phase 3: SceneScript handles Scene and GameScene
         SceneScript sceneScript = new SceneScript();
         lytHost.registerScript("Scene", sceneScript);
