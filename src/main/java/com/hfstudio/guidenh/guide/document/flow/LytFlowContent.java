@@ -19,6 +19,9 @@ public class LytFlowContent implements Styleable {
     @Nullable
     private String styleClass;
 
+    @Nullable
+    private String nodeUid;
+
     private final Map<String, Object> data = new HashMap<>();
 
     public LytFlowParent getParent() {
@@ -86,6 +89,11 @@ public class LytFlowContent implements Styleable {
     public String getStyleClass() { return styleClass; }
 
     public void setStyleClass(@Nullable String styleClass) { this.styleClass = styleClass; }
+
+    @Nullable
+    public String getNodeUid() { return nodeUid; }
+
+    public void setNodeUid(@Nullable String nodeUid) { this.nodeUid = nodeUid; }
 
     public Object getData(String key) { return data.get(key); }
 

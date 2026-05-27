@@ -24,7 +24,7 @@ public class ImageScript implements LytScript {
     }
 
     @Override
-    public void onEvent(LytNode node, LytEvent event, ScriptContext ctx) {
+    public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         // TODO: Load image asset and replace placeholder
         // For Phase 3 initial implementation, this is a stub.
         // The actual image loading will be added when the script infrastructure

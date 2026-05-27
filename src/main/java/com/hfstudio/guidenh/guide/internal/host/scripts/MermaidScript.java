@@ -14,7 +14,7 @@ public class MermaidScript implements LytScript {
     public String styleClass() { return "Mermaid"; }
 
     @Override
-    public void onEvent(LytNode node, LytEvent event, ScriptContext ctx) {
+    public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         // Stub: Mermaid rendering will be wired later
     }
 }

@@ -7,11 +7,11 @@ import com.hfstudio.guidenh.guide.document.block.LytNode;
 
 class ScriptContextImpl implements ScriptContext {
     private final Map<String, Object> data = new HashMap<>();
-    private final LytNode node;
+    private final Object node;
     private final LytHost host;
     private final LytDocument document;
 
-    ScriptContextImpl(LytNode node, LytHost host, LytDocument document) {
+    ScriptContextImpl(Object node, LytHost host, LytDocument document) {
         this.node = node;
         this.host = host;
         this.document = document;
@@ -21,16 +21,19 @@ class ScriptContextImpl implements ScriptContext {
     public Map<String, Object> data() { return data; }
 
     @Override
-    public void replace(LytNode newNode) {
-        LytNode parent = node.getParent();
-        if (parent != null) {
-            parent.replaceChild(node, newNode);
+    public void replace(Object newNode) {
+        if (node instanceof LytNode ln && newNode instanceof LytNode newLn) {
+            LytNode parent = ln.getParent();
+            if (parent != null) {
+                parent.replaceChild(ln, newLn);
+            }
         }
+        // Flow-content replacement deferred to Phase 4
     }
 
     @Override
     public String allocateId(String prefix) {
-        return prefix + ":" + System.identityHashCode(node);
+        return host.allocateNodeUid(host.currentPageId, prefix);
     }
 
     @Override

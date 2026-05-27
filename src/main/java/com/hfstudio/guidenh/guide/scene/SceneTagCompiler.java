@@ -120,8 +120,9 @@ public class SceneTagCompiler extends BlockTagCompiler {
         // Raw source text of children (preserves BlockStats and all scene element markup)
         String childrenSource = compiler.getBlockTagChildrenSource(el);
 
-        // Store all extracted scene config for later use by SceneScript
-        ScenePlaceholder config = new ScenePlaceholder(
+        // Create placeholder block that carries all scene config to SceneScript
+        String styleClass = "GameScene".equals(el.name()) ? "GameScene" : "Scene";
+        ScenePlaceholder placeholder = new ScenePlaceholder(
             w, h, explicitWidth, explicitHeight,
             zoom, explicitZoom,
             perspective,
@@ -132,11 +133,8 @@ public class SceneTagCompiler extends BlockTagCompiler {
             allowLayerSlider, gridButtonEnabled, showGrid,
             childrenSource
         );
-
-        // Create and append placeholder block
-        String styleClass = "GameScene".equals(el.name()) ? "GameScene" : "Scene";
-        LytParagraph placeholder = LytParagraph.of("[" + styleClass + "]");
         placeholder.setStyleClass(styleClass);
+        placeholder.appendText("[" + styleClass + "]");
         parent.append(placeholder);
     }
 
@@ -147,9 +145,11 @@ public class SceneTagCompiler extends BlockTagCompiler {
     // ---- Scene data holder ----
 
     /**
-     * Stores all extracted scene configuration for deferred scene creation by {@code SceneScript}.
+     * Placeholder block that stores all extracted scene configuration for deferred scene creation
+     * by {@code SceneScript}. Extends LytParagraph so it lives in the LytNode tree and can receive
+     * MOUNT dispatch.
      */
-    private static class ScenePlaceholder {
+    public static class ScenePlaceholder extends LytParagraph {
 
         final int width;
         final int height;

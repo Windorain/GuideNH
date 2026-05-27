@@ -6,7 +6,7 @@ import com.hfstudio.guidenh.guide.document.block.LytNode;
 
 public interface ScriptContext {
     Map<String, Object> data();
-    void replace(LytNode newNode);
+    void replace(Object newNode);
     String allocateId(String prefix);
     LytDocument document();
 }

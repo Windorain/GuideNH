@@ -19,7 +19,7 @@ public class SubPagesScript implements LytScript {
     }
 
     @Override
-    public void onEvent(LytNode node, LytEvent event, ScriptContext ctx) {
+    public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         // Stub: full implementation in later task
     }
 }

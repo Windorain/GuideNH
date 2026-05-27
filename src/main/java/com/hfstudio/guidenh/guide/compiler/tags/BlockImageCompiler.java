@@ -3,6 +3,8 @@ package com.hfstudio.guidenh.guide.compiler.tags;
 import java.util.Collections;
 import java.util.Set;
 
+import org.jetbrains.annotations.Nullable;
+
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.document.block.LytBlockContainer;
 import com.hfstudio.guidenh.guide.document.block.LytParagraph;
@@ -32,8 +34,38 @@ public class BlockImageCompiler extends BlockTagCompiler {
         int width = MdxAttrs.getInt(compiler, parent, el, "width", 128);
         int height = MdxAttrs.getInt(compiler, parent, el, "height", 128);
 
-        var placeholder = LytParagraph.of("[BlockImage]");
+        // Create placeholder block that carries all extracted config to BlockImageScript
+        BlockImagePlaceholder placeholder = new BlockImagePlaceholder(
+            id, ore, meta, nbt, scale, perspective, width, height);
         placeholder.setStyleClass("BlockImage");
+        placeholder.appendText("[BlockImage]");
         parent.append(placeholder);
+    }
+
+    /**
+     * Placeholder block that stores all extracted block-image configuration for deferred scene
+     * creation by {@code BlockImageScript}.
+     */
+    static class BlockImagePlaceholder extends LytParagraph {
+        @Nullable final String id;
+        @Nullable final String ore;
+        final int meta;
+        @Nullable final String nbt;
+        final float scale;
+        @Nullable final String perspective;
+        final int width;
+        final int height;
+
+        BlockImagePlaceholder(@Nullable String id, @Nullable String ore, int meta, @Nullable String nbt,
+                              float scale, @Nullable String perspective, int width, int height) {
+            this.id = id;
+            this.ore = ore;
+            this.meta = meta;
+            this.nbt = nbt;
+            this.scale = scale;
+            this.perspective = perspective;
+            this.width = width;
+            this.height = height;
+        }
     }
 }

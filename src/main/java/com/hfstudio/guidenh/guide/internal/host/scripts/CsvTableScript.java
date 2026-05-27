@@ -14,7 +14,7 @@ public class CsvTableScript implements LytScript {
     public String styleClass() { return "CsvTable"; }
 
     @Override
-    public void onEvent(LytNode node, LytEvent event, ScriptContext ctx) {
+    public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         // Stub: CSV loading and table building will be wired later
     }
 }

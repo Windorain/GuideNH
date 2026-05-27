@@ -19,7 +19,7 @@ public class RecipeScript implements LytScript {
     }
 
     @Override
-    public void onEvent(LytNode node, LytEvent event, ScriptContext ctx) {
+    public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         // Stub: full NEI query chain will be wired here
     }
 }

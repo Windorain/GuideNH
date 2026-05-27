@@ -19,7 +19,7 @@ public class SceneScript implements LytScript {
     }
 
     @Override
-    public void onEvent(LytNode node, LytEvent event, ScriptContext ctx) {
+    public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         // Stub: entire scene pipeline will be wired here
     }
 }

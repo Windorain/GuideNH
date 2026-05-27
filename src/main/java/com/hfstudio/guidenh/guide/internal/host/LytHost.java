@@ -12,6 +12,9 @@ import org.jetbrains.annotations.Nullable;
 import com.hfstudio.guidenh.guide.document.block.LytBlock;
 import com.hfstudio.guidenh.guide.document.block.LytDocument;
 import com.hfstudio.guidenh.guide.document.block.LytNode;
+import com.hfstudio.guidenh.guide.document.block.LytParagraph;
+import com.hfstudio.guidenh.guide.document.flow.LytFlowContent;
+import com.hfstudio.guidenh.guide.document.flow.LytFlowSpan;
 import com.hfstudio.guidenh.guide.document.interaction.InteractiveElement;
 
 public class LytHost {
@@ -98,6 +101,30 @@ public class LytHost {
         for (var child : node.getChildren()) {
             allocateNodeUids(child);
         }
+        // Also traverse into flow content (LytParagraph, LytFlowSpan children)
+        allocateFlowNodeUids(node);
+    }
+
+    private void allocateFlowNodeUids(LytNode node) {
+        if (node instanceof LytParagraph para) {
+            for (var fcChild : para.getContent()) {
+                allocateFlowNodeUidsRecursive(fcChild);
+            }
+        }
+    }
+
+    private void allocateFlowNodeUidsRecursive(LytFlowContent fc) {
+        if (fc.getStyleClass() != null && fc.getNodeUid() == null) {
+            String prefix = fc.getStyleClass().toLowerCase();
+            int seq = pageNodeCounters
+                .computeIfAbsent(currentPageId, k -> new AtomicInteger()).incrementAndGet();
+            fc.setNodeUid(currentPageId + "::" + prefix + ":" + seq);
+        }
+        if (fc instanceof LytFlowSpan span) {
+            for (var child : span.getChildren()) {
+                allocateFlowNodeUidsRecursive(child);
+            }
+        }
     }
 
     private void dispatchMountEvents(LytNode node) {
@@ -117,6 +144,36 @@ public class LytHost {
         for (var child : node.getChildren()) {
             dispatchMountEvents(child);
         }
+        // Also traverse into flow content for inline-level styleClass nodes
+        dispatchMountEventsFlow(node);
+    }
+
+    private void dispatchMountEventsFlow(LytNode node) {
+        if (node instanceof LytParagraph para) {
+            for (var fcChild : para.getContent()) {
+                dispatchMountEventsFlowRecursive(fcChild);
+            }
+        }
+    }
+
+    private void dispatchMountEventsFlowRecursive(LytFlowContent fc) {
+        String cls = fc.getStyleClass();
+        if (cls != null) {
+            LytScript script = scripts.get(cls);
+            if (script != null) {
+                try {
+                    ScriptContextImpl ctx = new ScriptContextImpl(fc, this, document);
+                    script.onEvent(fc, new LytEvent(EventType.MOUNT, fc), ctx);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        if (fc instanceof LytFlowSpan span) {
+            for (var child : span.getChildren()) {
+                dispatchMountEventsFlowRecursive(child);
+            }
+        }
     }
 
     // ===== Sync events =====
@@ -130,8 +187,8 @@ public class LytHost {
         while (!eventQueue.isEmpty()) {
             LytEvent event = eventQueue.pollFirst();
             if (document == null || event.target() == null) continue;
-            LytNode target = event.target();
-            if (target instanceof InteractiveElement interactive) {
+            Object rawTarget = event.target();
+            if (rawTarget instanceof InteractiveElement interactive) {
                 switch (event.type()) {
                     case CLICK:
                     case DOUBLE_CLICK:

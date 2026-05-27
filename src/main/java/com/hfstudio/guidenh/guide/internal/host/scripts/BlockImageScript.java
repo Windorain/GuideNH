@@ -19,7 +19,7 @@ public class BlockImageScript implements LytScript {
     }
 
     @Override
-    public void onEvent(LytNode node, LytEvent event, ScriptContext ctx) {
+    public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         // Stub: scene creation will be wired here
     }
 }

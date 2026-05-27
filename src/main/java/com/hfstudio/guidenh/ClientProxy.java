@@ -67,16 +67,20 @@ import com.hfstudio.guidenh.guide.internal.scheduler.SearchIndexWorkItem;
 import com.hfstudio.guidenh.guide.internal.scheduler.DevWatchWorkItem;
 import com.hfstudio.guidenh.guide.internal.host.LytHost;
 import com.hfstudio.guidenh.guide.internal.host.LytHostWorkItem;
+import com.hfstudio.guidenh.guide.internal.host.scripts.BlockImageScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.CategoryScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.CommandLinkScript;
+import com.hfstudio.guidenh.guide.internal.host.scripts.CsvTableScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.FloatingImageScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.ImageScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.ItemGridScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.ItemImageScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.ItemLinkScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.KeyBindScript;
+import com.hfstudio.guidenh.guide.internal.host.scripts.MermaidScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.PlayerNameScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.RecipeScript;
+import com.hfstudio.guidenh.guide.internal.host.scripts.SceneScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.SoundLinkScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.SpecialScript;
 import com.hfstudio.guidenh.guide.internal.host.scripts.StructureScript;
@@ -168,6 +172,13 @@ public class ClientProxy extends CommonProxy {
         lytHost.registerScript("ItemLink", new ItemLinkScript());
         lytHost.registerScript("Category", new CategoryScript());
         lytHost.registerScript("Special", new SpecialScript());
+        lytHost.registerScript("BlockImage", new BlockImageScript());
+        lytHost.registerScript("CsvTable", new CsvTableScript());
+        lytHost.registerScript("Mermaid", new MermaidScript());
+        // Phase 3: SceneScript handles Scene and GameScene
+        SceneScript sceneScript = new SceneScript();
+        lytHost.registerScript("Scene", sceneScript);
+        lytHost.registerScript("GameScene", sceneScript);
         // Phase 3: RecipeScript handles Recipe, RecipeFor, RecipeUsage, RecipesFor
         RecipeScript recipeScript = new RecipeScript();
         lytHost.registerScript("Recipe", recipeScript);
