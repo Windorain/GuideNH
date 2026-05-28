@@ -70,16 +70,8 @@ public class SceneEditorMarkdownCodec {
         "offsetY",
         "offsetZ",
         "formed");
-    public static final Set<String> STRUCTURE_LIB_OPTION_ATTRIBUTES = Set.of(
-        "name",
-        "id",
-        "value",
-        "expr",
-        "tier",
-        "facing",
-        "rotation",
-        "flip",
-        "channel");
+    public static final Set<String> STRUCTURE_LIB_OPTION_ATTRIBUTES = Set
+        .of("name", "id", "value", "expr", "tier", "facing", "rotation", "flip", "channel");
     public static final Set<String> STRUCTURE_LIB_OPTION_TAGS = Set.of(
         "Tier",
         "Channel",
