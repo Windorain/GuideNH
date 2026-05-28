@@ -2521,10 +2521,9 @@ public class GuideScreen extends GuiContainer
         int requestId = pendingPageLoadRequestId;
         String pageIdStr = currentAnchor.pageId().toString();
         LytHost lytHost = ClientProxy.getLytHost();
-        GuidePage loadedPage = null;
+        GuidePage loadedPage;
 
         GuidePage cachedPage = lytHost.getCachedGuidePage(pageIdStr);
-        boolean alreadyMounted = cachedPage != null && lytHost.isPageMounted(pageIdStr);
         if (cachedPage != null) {
             loadedPage = cachedPage;
             loadedPage.prepareForDisplay();
@@ -2533,6 +2532,10 @@ public class GuideScreen extends GuiContainer
                 loadedPage = guide.getPage(currentAnchor.pageId());
             } catch (Throwable t) {
                 FMLLog.severe("Failed to compile guide page {}", currentAnchor.pageId(), t);
+                loadedPage = null;
+            }
+            if (loadedPage != null) {
+                lytHost.cachePage(pageIdStr, loadedPage);
             }
         }
         if (!pageLoadInProgress || requestId != pendingPageLoadRequestId) {
@@ -2542,15 +2545,7 @@ public class GuideScreen extends GuiContainer
         document = loadedPage != null ? loadedPage.document() : null;
         lytHost.setCurrentPageId(pageIdStr);
         lytHost.setCurrentPageCollection(guide);
-        if (alreadyMounted) {
-            lytHost.swapDocument(document);
-        } else {
-            lytHost.mountDocument(document);
-            if (loadedPage != null) {
-                lytHost.cachePage(pageIdStr, loadedPage);
-                lytHost.markPageMounted(pageIdStr);
-            }
-        }
+        lytHost.mountDocument(document);
         lytHost.requestPreheatNeighbors(pageIdStr);
         if (document != null && isSpecialPageWithSearchField()) {
             applySpecialPageSearchQuery(queryFromCurrentAnchor());

@@ -33,8 +33,7 @@ public class LytHost {
 
     static class PageCacheEntry {
         final GuidePage guidePage;
-        final Map<String, LytBlock> nodeResults = new HashMap<>();
-        boolean mounted;
+        final Map<String, Object> nodeResults = new HashMap<>();
         PageCacheEntry(GuidePage guidePage) { this.guidePage = guidePage; }
     }
 
@@ -58,29 +57,19 @@ public class LytHost {
 
     // ===== Document =====
 
-    /** Full processing for a freshly compiled document: UID allocation, onAttach, MOUNT dispatch. */
+    /** Full processing: UID allocation, onAttach, MOUNT dispatch. Resets the node counter so the
+     *  same page always gets the same UIDs across remounts (enabling node-level cache hits). */
     public void mountDocument(@Nullable LytDocument newDoc) {
         if (this.document != null && this.document != newDoc) {
             this.document.setLive(false);    // onDetach cascade on old doc
         }
         this.document = newDoc;
         if (newDoc != null) {
+            pageNodeCounters.remove(currentPageId);  // reset for stable UIDs
             allocateNodeUids(newDoc);
             newDoc.setLive(true);            // onAttach cascade
             dispatchMountEvents(newDoc);     // MOUNT events → scripts materialize placeholders
             viewport.updateContent(newDoc.getAvailableWidth(), newDoc.getContentHeight());
-        }
-    }
-
-    /** Lightweight swap for a cached, already-materialized document: skips UID allocation and MOUNT dispatch. */
-    public void swapDocument(@Nullable LytDocument cachedDoc) {
-        if (this.document != null && this.document != cachedDoc) {
-            this.document.setLive(false);    // onDetach cascade on old doc
-        }
-        this.document = cachedDoc;
-        if (cachedDoc != null) {
-            cachedDoc.setLive(true);         // onAttach cascade — re-registers interaction listeners
-            viewport.updateContent(cachedDoc.getAvailableWidth(), cachedDoc.getContentHeight());
         }
     }
 
@@ -98,16 +87,17 @@ public class LytHost {
         return entry != null ? entry.guidePage : null;
     }
 
-    public boolean isPageMounted(String pageId) {
-        PageCacheEntry entry = cachedDocuments.get(pageId);
-        return entry != null && entry.mounted;
-    }
-
-    public void markPageMounted(String pageId) {
+    public void recordNodeResult(String pageId, String nodeUid, Object result) {
         PageCacheEntry entry = cachedDocuments.get(pageId);
         if (entry != null) {
-            entry.mounted = true;
+            entry.nodeResults.put(nodeUid, result);
         }
+    }
+
+    @Nullable
+    Object getNodeResult(String pageId, String nodeUid) {
+        PageCacheEntry entry = cachedDocuments.get(pageId);
+        return entry != null ? entry.nodeResults.get(nodeUid) : null;
     }
 
     public void cachePage(String pageId, GuidePage guidePage) {
@@ -270,6 +260,14 @@ public class LytHost {
     }
 
     private void dispatchScript(LytScript script, Object node) {
+        String nodeUid = nodeUidOf(node);
+        if (nodeUid != null) {
+            Object cached = getNodeResult(currentPageId, nodeUid);
+            if (cached != null) {
+                new ScriptContextImpl(node, this, document).replace(cached);
+                return;
+            }
+        }
         if (script.isAsync()) {
             taskQueue.addLast(new MaterializeTask(script, node, new ScriptContextImpl(node, this, document)));
         } else {
@@ -280,6 +278,13 @@ public class LytHost {
                 e.printStackTrace();
             }
         }
+    }
+
+    @Nullable
+    private static String nodeUidOf(Object node) {
+        if (node instanceof LytNode ln) return ln.getNodeUid();
+        if (node instanceof LytFlowContent fc) return fc.getNodeUid();
+        return null;
     }
 
     private static class MaterializeTask implements DeferredTask {

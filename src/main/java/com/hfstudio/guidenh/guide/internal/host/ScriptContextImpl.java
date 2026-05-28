@@ -57,6 +57,7 @@ class ScriptContextImpl implements ScriptContext {
         if (node instanceof LytFlowInlineBlock wrapper && newNode instanceof LytBlock newBlock) {
             wrapper.setBlock(newBlock);
             document.invalidateLayout();
+            recordResult(newBlock);
             return;
         }
 
@@ -65,6 +66,7 @@ class ScriptContextImpl implements ScriptContext {
             if (parent != null) {
                 parent.replaceChild(ln, newLn);
             }
+            recordResult(newLn);
             return;
         }
         if (node instanceof LytFlowContent fc && newNode instanceof LytFlowContent newFc) {
@@ -78,6 +80,7 @@ class ScriptContextImpl implements ScriptContext {
                     children.set(idx, newFc);
                     document.invalidateLayout();
                 }
+                recordResult(newFc);
                 return;
             }
             // Handle LytParagraph and other LytFlowContainer parents
@@ -93,6 +96,7 @@ class ScriptContextImpl implements ScriptContext {
                         document.invalidateLayout();
                     }
                 }
+                recordResult(newFc);
             }
         }
     }
@@ -128,5 +132,14 @@ class ScriptContextImpl implements ScriptContext {
     @Override
     public void submitTask(DeferredTask task) {
         host.submitTask(task);
+    }
+
+    private void recordResult(Object result) {
+        String uid = null;
+        if (node instanceof LytNode ln) uid = ln.getNodeUid();
+        else if (node instanceof LytFlowContent fc) uid = fc.getNodeUid();
+        if (uid != null) {
+            host.recordNodeResult(host.currentPageId, uid, result);
+        }
     }
 }
