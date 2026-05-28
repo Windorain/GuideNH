@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.hfstudio.guidenh.guide.GuidePage;
 import com.hfstudio.guidenh.guide.PageCollection;
 import com.hfstudio.guidenh.guide.document.block.LytBlock;
 import com.hfstudio.guidenh.guide.document.block.LytDocument;
@@ -28,29 +29,58 @@ public class LytHost {
     private final Map<String, AtomicInteger> pageNodeCounters = new HashMap<>();
     String currentPageId;
 
+    private static final int MAX_CACHED_PAGES = 32;
+
     static class PageCacheEntry {
-        final LytDocument document;
+        final GuidePage guidePage;
         final Map<String, LytBlock> nodeResults = new HashMap<>();
-        PageCacheEntry(LytDocument document) { this.document = document; }
+        boolean mounted;
+        PageCacheEntry(GuidePage guidePage) { this.guidePage = guidePage; }
     }
 
     private final ViewportState viewport = new ViewportState();
     private final NavigationState nav = new NavigationState();
     private final Deque<LytEvent> eventQueue = new ArrayDeque<>();
     private final Deque<DeferredTask> taskQueue = new ArrayDeque<>();
+    private final Deque<String> preheatQueue = new ArrayDeque<>();
+    private final java.util.Set<String> preheatScheduled = new java.util.HashSet<>();
+
+    @FunctionalInterface
+    public interface PreheatCompiler {
+        @Nullable GuidePage compile(String pageId);
+    }
+
+    @Nullable private PreheatCompiler preheatCompiler;
+
+    public void setPreheatCompiler(@Nullable PreheatCompiler compiler) {
+        this.preheatCompiler = compiler;
+    }
 
     // ===== Document =====
 
-    public void setDocument(@Nullable LytDocument newDoc) {
+    /** Full processing for a freshly compiled document: UID allocation, onAttach, MOUNT dispatch. */
+    public void mountDocument(@Nullable LytDocument newDoc) {
         if (this.document != null && this.document != newDoc) {
             this.document.setLive(false);    // onDetach cascade on old doc
         }
         this.document = newDoc;
         if (newDoc != null) {
             allocateNodeUids(newDoc);
-            newDoc.setLive(true);            // onAttach cascade — this triggers everything
-            dispatchMountEvents(newDoc);     // MOUNT events for styleClass nodes
+            newDoc.setLive(true);            // onAttach cascade
+            dispatchMountEvents(newDoc);     // MOUNT events → scripts materialize placeholders
             viewport.updateContent(newDoc.getAvailableWidth(), newDoc.getContentHeight());
+        }
+    }
+
+    /** Lightweight swap for a cached, already-materialized document: skips UID allocation and MOUNT dispatch. */
+    public void swapDocument(@Nullable LytDocument cachedDoc) {
+        if (this.document != null && this.document != cachedDoc) {
+            this.document.setLive(false);    // onDetach cascade on old doc
+        }
+        this.document = cachedDoc;
+        if (cachedDoc != null) {
+            cachedDoc.setLive(true);         // onAttach cascade — re-registers interaction listeners
+            viewport.updateContent(cachedDoc.getAvailableWidth(), cachedDoc.getContentHeight());
         }
     }
 
@@ -63,17 +93,37 @@ public class LytHost {
     }
 
     @Nullable
-    public PageCacheEntry getCachedPage(String pageId) {
-        return cachedDocuments.get(pageId);
+    public GuidePage getCachedGuidePage(String pageId) {
+        PageCacheEntry entry = cachedDocuments.get(pageId);
+        return entry != null ? entry.guidePage : null;
     }
 
-    public void cachePage(String pageId, LytDocument compiledDoc) {
-        cachedDocuments.put(pageId, new PageCacheEntry(compiledDoc));
+    public boolean isPageMounted(String pageId) {
+        PageCacheEntry entry = cachedDocuments.get(pageId);
+        return entry != null && entry.mounted;
+    }
+
+    public void markPageMounted(String pageId) {
+        PageCacheEntry entry = cachedDocuments.get(pageId);
+        if (entry != null) {
+            entry.mounted = true;
+        }
+    }
+
+    public void cachePage(String pageId, GuidePage guidePage) {
+        while (cachedDocuments.size() >= MAX_CACHED_PAGES) {
+            var oldest = cachedDocuments.keySet().iterator().next();
+            cachedDocuments.remove(oldest);
+            pageNodeCounters.remove(oldest);
+            preheatScheduled.remove(oldest);
+        }
+        cachedDocuments.put(pageId, new PageCacheEntry(guidePage));
     }
 
     public void invalidatePage(String pageId) {
         cachedDocuments.remove(pageId);
         pageNodeCounters.remove(pageId);
+        preheatScheduled.remove(pageId);
     }
 
     public void setCurrentPageId(String pageId) {
@@ -89,12 +139,46 @@ public class LytHost {
         return currentPageCollection;
     }
 
+    public void requestPreheat(String pageId) {
+        if (preheatCompiler == null || pageId == null) return;
+        if (cachedDocuments.containsKey(pageId)) return;
+        if (preheatScheduled.add(pageId)) {
+            preheatQueue.addLast(pageId);
+        }
+    }
+
+    public void requestPreheatNeighbors(String currentPageId) {
+        PageCollection pc = currentPageCollection;
+        if (pc == null) return;
+        var nav = pc.getNavigationTree();
+        if (nav == null) return;
+        var node = nav.getNodeById(new net.minecraft.util.ResourceLocation(currentPageId));
+        if (node == null) return;
+        for (var child : node.children()) {
+            if (child.hasPage()) {
+                requestPreheat(child.pageId().toString());
+            }
+        }
+    }
+
     public boolean hasPreheatWork() {
-        return false; // placeholder, real impl later
+        return !preheatQueue.isEmpty() && preheatCompiler != null;
     }
 
     public void preheatStep(long deadlineNs) {
-        // placeholder, real impl later
+        while (!preheatQueue.isEmpty() && System.nanoTime() < deadlineNs) {
+            String pageId = preheatQueue.pollFirst();
+            if (cachedDocuments.containsKey(pageId)) {
+                preheatScheduled.remove(pageId);
+                continue;
+            }
+            if (preheatCompiler == null) break;
+            GuidePage compiled = preheatCompiler.compile(pageId);
+            if (compiled != null) {
+                cachePage(pageId, compiled);
+            }
+            preheatScheduled.remove(pageId);
+        }
     }
 
     String allocateNodeUid(String pageId, String prefix) {
@@ -298,6 +382,8 @@ public class LytHost {
         cachedDocuments.clear();
         pageNodeCounters.clear();
         currentPageId = null;
+        preheatQueue.clear();
+        preheatScheduled.clear();
         eventQueue.clear();
         taskQueue.clear();
         nav.clear();

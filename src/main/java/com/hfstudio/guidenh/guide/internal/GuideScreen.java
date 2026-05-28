@@ -105,6 +105,7 @@ import com.hfstudio.guidenh.guide.internal.home.HomePageLayout;
 import com.hfstudio.guidenh.guide.internal.item.RegionWandItem;
 import com.hfstudio.guidenh.guide.internal.markdown.CodeBlockClipboardService;
 import com.hfstudio.guidenh.ClientProxy;
+import com.hfstudio.guidenh.guide.internal.host.LytHost;
 import com.hfstudio.guidenh.guide.internal.host.NavigationState;
 import com.hfstudio.guidenh.guide.internal.screen.GuideIconButton;
 import com.hfstudio.guidenh.guide.internal.screen.GuideNavBar;
@@ -497,6 +498,14 @@ public class GuideScreen extends GuiContainer
             navBar.setPinned(false);
         }
         navBar.restoreState(ClientProxy.getLytHost().getNavigation().recallNavigationState(), bookmarkState);
+        ClientProxy.getLytHost().setPreheatCompiler(pageId -> {
+            if (guide == null) return null;
+            try {
+                return guide.getPage(new net.minecraft.util.ResourceLocation(pageId));
+            } catch (Exception e) {
+                return null;
+            }
+        });
     }
 
     public static void open(ResourceLocation guideId, @Nullable PageAnchor anchor) {
@@ -608,6 +617,9 @@ public class GuideScreen extends GuiContainer
         currentPage = null;
         document = null;
         lastLayoutWidth = -1;
+        if (currentAnchor != null) {
+            ClientProxy.getLytHost().invalidatePage(currentAnchor.pageId().toString());
+        }
         loadCurrentPage();
         updateToolbarButtonState();
     }
@@ -2507,20 +2519,39 @@ public class GuideScreen extends GuiContainer
             return;
         }
         int requestId = pendingPageLoadRequestId;
+        String pageIdStr = currentAnchor.pageId().toString();
+        LytHost lytHost = ClientProxy.getLytHost();
         GuidePage loadedPage = null;
-        try {
-            loadedPage = guide.getPage(currentAnchor.pageId());
-        } catch (Throwable t) {
-            FMLLog.severe("Failed to compile guide page {}", currentAnchor.pageId(), t);
+
+        GuidePage cachedPage = lytHost.getCachedGuidePage(pageIdStr);
+        boolean alreadyMounted = cachedPage != null && lytHost.isPageMounted(pageIdStr);
+        if (cachedPage != null) {
+            loadedPage = cachedPage;
+            loadedPage.prepareForDisplay();
+        } else {
+            try {
+                loadedPage = guide.getPage(currentAnchor.pageId());
+            } catch (Throwable t) {
+                FMLLog.severe("Failed to compile guide page {}", currentAnchor.pageId(), t);
+            }
         }
         if (!pageLoadInProgress || requestId != pendingPageLoadRequestId) {
             return;
         }
         currentPage = loadedPage;
         document = loadedPage != null ? loadedPage.document() : null;
-        ClientProxy.getLytHost().setCurrentPageId(currentAnchor.pageId().toString());
-        ClientProxy.getLytHost().setCurrentPageCollection(guide);
-        ClientProxy.getLytHost().setDocument(document);
+        lytHost.setCurrentPageId(pageIdStr);
+        lytHost.setCurrentPageCollection(guide);
+        if (alreadyMounted) {
+            lytHost.swapDocument(document);
+        } else {
+            lytHost.mountDocument(document);
+            if (loadedPage != null) {
+                lytHost.cachePage(pageIdStr, loadedPage);
+                lytHost.markPageMounted(pageIdStr);
+            }
+        }
+        lytHost.requestPreheatNeighbors(pageIdStr);
         if (document != null && isSpecialPageWithSearchField()) {
             applySpecialPageSearchQuery(queryFromCurrentAnchor());
         }
@@ -4441,7 +4472,7 @@ public class GuideScreen extends GuiContainer
     }
 
     private void drawPageMissingMessage() {
-        if (isHomeRoute()) {
+        if (isHomeRoute() || mc == null) {
             return;
         }
         FontRenderer fr = mc.fontRenderer;
@@ -4451,6 +4482,7 @@ public class GuideScreen extends GuiContainer
     }
 
     private void drawLoadingMessage() {
+        if (mc == null) return;
         FontRenderer fr = mc.fontRenderer;
         String message = buildAnimatedLoadingLabel(GuidebookText.SceneLoading.text());
         int tw = fr.getStringWidth(message);

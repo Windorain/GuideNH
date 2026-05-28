@@ -13,11 +13,12 @@ public class LytHostPreheatItem implements WorkItem {
     public Priority priority() { return Priority.MEDIUM; }
 
     @Override
-    public boolean shouldRun() { return false; }
+    public boolean shouldRun() { return host.hasPreheatWork(); }
 
     @Override
     public WorkResult tick(long deadlineNs) {
-        return WorkResult.DONE;
+        host.preheatStep(deadlineNs);
+        return WorkResult.YIELD; // never leave the queue — shouldRun guards when idle
     }
 
     @Override
