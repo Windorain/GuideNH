@@ -802,7 +802,7 @@ public class GuidebookLevelRenderer {
                 return null;
             }
         }
-        int lightSampleY = Math.max(precipitationBottom, Math.min(precipitationTop, (int) Math.floor(centerY)));
+        int lightSampleY = Math.clamp((int) Math.floor(centerY), precipitationBottom, precipitationTop);
         return acquireWeatherRenderColumn(pooledColumnIndex)
             .set(weatherType, x, z, renderBottom, renderTop, lightSampleY, alpha);
     }

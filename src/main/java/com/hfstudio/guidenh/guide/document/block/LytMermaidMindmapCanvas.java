@@ -293,7 +293,7 @@ public class LytMermaidMindmapCanvas extends LytBlock implements DocumentDragTar
 
     private DiagramLayout buildLayout(LayoutContext context, int availableWidth) {
         int innerWidth = Math.max(72, availableWidth - CANVAS_PADDING * 2);
-        int maxNodeTextWidth = Math.max(72, Math.min(180, innerWidth / 3));
+        int maxNodeTextWidth = Math.clamp(innerWidth / 3, 72, 180);
         NodeLayout root = prepareLayout(context, mindmap.getRoot(), 0, maxNodeTextWidth);
 
         if (mindmap.getLayoutMode() == MermaidMindmapLayoutMode.TIDY_TREE) {
@@ -470,7 +470,7 @@ public class LytMermaidMindmapCanvas extends LytBlock implements DocumentDragTar
             return null;
         }
         LayoutContext localContext = new LayoutContext(context).withVisualScale(context.getVisualScale());
-        int contentWidth = Math.max(96, Math.min(240, maxNodeTextWidth + 60));
+        int contentWidth = Math.clamp(maxNodeTextWidth + 60, 96, 240);
         LytRect contentBounds = block.layout(localContext, 0, 0, contentWidth);
         return new NodeContentLayout(block, contentBounds.width(), contentBounds.height());
     }
@@ -967,7 +967,7 @@ public class LytMermaidMindmapCanvas extends LytBlock implements DocumentDragTar
         }
         int min = viewportSize - contentSize;
         int max = 0;
-        return Math.max(min, Math.min(max, offset));
+        return Math.clamp(offset, min, max);
     }
 
     private LytRect getInnerViewport() {

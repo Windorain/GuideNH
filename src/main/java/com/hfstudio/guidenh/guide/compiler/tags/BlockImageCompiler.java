@@ -204,10 +204,10 @@ public class BlockImageCompiler extends BlockTagCompiler {
     }
 
     private int clampSceneDimension(int dimension) {
-        return Math.max(64, Math.min(256, dimension));
+        return Math.clamp(dimension, 64, 256);
     }
 
     private float clampZoom(float zoom) {
-        return Math.max(LytGuidebookScene.MIN_ZOOM, Math.min(LytGuidebookScene.MAX_ZOOM, zoom));
+        return Math.clamp(zoom, LytGuidebookScene.MIN_ZOOM, LytGuidebookScene.MAX_ZOOM);
     }
 }

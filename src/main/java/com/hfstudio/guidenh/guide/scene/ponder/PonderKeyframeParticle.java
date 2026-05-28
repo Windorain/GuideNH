@@ -165,11 +165,11 @@ public class PonderKeyframeParticle {
     }
 
     private static int clampInt(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
+        return Math.clamp(value, min, max);
     }
 
     private static float clampFloat(float value, float min, float max) {
-        return Math.max(min, Math.min(max, value));
+        return Math.clamp(value, min, max);
     }
 
     private static float getScalarCoordinate(@Nullable JsonElement element, float defaultValue) {

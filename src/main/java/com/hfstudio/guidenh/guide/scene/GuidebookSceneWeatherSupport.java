@@ -283,7 +283,7 @@ public class GuidebookSceneWeatherSupport {
         }
         int[] normalized = new int[values.length];
         for (int i = 0; i < values.length; i++) {
-            normalized[i] = Math.max(minBound, Math.min(maxBound, values[i]));
+            normalized[i] = Math.clamp(values[i], minBound, maxBound);
         }
         return normalized;
     }
@@ -326,9 +326,9 @@ public class GuidebookSceneWeatherSupport {
         int baseIndex = pairIndex * 2;
         if (baseIndex >= values.length) {
             int fallback = values[values.length - 1];
-            return Math.max(minBound, Math.min(maxBound, fallback));
+            return Math.clamp(fallback, minBound, maxBound);
         }
         int resolvedIndex = first ? baseIndex : Math.min(values.length - 1, baseIndex + 1);
-        return Math.max(minBound, Math.min(maxBound, values[resolvedIndex]));
+        return Math.clamp(values[resolvedIndex], minBound, maxBound);
     }
 }

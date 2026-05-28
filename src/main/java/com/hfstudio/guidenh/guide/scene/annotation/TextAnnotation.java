@@ -423,7 +423,7 @@ public class TextAnnotation extends OverlayAnnotation {
     }
 
     private static int clampAlpha(int value) {
-        return Math.max(0, Math.min(255, value));
+        return Math.clamp(value, 0, 255);
     }
 
     private static class LayoutMeasure {

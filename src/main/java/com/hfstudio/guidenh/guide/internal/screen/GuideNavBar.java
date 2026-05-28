@@ -725,7 +725,7 @@ public class GuideNavBar {
 
     private int getFirstVisibleRowIndex() {
         int firstVisibleRow = Math.floorDiv(scrollY - CONTENT_PADDING - 1, ROW_H);
-        return Math.max(0, Math.min(firstVisibleRow, rows.size()));
+        return Math.clamp(firstVisibleRow, 0, rows.size());
     }
 
     @Nullable

@@ -1748,8 +1748,7 @@ public class LytGuidebookScene extends LytBlock {
             float bx = cx + b.x, by = cy + b.y;
             float dx = bx - ax, dy = by - ay;
             float lenSq = dx * dx + dy * dy;
-            float t = lenSq < 1e-4f ? 0f
-                : Math.max(0f, Math.min(1f, ((mouseX - ax) * dx + (mouseY - ay) * dy) / lenSq));
+            float t = lenSq < 1e-4f ? 0f : Math.clamp(((mouseX - ax) * dx + (mouseY - ay) * dy) / lenSq, 0f, 1f);
             float px = ax + t * dx, py = ay + t * dy;
             float ex = mouseX - px, ey = mouseY - py;
             if (ex * ex + ey * ey <= LINE_HOVER_TOLERANCE_PX_SQUARED) {
@@ -2540,7 +2539,7 @@ public class LytGuidebookScene extends LytBlock {
     }
 
     private static int clampInt(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
+        return Math.clamp(value, min, max);
     }
 
     private void markBlockStatsDirty() {
@@ -4061,7 +4060,7 @@ public class LytGuidebookScene extends LytBlock {
             float z = ponderCamZoom;
             if (dwheel > 0) z *= WHEEL_ZOOM_STEP;
             else z /= WHEEL_ZOOM_STEP;
-            ponderCamZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
+            ponderCamZoom = Math.clamp(z, MIN_ZOOM, MAX_ZOOM);
             return;
         }
         float z = camera.getZoom();
@@ -4080,7 +4079,7 @@ public class LytGuidebookScene extends LytBlock {
             float z = ponderCamZoom;
             if (dwheel > 0) z *= WHEEL_ZOOM_STEP;
             else z /= WHEEL_ZOOM_STEP;
-            ponderCamZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
+            ponderCamZoom = Math.clamp(z, MIN_ZOOM, MAX_ZOOM);
             return;
         }
         float z = camera.getZoom();
@@ -4247,7 +4246,7 @@ public class LytGuidebookScene extends LytBlock {
         if (ponderSceneData == null) {
             return;
         }
-        ponderCurrentTick = Math.max(0, Math.min(ponderSceneData.getTotalTime(), tick));
+        ponderCurrentTick = Math.clamp(tick, 0, ponderSceneData.getTotalTime());
         ponderPaused = paused;
         ponderFinished = finished || ponderCurrentTick >= ponderSceneData.getTotalTime();
         ponderExportLayerOverrideEnabled = false;
@@ -4395,7 +4394,7 @@ public class LytGuidebookScene extends LytBlock {
 
     public void seekToTick(int tick) {
         if (ponderSceneData == null) return;
-        ponderCurrentTick = Math.max(0, Math.min(ponderSceneData.getTotalTime(), tick));
+        ponderCurrentTick = Math.clamp(tick, 0, ponderSceneData.getTotalTime());
         ponderPaused = true;
         ponderFinished = ponderCurrentTick >= ponderSceneData.getTotalTime();
         ponderExportLayerOverrideEnabled = false;
@@ -4422,9 +4421,9 @@ public class LytGuidebookScene extends LytBlock {
         int barWidth = cachedPonderBarTrackRect.width();
         if (barWidth <= 0) return;
         float fraction = (mouseAbsX - barLeft) / (float) barWidth;
-        fraction = Math.max(0f, Math.min(1f, fraction));
+        fraction = Math.clamp(fraction, 0f, 1f);
         int tick = Math.round(fraction * ponderSceneData.getTotalTime());
-        ponderCurrentTick = Math.max(0, Math.min(ponderSceneData.getTotalTime(), tick));
+        ponderCurrentTick = Math.clamp(tick, 0, ponderSceneData.getTotalTime());
         ponderPaused = true;
         ponderFinished = ponderCurrentTick >= ponderSceneData.getTotalTime();
         triggeredPonderSoundKeyframes.clear();
@@ -5604,7 +5603,7 @@ public class LytGuidebookScene extends LytBlock {
                 int density = particle.getWeatherDensityPerTick(
                     GuidebookSceneWeatherSupport
                         .defaultDensity(GuidebookSceneWeatherType.fromSerializedName(particle.getWeatherType())));
-                total += Math.max(1, Math.min(128, density * 4));
+                total += Math.clamp(density * 4, 1, 128);
                 continue;
             }
             total += particle.getCount(1);
@@ -6283,7 +6282,7 @@ public class LytGuidebookScene extends LytBlock {
             return;
         }
         float fraction = GuideSliderRenderer.fractionFromMouse(mouseX, sliderTrackRect.x(), sliderTrackRect.width());
-        int nextValue = minValue + Math.round(Math.max(0f, Math.min(1f, fraction)) * (maxValue - minValue));
+        int nextValue = minValue + Math.round(Math.clamp(fraction, 0f, 1f) * (maxValue - minValue));
         setStructureLibCurrentTier(clampChannelValue(nextValue, minValue, maxValue));
     }
 
@@ -6406,7 +6405,7 @@ public class LytGuidebookScene extends LytBlock {
             setStructureLibChannelValue(channelData.getChannelId(), minValue);
             return;
         }
-        int nextValue = minValue + Math.round(Math.max(0f, Math.min(1f, fraction)) * (maxValue - minValue));
+        int nextValue = minValue + Math.round(Math.clamp(fraction, 0f, 1f) * (maxValue - minValue));
         setStructureLibChannelValue(channelData.getChannelId(), clampChannelValue(nextValue, minValue, maxValue));
     }
 

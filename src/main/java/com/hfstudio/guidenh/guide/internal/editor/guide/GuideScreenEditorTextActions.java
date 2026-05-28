@@ -743,7 +743,7 @@ public class GuideScreenEditorTextActions {
 
     private static int countLeadingIndent(String text, int lineStart) {
         int count = 0;
-        int index = Math.max(0, Math.min(lineStart, text.length()));
+        int index = Math.clamp(lineStart, 0, text.length());
         while (index < text.length()) {
             char c = text.charAt(index);
             if (c == ' ') {
@@ -1206,7 +1206,7 @@ public class GuideScreenEditorTextActions {
     }
 
     private static int findLineStart(String text, int index) {
-        int pos = Math.max(0, Math.min(index, text.length()));
+        int pos = Math.clamp(index, 0, text.length());
         while (pos > 0 && text.charAt(pos - 1) != '\n') {
             pos--;
         }
@@ -1214,7 +1214,7 @@ public class GuideScreenEditorTextActions {
     }
 
     private static int findLineEnd(String text, int index) {
-        int pos = Math.max(0, Math.min(index, text.length()));
+        int pos = Math.clamp(index, 0, text.length());
         while (pos < text.length() && text.charAt(pos) != '\n') {
             pos++;
         }
