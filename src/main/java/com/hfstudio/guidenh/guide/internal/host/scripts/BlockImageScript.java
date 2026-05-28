@@ -8,7 +8,9 @@ import net.minecraftforge.oredict.OreDictionary;
 
 import com.hfstudio.guidenh.guide.compiler.GuideItemReferenceResolver;
 import com.hfstudio.guidenh.guide.compiler.tags.BlockImageCompiler.BlockImagePlaceholder;
+import com.hfstudio.guidenh.guide.document.block.LytBlock;
 import com.hfstudio.guidenh.guide.document.block.LytParagraph;
+import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
 import com.hfstudio.guidenh.guide.internal.host.EventType;
 import com.hfstudio.guidenh.guide.internal.host.LytEvent;
 import com.hfstudio.guidenh.guide.internal.host.LytScript;
@@ -38,7 +40,17 @@ public class BlockImageScript implements LytScript {
     @SuppressWarnings("deprecation")
     public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         if (event.type() != EventType.MOUNT) return;
-        if (!(node instanceof BlockImagePlaceholder ph)) return;
+
+        BlockImagePlaceholder ph;
+        boolean isWrapped = node instanceof LytFlowInlineBlock w
+            && w.getBlock() instanceof BlockImagePlaceholder p;
+        if (isWrapped) {
+            ph = (BlockImagePlaceholder) ((LytFlowInlineBlock) node).getBlock();
+        } else if (node instanceof BlockImagePlaceholder p) {
+            ph = p;
+        } else {
+            return;
+        }
 
         Block block = null;
         int meta = ph.meta;
@@ -60,7 +72,8 @@ public class BlockImageScript implements LytScript {
         }
 
         if (block == null) {
-            ctx.replace(LytParagraph.error("[BlockImage] Block not found: " + (ph.ore != null ? ph.ore : ph.id)));
+            ctx.replace(
+                LytParagraph.error("[BlockImage] Block not found: " + (ph.ore != null ? ph.ore : ph.id)));
             return;
         }
 
@@ -81,7 +94,8 @@ public class BlockImageScript implements LytScript {
         GuidebookPreviewBlockPlacer.place(level, 0, 0, 0, block, defaultMeta, tileTag);
 
         if (level.isEmpty()) {
-            ctx.replace(LytParagraph.error("[BlockImage] Failed to create block preview"));
+            ctx.replace(
+                LytParagraph.error("[BlockImage] Failed to create block preview"));
             return;
         }
 
@@ -149,4 +163,5 @@ public class BlockImageScript implements LytScript {
     private static int clampDim(int d) {
         return Math.max(64, Math.min(256, d));
     }
+
 }

@@ -42,7 +42,7 @@ public class FloatingImageScript implements LytScript {
 
         String src = placeholder.getSrc();
         if (src == null || src.isEmpty()) {
-            ctx.replace(LytParagraph.error("[FloatingImage] Missing src attribute"));
+            replaceFlowError(ctx, isWrapped, "[FloatingImage] Missing src attribute");
             return;
         }
 
@@ -50,13 +50,13 @@ public class FloatingImageScript implements LytScript {
         try {
             imageId = new ResourceLocation(src);
         } catch (Exception e) {
-            ctx.replace(LytParagraph.error("[FloatingImage] Invalid image path: " + src));
+            replaceFlowError(ctx, isWrapped, "[FloatingImage] Invalid image path: " + src);
             return;
         }
 
         byte[] imageData = ctx.loadAsset(imageId);
         if (imageData == null) {
-            ctx.replace(LytParagraph.error("[FloatingImage] Image not found: " + src));
+            replaceFlowError(ctx, isWrapped, "[FloatingImage] Image not found: " + src);
             return;
         }
         LytImage image = new LytImage();
@@ -83,6 +83,17 @@ public class FloatingImageScript implements LytScript {
             ctx.replace(newWrapper);
         } else {
             ctx.replace(image);
+        }
+    }
+
+    private void replaceFlowError(ScriptContext ctx, boolean isWrapped, String message) {
+        LytParagraph error = LytParagraph.error(message);
+        if (isWrapped) {
+            LytFlowInlineBlock wrapper = new LytFlowInlineBlock();
+            wrapper.setBlock(error);
+            ctx.replace(wrapper);
+        } else {
+            ctx.replace(error);
         }
     }
 }

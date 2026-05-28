@@ -134,6 +134,11 @@ public class LytDetailsBlock extends LytBlock implements InteractiveElement, Lyt
     }
 
     @Override
+    public void replaceChild(LytNode oldChild, LytNode newChild) {
+        root.replaceChild(oldChild, newChild);
+    }
+
+    @Override
     public List<? extends LytNode> getChildren() {
         return root.getChildren();
     }

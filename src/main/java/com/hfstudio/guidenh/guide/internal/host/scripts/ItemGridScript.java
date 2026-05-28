@@ -43,14 +43,11 @@ public class ItemGridScript implements LytScript {
 
     @SuppressWarnings("deprecation")
     private static ItemStack resolveItemId(String itemId) {
-        int colonIdx = itemId.lastIndexOf(':');
-        if (colonIdx < 0) return null;
-
-        String rawKey = itemId.substring(0, colonIdx);
-        int meta = 0;
-        try { meta = Integer.parseInt(itemId.substring(colonIdx + 1)); } catch (NumberFormatException ignored) {}
-
-        Item item = (Item) Item.itemRegistry.getObject(rawKey);
-        return item != null ? new ItemStack(item, 1, meta) : null;
+        if (itemId == null || itemId.isEmpty()) return null;
+        com.hfstudio.guidenh.guide.compiler.IdUtils.ParsedItemRef ref =
+            com.hfstudio.guidenh.guide.compiler.IdUtils.parseItemRef(itemId, "minecraft");
+        if (ref == null) return null;
+        Item item = (Item) Item.itemRegistry.getObject(ref.rawKey());
+        return item != null ? new ItemStack(item, 1, ref.concreteMeta()) : null;
     }
 }

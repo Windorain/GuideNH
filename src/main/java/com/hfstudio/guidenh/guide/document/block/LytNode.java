@@ -37,7 +37,8 @@ public abstract class LytNode implements Styleable {
     public void removeChild(LytNode node) {}
 
     public void replaceChild(LytNode oldChild, LytNode newChild) {
-        // Default: no-op. LytDocument overrides.
+        throw new UnsupportedOperationException(
+            getClass().getSimpleName() + " must override replaceChild");
     }
 
     protected void onAttach() {}

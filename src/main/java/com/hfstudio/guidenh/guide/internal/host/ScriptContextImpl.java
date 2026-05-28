@@ -9,10 +9,14 @@ import org.jetbrains.annotations.Nullable;
 import net.minecraft.util.ResourceLocation;
 
 import com.hfstudio.guidenh.guide.PageCollection;
+import com.hfstudio.guidenh.guide.document.block.LytAlignedBlock;
+import com.hfstudio.guidenh.guide.document.block.LytBlock;
 import com.hfstudio.guidenh.guide.document.block.LytDocument;
+import com.hfstudio.guidenh.guide.document.block.LytDocumentFloat;
 import com.hfstudio.guidenh.guide.document.block.LytNode;
 import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowContent;
+import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowParent;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowSpan;
 import com.hfstudio.guidenh.guide.indices.PageIndex;
@@ -35,6 +39,27 @@ class ScriptContextImpl implements ScriptContext {
     @Override
     @SuppressWarnings("unchecked")
     public void replace(Object newNode) {
+        //
+        // Flow-content wrapping penetration
+        //
+        // When a block-level tag (e.g. <BlockImage>, <Recipe>) appears inside
+        // a paragraph or list item, the PageCompiler wraps it in LytFlowInlineBlock
+        // so the block can participate in inline flow layout.  At MOUNT time the
+        // dispatch passes the wrapper as "this.node", not the inner placeholder.
+        //
+        // The wrapper IS the correct replacement target — swapping its inner block
+        // via setBlock() preserves the flow-layout context (alignment, line-breaking,
+        // float registration) that the compiler set up.
+        //
+        // See docs/refractor/phase3-two-tree-problem.md for the architectural
+        // discussion of why Flow and Block trees are separate and how this bridge works.
+        //
+        if (node instanceof LytFlowInlineBlock wrapper && newNode instanceof LytBlock newBlock) {
+            wrapper.setBlock(newBlock);
+            document.invalidateLayout();
+            return;
+        }
+
         if (node instanceof LytNode ln && newNode instanceof LytNode newLn) {
             LytNode parent = ln.getParent();
             if (parent != null) {

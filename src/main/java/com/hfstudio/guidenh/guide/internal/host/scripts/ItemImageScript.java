@@ -38,7 +38,7 @@ public class ItemImageScript implements LytScript {
 
         ItemStack stack = resolveItemId(ph.itemId);
         if (stack == null) {
-            ctx.replace(LytParagraph.error("[ItemImage] Item not found: " + ph.itemId));
+            replaceFlowError(ctx, isWrapped, "[ItemImage] Item not found: " + ph.itemId);
             return;
         }
 
@@ -61,16 +61,24 @@ public class ItemImageScript implements LytScript {
     }
 
     @SuppressWarnings("deprecation")
+    private void replaceFlowError(ScriptContext ctx, boolean isWrapped, String message) {
+        LytParagraph error = LytParagraph.error(message);
+        if (isWrapped) {
+            LytFlowInlineBlock wrapper = new LytFlowInlineBlock();
+            wrapper.setBlock(error);
+            ctx.replace(wrapper);
+        } else {
+            ctx.replace(error);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
     private static ItemStack resolveItemId(String itemId) {
         if (itemId == null || itemId.isEmpty()) return null;
-        int colonIdx = itemId.lastIndexOf(':');
-        if (colonIdx < 0) return null;
-
-        String rawKey = itemId.substring(0, colonIdx);
-        int meta = 0;
-        try { meta = Integer.parseInt(itemId.substring(colonIdx + 1)); } catch (NumberFormatException ignored) {}
-
-        Item item = (Item) Item.itemRegistry.getObject(rawKey);
-        return item != null ? new ItemStack(item, 1, meta) : null;
+        com.hfstudio.guidenh.guide.compiler.IdUtils.ParsedItemRef ref =
+            com.hfstudio.guidenh.guide.compiler.IdUtils.parseItemRef(itemId, "minecraft");
+        if (ref == null) return null;
+        Item item = (Item) Item.itemRegistry.getObject(ref.rawKey());
+        return item != null ? new ItemStack(item, 1, ref.concreteMeta()) : null;
     }
 }

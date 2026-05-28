@@ -20,6 +20,7 @@ import com.hfstudio.guidenh.guide.internal.extensions.DefaultExtensions;
 import com.hfstudio.guidenh.guide.internal.markdown.MdAstToMdxConverter;
 import com.hfstudio.guidenh.guide.navigation.NavigationTree;
 import com.hfstudio.guidenh.guide.scene.CameraSettings;
+import com.hfstudio.guidenh.guide.scene.cache.GuideSceneStructureCompileScope;
 import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
 import com.hfstudio.guidenh.guide.scene.PerspectivePreset;
 import com.hfstudio.guidenh.guide.scene.SceneTagCompiler;
@@ -103,14 +104,16 @@ public class SceneScript implements LytScript {
         try {
             MdAstRoot ast = MdAst.fromMarkdown(ph.childrenSource, GuideMarkdownOptions.runtime());
             MdAstToMdxConverter.convert(ast, Collections.emptyMap());
-            for (UnistNode child : ast.children()) {
-                MdxJsxElementFields el = SceneTagCompiler.unwrapSceneElement(child);
-                if (el == null) continue;
-                SceneElementTagCompiler ec = elementCompilers.get(el.name());
-                if (ec != null) {
-                    ec.compile(level, camera, runtimeCompiler, errorSink, el);
+            GuideSceneStructureCompileScope.run(true, () -> {
+                for (UnistNode child : ast.children()) {
+                    MdxJsxElementFields el = SceneTagCompiler.unwrapSceneElement(child);
+                    if (el == null) continue;
+                    SceneElementTagCompiler ec = elementCompilers.get(el.name());
+                    if (ec != null) {
+                        ec.compile(level, camera, runtimeCompiler, errorSink, el);
+                    }
                 }
-            }
+            });
         } catch (Exception e) {
             FMLLog.getLogger().warn("[GuideNH] [SceneScript] Failed to re-parse scene children", e);
             ctx.replace(LytParagraph.error("[Scene] Failed to parse scene elements"));

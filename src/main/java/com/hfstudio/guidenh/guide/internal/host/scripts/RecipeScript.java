@@ -19,6 +19,7 @@ import com.hfstudio.guidenh.guide.compiler.tags.RecipeCompiler.RecipePlaceholder
 import com.hfstudio.guidenh.guide.document.block.LytBlock;
 import com.hfstudio.guidenh.guide.document.block.LytHBox;
 import com.hfstudio.guidenh.guide.document.block.LytParagraph;
+import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
 import com.hfstudio.guidenh.guide.document.block.recipes.LytStandardRecipeBox;
 import com.hfstudio.guidenh.guide.internal.host.EventType;
 import com.hfstudio.guidenh.guide.internal.host.LytEvent;
@@ -50,11 +51,21 @@ public class RecipeScript implements LytScript {
     @SuppressWarnings("deprecation")
     public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         if (event.type() != EventType.MOUNT) return;
-        if (!(node instanceof RecipePlaceholder ph)) return;
+
+        RecipePlaceholder ph;
+        boolean isWrapped = node instanceof LytFlowInlineBlock w
+            && w.getBlock() instanceof RecipePlaceholder p;
+        if (isWrapped) {
+            ph = (RecipePlaceholder) ((LytFlowInlineBlock) node).getBlock();
+        } else if (node instanceof RecipePlaceholder p) {
+            ph = p;
+        } else {
+            return;
+        }
 
         Item item = (Item) Item.itemRegistry.getObject(ph.ref.rawKey());
         if (item == null) {
-            showFallback(ctx, ph, "Recipe item not found: " + ph.idStr);
+            showFallback(ctx, ph,"Recipe item not found: " + ph.idStr);
             return;
         }
         ItemStack targetStack = new ItemStack(item, 1, ph.ref.concreteMeta());
@@ -125,7 +136,7 @@ public class RecipeScript implements LytScript {
                 return;
             }
             if (ph.recipeIndex >= 0) {
-                showFallback(ctx, ph, "Recipe index " + ph.recipeIndex + " not found for " + ph.idStr);
+                showFallback(ctx, ph,"Recipe index " + ph.recipeIndex + " not found for " + ph.idStr);
                 return;
             }
         } else if (hasHandlerFilter) {
@@ -133,7 +144,7 @@ public class RecipeScript implements LytScript {
             if (ph.handlerName != null || ph.handlerId != null) {
                 handlerPart = " with handler " + (ph.handlerName != null ? ph.handlerName : ph.handlerId);
             }
-            showFallback(ctx, ph, "No recipe found for " + ph.idStr + handlerPart);
+            showFallback(ctx, ph,"No recipe found for " + ph.idStr + handlerPart);
             return;
         }
 
@@ -173,7 +184,7 @@ public class RecipeScript implements LytScript {
         List<RecipeLookup.Entry> entries = usageQuery ? Collections.<RecipeLookup.Entry>emptyList()
             : RecipeLookup.findByOutput(item);
         if (entries.isEmpty()) {
-            showFallback(ctx, ph, "No recipe found for " + ph.idStr);
+            showFallback(ctx, ph,"No recipe found for " + ph.idStr);
             return;
         }
 
@@ -193,7 +204,7 @@ public class RecipeScript implements LytScript {
             ctx.replace(buildResult(boxes));
             return;
         }
-        showFallback(ctx, ph, "No recipe found for " + ph.idStr);
+        showFallback(ctx, ph,"No recipe found for " + ph.idStr);
     }
 
     @SuppressWarnings("unchecked")
@@ -216,4 +227,5 @@ public class RecipeScript implements LytScript {
         p.appendText(text);
         ctx.replace(p);
     }
+
 }

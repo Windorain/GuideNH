@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.guide.PageAnchor;
 import com.hfstudio.guidenh.guide.document.block.LytParagraph;
+import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowLink;
 import com.hfstudio.guidenh.guide.document.interaction.ItemTooltip;
 import com.hfstudio.guidenh.guide.internal.host.EventType;
@@ -38,7 +39,7 @@ public class ItemLinkScript implements LytScript {
 
             // Neither target specified
             if ((itemId == null || itemId.isEmpty()) && (ore == null || ore.isEmpty())) {
-                ctx.replace(LytParagraph.error("[ItemLink] Link has no target"));
+                replaceFlowError(ctx, "[ItemLink] Link has no target");
                 return;
             }
 
@@ -51,7 +52,7 @@ public class ItemLinkScript implements LytScript {
             }
             if (stack == null) {
                 String detail = (itemId != null && !itemId.isEmpty()) ? itemId : ore;
-                ctx.replace(LytParagraph.error("[ItemLink] Link target not found: " + detail));
+                replaceFlowError(ctx, "[ItemLink] Link target not found: " + detail);
                 return;
             }
 
@@ -105,5 +106,11 @@ public class ItemLinkScript implements LytScript {
             return oreIdx.findByStack(stack);
         }
         return null;
+    }
+
+    private void replaceFlowError(ScriptContext ctx, String message) {
+        LytFlowInlineBlock wrapper = new LytFlowInlineBlock();
+        wrapper.setBlock(LytParagraph.error(message));
+        ctx.replace(wrapper);
     }
 }
