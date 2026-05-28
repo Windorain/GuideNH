@@ -15,7 +15,6 @@ import com.hfstudio.guidenh.client.hotkey.OpenGuideHomeHotkey;
 import com.hfstudio.guidenh.client.hotkey.OpenGuideHotkey;
 import com.hfstudio.guidenh.client.hotkey.OpenSceneEditorHotkey;
 import com.hfstudio.guidenh.config.ModConfig;
-import com.hfstudio.guidenh.guide.internal.GuideDevWatcherPump;
 import com.hfstudio.guidenh.guide.internal.GuideDevelopmentResourcePackWatcher;
 import com.hfstudio.guidenh.guide.internal.GuideME;
 import com.hfstudio.guidenh.guide.internal.GuideOnStartup;

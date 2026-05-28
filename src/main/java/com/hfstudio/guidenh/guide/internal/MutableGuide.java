@@ -357,7 +357,6 @@ public class MutableGuide
                 syntheticPageCount,
                 failureCount);
     }
-    }
 
     private void applyChanges(List<GuidePageChange> changes) {
         invalidateMediaWikiDerivedCaches();

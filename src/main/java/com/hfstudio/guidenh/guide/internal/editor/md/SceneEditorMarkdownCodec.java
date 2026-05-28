@@ -156,7 +156,7 @@ public class SceneEditorMarkdownCodec {
         MdAstRoot root;
         try {
             root = MdAst.fromMarkdown(parseSource, PARSE_OPTIONS);
-            MdAstToMdxConverter.convert(root, Collections.emptyMap());
+            MdAstToMdxConverter.convert(root, Map.of());
         } catch (ParseException e) {
             return new SceneEditorMarkdownParseResult.SyntaxError(formatParseException(e));
         }
