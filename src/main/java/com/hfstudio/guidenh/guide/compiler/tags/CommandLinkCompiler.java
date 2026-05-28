@@ -7,6 +7,7 @@ import net.minecraft.client.Minecraft;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.hfstudio.guidenh.config.ModConfig;
 import com.hfstudio.guidenh.guide.compiler.IndexingContext;
 import com.hfstudio.guidenh.guide.compiler.IndexingSink;
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
@@ -34,8 +35,6 @@ public class CommandLinkCompiler extends FlowTagCompiler {
             parent.appendError(compiler, "command must start with /", el);
             return;
         }
-        var sendCommand = command;
-        var closeGuide = MdxAttrs.getBoolean(compiler, parent, el, "close", false);
         var title = el.getAttributeString("title", "");
         var link = new LytFlowLink();
         link.setTooltip(buildTooltip(title, command));
@@ -44,9 +43,11 @@ public class CommandLinkCompiler extends FlowTagCompiler {
         link.setClickCallback(uiHost -> {
             var mc = Minecraft.getMinecraft();
             if (mc.thePlayer != null) {
-                FMLLog.getLogger()
-                    .info("[GuideNH] [CommandLinkCompiler] Sending command from page {}: {}", pageId, sendCommand);
-                mc.thePlayer.sendChatMessage(sendCommand);
+                if (ModConfig.debug.enableDebugMode) {
+                    FMLLog.getLogger()
+                        .info("[GuideNH] [CommandLinkCompiler] Sending command from page {}: {}", pageId, command);
+                }
+                mc.thePlayer.sendChatMessage(command);
             }
         });
 
