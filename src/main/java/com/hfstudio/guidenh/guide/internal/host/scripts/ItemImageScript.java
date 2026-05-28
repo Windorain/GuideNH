@@ -5,6 +5,7 @@ import net.minecraft.item.ItemStack;
 
 import com.hfstudio.guidenh.guide.compiler.tags.ItemImageCompiler.ItemImagePlaceholder;
 import com.hfstudio.guidenh.guide.document.block.LytItemImage;
+import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
 import com.hfstudio.guidenh.guide.internal.host.EventType;
 import com.hfstudio.guidenh.guide.internal.host.LytEvent;
@@ -36,7 +37,10 @@ public class ItemImageScript implements LytScript {
         }
 
         ItemStack stack = resolveItemId(ph.itemId);
-        if (stack == null) return;
+        if (stack == null) {
+            ctx.replace(LytParagraph.error("[ItemImage] Item not found: " + ph.itemId));
+            return;
+        }
 
         LytItemImage image = new LytItemImage(stack);
         image.setScale(ph.scale);

@@ -33,8 +33,18 @@ public class QuestCardScript implements LytScript {
         if (event.type() != EventType.MOUNT) return;
         if (!(node instanceof QuestCardPlaceholder ph)) return;
 
-        QuestDisplay display = BqHelpers.resolveDisplay(ph.questId, Minecraft.getMinecraft().thePlayer,
-            ph.showTooltip || ph.showDesc);
+        QuestDisplay display;
+        try {
+            display = BqHelpers.resolveDisplay(ph.questId, Minecraft.getMinecraft().thePlayer,
+                ph.showTooltip || ph.showDesc);
+        } catch (Throwable t) {
+            ctx.replace(LytParagraph.error("[QuestCard] BetterQuesting integration not available"));
+            return;
+        }
+        if (display == null) {
+            ctx.replace(LytParagraph.error("[QuestCard] Quest not found: " + ph.questId));
+            return;
+        }
         QuestState state = display.getState();
 
         var box = new LytQuoteBox();

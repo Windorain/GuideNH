@@ -5,6 +5,7 @@ import net.minecraft.item.ItemStack;
 
 import com.hfstudio.guidenh.guide.compiler.tags.StructureViewCompiler.StructureEntry;
 import com.hfstudio.guidenh.guide.compiler.tags.StructureViewCompiler.StructurePlaceholder;
+import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.document.block.LytStructureView;
 import com.hfstudio.guidenh.guide.internal.host.EventType;
 import com.hfstudio.guidenh.guide.internal.host.LytEvent;
@@ -25,13 +26,19 @@ public class StructureScript implements LytScript {
     public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         if (event.type() == EventType.MOUNT && node instanceof StructurePlaceholder ph) {
             LytStructureView view = new LytStructureView();
+            int resolved = 0;
             for (StructureEntry entry : ph.entries) {
                 ItemStack stack = resolveEntry(entry.idSpec);
                 if (stack != null) {
                     view.addBlock(entry.x, entry.y, entry.z, stack);
+                    resolved++;
                 }
             }
-            ctx.replace(view);
+            if (resolved == 0) {
+                ctx.replace(LytParagraph.error("[Structure] Structure has no valid blocks"));
+            } else {
+                ctx.replace(view);
+            }
         }
     }
 

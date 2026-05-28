@@ -8,6 +8,7 @@ import net.minecraftforge.oredict.OreDictionary;
 
 import com.hfstudio.guidenh.guide.compiler.GuideItemReferenceResolver;
 import com.hfstudio.guidenh.guide.compiler.tags.BlockImageCompiler.BlockImagePlaceholder;
+import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.internal.host.EventType;
 import com.hfstudio.guidenh.guide.internal.host.LytEvent;
 import com.hfstudio.guidenh.guide.internal.host.LytScript;
@@ -58,7 +59,10 @@ public class BlockImageScript implements LytScript {
             }
         }
 
-        if (block == null) return;
+        if (block == null) {
+            ctx.replace(LytParagraph.error("[BlockImage] Block not found: " + (ph.ore != null ? ph.ore : ph.id)));
+            return;
+        }
 
         NBTTagCompound tileTag = null;
         if (ph.nbt != null && !ph.nbt.trim().isEmpty()) {
@@ -76,7 +80,10 @@ public class BlockImageScript implements LytScript {
         GuidebookLevel level = new GuidebookLevel();
         GuidebookPreviewBlockPlacer.place(level, 0, 0, 0, block, defaultMeta, tileTag);
 
-        if (level.isEmpty()) return;
+        if (level.isEmpty()) {
+            ctx.replace(LytParagraph.error("[BlockImage] Failed to create block preview"));
+            return;
+        }
 
         int width = ph.width > 0 ? ph.width : 128;
         int height = ph.height > 0 ? ph.height : 128;

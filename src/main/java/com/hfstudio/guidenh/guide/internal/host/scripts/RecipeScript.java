@@ -54,7 +54,7 @@ public class RecipeScript implements LytScript {
 
         Item item = (Item) Item.itemRegistry.getObject(ph.ref.rawKey());
         if (item == null) {
-            showFallback(ctx, ph);
+            showFallback(ctx, ph, "Recipe item not found: " + ph.idStr);
             return;
         }
         ItemStack targetStack = new ItemStack(item, 1, ph.ref.concreteMeta());
@@ -125,11 +125,15 @@ public class RecipeScript implements LytScript {
                 return;
             }
             if (ph.recipeIndex >= 0) {
-                showFallback(ctx, ph);
+                showFallback(ctx, ph, "Recipe index " + ph.recipeIndex + " not found for " + ph.idStr);
                 return;
             }
         } else if (hasHandlerFilter) {
-            showFallback(ctx, ph);
+            String handlerPart = "";
+            if (ph.handlerName != null || ph.handlerId != null) {
+                handlerPart = " with handler " + (ph.handlerName != null ? ph.handlerName : ph.handlerId);
+            }
+            showFallback(ctx, ph, "No recipe found for " + ph.idStr + handlerPart);
             return;
         }
 
@@ -169,7 +173,7 @@ public class RecipeScript implements LytScript {
         List<RecipeLookup.Entry> entries = usageQuery ? Collections.<RecipeLookup.Entry>emptyList()
             : RecipeLookup.findByOutput(item);
         if (entries.isEmpty()) {
-            showFallback(ctx, ph);
+            showFallback(ctx, ph, "No recipe found for " + ph.idStr);
             return;
         }
 
@@ -189,7 +193,7 @@ public class RecipeScript implements LytScript {
             ctx.replace(buildResult(boxes));
             return;
         }
-        showFallback(ctx, ph);
+        showFallback(ctx, ph, "No recipe found for " + ph.idStr);
     }
 
     @SuppressWarnings("unchecked")
@@ -205,9 +209,9 @@ public class RecipeScript implements LytScript {
         return row;
     }
 
-    private void showFallback(ScriptContext ctx, RecipePlaceholder ph) {
+    private void showFallback(ScriptContext ctx, RecipePlaceholder ph, String autoMessage) {
         String text = (ph.fallbackText != null && !ph.fallbackText.isEmpty())
-            ? ph.fallbackText : "No recipe found.";
+            ? ph.fallbackText : autoMessage;
         var p = new LytParagraph();
         p.appendText(text);
         ctx.replace(p);

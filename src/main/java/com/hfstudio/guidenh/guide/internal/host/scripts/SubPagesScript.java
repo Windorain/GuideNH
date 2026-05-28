@@ -40,13 +40,21 @@ public class SubPagesScript implements LytScript {
             } else {
                 ResourceLocation pageId = new ResourceLocation(ph.pageIdStr);
                 NavigationNode navNode = tree.getNodeById(pageId);
-                if (navNode == null) return;
+                if (navNode == null) {
+                    ctx.replace(LytParagraph.error("[SubPages] Page not found in navigation: " + ph.pageIdStr));
+                    return;
+                }
                 subNodes = navNode.children();
             }
 
             if (ph.alphabetical) {
                 subNodes = new ArrayList<>(subNodes);
                 subNodes.sort(Comparator.comparing(NavigationNode::title));
+            }
+
+            if (subNodes.isEmpty()) {
+                ctx.replace(LytParagraph.error("[SubPages] No sub-pages found"));
+                return;
             }
 
             LytList list = new LytList(false, 0);

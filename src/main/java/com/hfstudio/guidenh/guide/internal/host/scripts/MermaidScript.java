@@ -38,7 +38,7 @@ public class MermaidScript implements LytScript {
             try {
                 srcId = new ResourceLocation(ph.src);
             } catch (Exception e) {
-                replaceWithError(ctx, "Invalid Mermaid source path: " + ph.src);
+                replaceWithError(ctx, "Invalid source path: " + ph.src);
                 return;
             }
             byte[] data = ctx.loadAsset(srcId);
@@ -48,7 +48,7 @@ public class MermaidScript implements LytScript {
         }
 
         if (sourceText == null || sourceText.trim().isEmpty()) {
-            replaceWithError(ctx, "Mermaid source not found or empty");
+            replaceWithError(ctx, "Source not found or empty");
             return;
         }
 
@@ -63,11 +63,11 @@ public class MermaidScript implements LytScript {
         } catch (IllegalArgumentException e) {
             FMLLog.getLogger().warn(
                 "[GuideNH] [MermaidScript] Failed to parse Mermaid source: {}", sourceText, e);
-            replaceWithError(ctx, "Failed to parse Mermaid source: " + e.getMessage());
+            replaceWithError(ctx, "Failed to parse: " + e.getMessage());
         }
     }
 
     private void replaceWithError(ScriptContext ctx, String message) {
-        ctx.replace(LytParagraph.of(message));
+        ctx.replace(LytParagraph.error("[Mermaid] " + message));
     }
 }

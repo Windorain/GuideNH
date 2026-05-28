@@ -42,6 +42,13 @@ public class QuestLinkScript implements LytScript {
 
         QuestDisplay display = BqHelpers.resolveDisplay(questId, Minecraft.getMinecraft().thePlayer,
             Boolean.TRUE.equals(showTooltip));
+        if (display == null) {
+            LytFlowSpan errorSpan = new LytFlowSpan();
+            errorSpan.modifyStyle(style -> style.color(SymbolicColor.ERROR_TEXT));
+            errorSpan.appendText("[QuestLink] Quest not found: " + questId);
+            ctx.replace(errorSpan);
+            return;
+        }
         QuestState state = display.getState();
         String text = overrideText != null && !overrideText.isEmpty()
             ? overrideText

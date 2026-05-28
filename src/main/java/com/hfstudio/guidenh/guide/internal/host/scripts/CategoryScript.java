@@ -28,9 +28,17 @@ public class CategoryScript implements LytScript {
         if (!(node instanceof CategoryPlaceholder ph)) return;
 
         CategoryIndex index = ctx.getIndex(CategoryIndex.class);
-        if (index == null) return;
+        if (index == null) {
+            ctx.replace(LytParagraph.error("[Category] Category index not available"));
+            return;
+        }
 
         List<PageAnchor> members = index.get(ph.name);
+        if (members.isEmpty()) {
+            ctx.replace(LytParagraph.error("[Category] No pages in category: " + ph.name));
+            return;
+        }
+
         LytVBox box = new LytVBox();
         int count = 0;
         for (PageAnchor anchor : members) {

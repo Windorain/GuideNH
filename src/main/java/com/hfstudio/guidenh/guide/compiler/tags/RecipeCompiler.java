@@ -113,8 +113,8 @@ public class RecipeCompiler extends BlockTagCompiler {
             handlerNameFilter, handlerIdFilter, handlerOrder, exactRecipeIndex,
             inputExpr, outputExpr, limit, multi, usageQuery);
         ph.setStyleClass(tagName);
-        ph.setStyle(LytParagraph.LOADING_STYLE);
-        ph.appendText("Loading recipe...");
+        ph.setStyle(LytParagraph.PLACEHOLDER_STYLE);
+        ph.appendText("[Recipe]");
         parent.append(ph);
     }
 

@@ -8,6 +8,7 @@ import net.minecraftforge.oredict.OreDictionary;
 import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.guide.PageAnchor;
+import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowLink;
 import com.hfstudio.guidenh.guide.document.interaction.ItemTooltip;
 import com.hfstudio.guidenh.guide.internal.host.EventType;
@@ -35,6 +36,12 @@ public class ItemLinkScript implements LytScript {
             Boolean showTooltip = (Boolean) link.getData("showTooltip");
             String linksTo = (String) link.getData("linksTo");
 
+            // Neither target specified
+            if ((itemId == null || itemId.isEmpty()) && (ore == null || ore.isEmpty())) {
+                ctx.replace(LytParagraph.error("[ItemLink] Link has no target"));
+                return;
+            }
+
             ItemStack stack = resolveItemStack(itemId);
             if (stack == null && ore != null && !ore.isEmpty()) {
                 java.util.List<ItemStack> ores = OreDictionary.getOres(ore);
@@ -42,7 +49,11 @@ public class ItemLinkScript implements LytScript {
                     stack = ores.get(0);
                 }
             }
-            if (stack == null) return;
+            if (stack == null) {
+                String detail = (itemId != null && !itemId.isEmpty()) ? itemId : ore;
+                ctx.replace(LytParagraph.error("[ItemLink] Link target not found: " + detail));
+                return;
+            }
 
             PageAnchor anchor = findLinkTarget(stack, linksTo, ctx);
             if (anchor != null) {

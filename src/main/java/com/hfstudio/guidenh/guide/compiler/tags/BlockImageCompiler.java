@@ -38,6 +38,7 @@ public class BlockImageCompiler extends BlockTagCompiler {
         BlockImagePlaceholder placeholder = new BlockImagePlaceholder(
             id, ore, meta, nbt, scale, perspective, width, height);
         placeholder.setStyleClass("BlockImage");
+        placeholder.setStyle(LytParagraph.PLACEHOLDER_STYLE);
         placeholder.appendText("[BlockImage]");
         parent.append(placeholder);
     }

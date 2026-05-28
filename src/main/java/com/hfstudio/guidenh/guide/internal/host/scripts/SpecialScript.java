@@ -4,6 +4,7 @@ import com.hfstudio.guidenh.guide.Guide;
 import com.hfstudio.guidenh.guide.PageCollection;
 import com.hfstudio.guidenh.guide.compiler.tags.mediawiki.MediaWikiTagCompilerSupport;
 import com.hfstudio.guidenh.guide.compiler.tags.mediawiki.SpecialCompiler.SpecialPlaceholder;
+import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.indices.CategoryIndex;
 import com.hfstudio.guidenh.guide.internal.host.EventType;
 import com.hfstudio.guidenh.guide.internal.host.LytEvent;
@@ -28,13 +29,19 @@ public class SpecialScript implements LytScript {
         if (!(node instanceof SpecialPlaceholder ph)) return;
 
         PageCollection pc = ctx.getPageCollection();
-        if (!(pc instanceof Guide guide)) return;
+        if (!(pc instanceof Guide guide)) {
+            ctx.replace(LytParagraph.error("[Special] Special page not available: collection is not a guide"));
+            return;
+        }
 
         CategoryIndex categoryIndex = ctx.getIndex(CategoryIndex.class);
 
         var resolver = new MediaWikiSpecialPageResolver();
         String specialName = resolver.normalizeSupportedName(ph.name);
-        if (specialName == null) return;
+        if (specialName == null) {
+            ctx.replace(LytParagraph.error("[Special] Unsupported special page: " + ph.name));
+            return;
+        }
 
         MediaWikiListContext context = MediaWikiTagCompilerSupport.createListContext(guide, categoryIndex);
         MediaWikiSpecialPageQuery query = new MediaWikiSpecialPageQuery("",

@@ -13,6 +13,7 @@ import com.hfstudio.guidenh.guide.compiler.GuideMarkdownOptions;
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.compiler.ParsedGuidePage;
 import com.hfstudio.guidenh.guide.document.LytErrorSink;
+import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.extensions.ExtensionCollection;
 import com.hfstudio.guidenh.guide.indices.PageIndex;
 import com.hfstudio.guidenh.guide.internal.extensions.DefaultExtensions;
@@ -66,7 +67,10 @@ public class SceneScript implements LytScript {
         if (event.type() != EventType.MOUNT) return;
         if (!(node instanceof ScenePlaceholder ph)) return;
 
-        if (ph.childrenSource == null || ph.childrenSource.trim().isEmpty()) return;
+        if (ph.childrenSource == null || ph.childrenSource.trim().isEmpty()) {
+            ctx.replace(LytParagraph.error("[Scene] Empty scene: no scene elements"));
+            return;
+        }
 
         GuidebookLevel level = new GuidebookLevel();
         CameraSettings camera = new CameraSettings();
@@ -109,6 +113,13 @@ public class SceneScript implements LytScript {
             }
         } catch (Exception e) {
             FMLLog.getLogger().warn("[GuideNH] [SceneScript] Failed to re-parse scene children", e);
+            ctx.replace(LytParagraph.error("[Scene] Failed to parse scene elements"));
+            return;
+        }
+
+        if (level.isEmpty()) {
+            ctx.replace(LytParagraph.error("[Scene] Scene has no supported elements"));
+            return;
         }
 
         LytGuidebookScene scene = new LytGuidebookScene();

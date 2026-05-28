@@ -5,6 +5,7 @@ import java.util.stream.Stream;
 import org.jetbrains.annotations.Nullable;
 
 import com.hfstudio.guidenh.guide.color.ConstantColor;
+import com.hfstudio.guidenh.guide.color.SymbolicColor;
 import com.hfstudio.guidenh.guide.document.LytRect;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowContainer;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowContent;
@@ -197,6 +198,33 @@ public class LytParagraph extends LytBlock implements LytFlowContainer {
     public static LytParagraph loading(String text) {
         var paragraph = new LytParagraph();
         paragraph.setStyle(LOADING_STYLE);
+        paragraph.appendText(text);
+        return paragraph;
+    }
+
+    /** Warm amber-yellow italic text for placeholder blocks awaiting async materialization. */
+    public static final TextStyle PLACEHOLDER_STYLE = TextStyle.builder()
+        .italic(true)
+        .color(new ConstantColor(0xFFE8A317))
+        .build();
+
+    /** Red text style for inline error messages. */
+    public static final TextStyle ERROR_STYLE = TextStyle.builder()
+        .color(SymbolicColor.ERROR_TEXT)
+        .build();
+
+    /** Creates a placeholder paragraph (amber, italic) for deferred content. */
+    public static LytParagraph placeholder(String text) {
+        var paragraph = new LytParagraph();
+        paragraph.setStyle(PLACEHOLDER_STYLE);
+        paragraph.appendText(text);
+        return paragraph;
+    }
+
+    /** Creates an error paragraph (red text) for inline error reporting. */
+    public static LytParagraph error(String text) {
+        var paragraph = new LytParagraph();
+        paragraph.setStyle(ERROR_STYLE);
         paragraph.appendText(text);
         return paragraph;
     }

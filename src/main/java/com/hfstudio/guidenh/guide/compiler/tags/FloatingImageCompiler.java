@@ -14,6 +14,7 @@ import com.hfstudio.guidenh.guide.compiler.IndexingSink;
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.document.block.ImageRegionAnnotation;
 import com.hfstudio.guidenh.guide.document.block.LytImageBlock;
+import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.document.block.LytVBox;
 import com.hfstudio.guidenh.guide.document.flow.InlineBlockAlignment;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
@@ -51,6 +52,8 @@ public class FloatingImageCompiler extends FlowTagCompiler {
 
         LytImageBlock block = new LytImageBlock();
         block.setStyleClass("FloatingImage");
+        block.setStyle(LytParagraph.PLACEHOLDER_STYLE);
+        block.appendText("[FloatingImage]");
         block.setAlign(align);
         if (title != null) {
             block.setTitle(title);

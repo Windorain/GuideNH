@@ -71,7 +71,7 @@ public class MermaidCompiler extends BlockTagCompiler {
         Map<String, LytBlock> nodeContentBlocks = compileNodeContentBlocks(compiler, parent, el);
 
         MermaidPlaceholder placeholder = new MermaidPlaceholder(src, sourceText, width, height, nodeContentBlocks);
-        placeholder.appendText("Loading Mermaid...");
+        placeholder.appendText("[Mermaid]");
         parent.append(placeholder);
     }
 
@@ -143,7 +143,7 @@ public class MermaidCompiler extends BlockTagCompiler {
             this.height = height;
             this.nodeContentBlocks = nodeContentBlocks;
             setStyleClass("Mermaid");
-            setStyle(LytParagraph.LOADING_STYLE);
+            setStyle(LytParagraph.PLACEHOLDER_STYLE);
         }
     }
 }

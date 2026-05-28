@@ -46,7 +46,7 @@ public class CsvTableCompiler extends BlockTagCompiler {
         List<Integer> widths = parseWidthHints(MdxAttrs.getString(compiler, parent, el, "widths", null));
 
         CsvTablePlaceholder placeholder = new CsvTablePlaceholder(csvId.toString(), header, widths);
-        placeholder.appendText("Loading CSV...");
+        placeholder.appendText("[CsvTable]");
         parent.append(placeholder);
     }
 
@@ -157,7 +157,7 @@ public class CsvTableCompiler extends BlockTagCompiler {
             this.header = header;
             this.widths = widths;
             setStyleClass("CsvTable");
-            setStyle(LytParagraph.LOADING_STYLE);
+            setStyle(LytParagraph.PLACEHOLDER_STYLE);
         }
     }
 }

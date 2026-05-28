@@ -135,7 +135,7 @@ public class SceneTagCompiler extends BlockTagCompiler {
             compiler.getPageId().getResourceDomain()
         );
         placeholder.setStyleClass(styleClass);
-        placeholder.setStyle(LytParagraph.LOADING_STYLE);
+        placeholder.setStyle(LytParagraph.PLACEHOLDER_STYLE);
         placeholder.appendText("[" + styleClass + "]");
         parent.append(placeholder);
     }

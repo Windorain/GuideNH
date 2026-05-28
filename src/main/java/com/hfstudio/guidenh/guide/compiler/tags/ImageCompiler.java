@@ -35,8 +35,8 @@ public class ImageCompiler extends FlowTagCompiler {
         if (!alt.isEmpty()) block.setAlt(alt);
         if (!title.isEmpty()) block.setTitle(title);
 
-        block.appendText("Loading image...");
-        block.setStyle(LytParagraph.LOADING_STYLE);
+        block.setStyle(LytParagraph.PLACEHOLDER_STYLE);
+        block.appendText("[Image]");
 
         var inlineBlock = new LytFlowInlineBlock();
         inlineBlock.setBlock(block);

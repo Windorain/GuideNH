@@ -5,6 +5,7 @@ import net.minecraft.util.ResourceLocation;
 import com.hfstudio.guidenh.guide.document.block.ImageRegionAnnotation;
 import com.hfstudio.guidenh.guide.document.block.LytImage;
 import com.hfstudio.guidenh.guide.document.block.LytImageBlock;
+import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
 import com.hfstudio.guidenh.guide.internal.host.EventType;
 import com.hfstudio.guidenh.guide.internal.host.LytEvent;
@@ -40,16 +41,24 @@ public class FloatingImageScript implements LytScript {
         }
 
         String src = placeholder.getSrc();
-        if (src == null || src.isEmpty()) return;
+        if (src == null || src.isEmpty()) {
+            ctx.replace(LytParagraph.error("[FloatingImage] Missing src attribute"));
+            return;
+        }
 
         ResourceLocation imageId;
         try {
             imageId = new ResourceLocation(src);
         } catch (Exception e) {
+            ctx.replace(LytParagraph.error("[FloatingImage] Invalid image path: " + src));
             return;
         }
 
         byte[] imageData = ctx.loadAsset(imageId);
+        if (imageData == null) {
+            ctx.replace(LytParagraph.error("[FloatingImage] Image not found: " + src));
+            return;
+        }
         LytImage image = new LytImage();
         image.setImage(imageId, imageData);
 
