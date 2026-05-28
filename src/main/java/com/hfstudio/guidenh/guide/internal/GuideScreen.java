@@ -4496,8 +4496,11 @@ public class GuideScreen extends GuiContainer
 
     private void drawTiledBackground() {
         drawRect(0, 0, this.width, this.height, BACKGROUND_DIM_COLOR);
-        mc.getTextureManager()
-            .bindTexture(BG_TEXTURE);
+        if (mc == null || mc.getTextureManager() == null) {
+            FMLLog.getLogger().warn("[GuideNH] drawTiledBackground: mc or textureManager is null, skipping");
+            return;
+        }
+        mc.getTextureManager().bindTexture(BG_TEXTURE);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_REPEAT);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_REPEAT);
         GL11.glEnable(GL11.GL_BLEND);
