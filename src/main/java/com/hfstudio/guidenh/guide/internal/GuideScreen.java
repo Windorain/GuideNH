@@ -626,6 +626,7 @@ public class GuideScreen extends GuiContainer
 
     @Override
     public void initGui() {
+        super.initGui();
         Keyboard.enableRepeatEvents(true);
         syncGuideEditorStateFromConfig();
         if (document == null) {
@@ -761,6 +762,7 @@ public class GuideScreen extends GuiContainer
 
     @Override
     public void updateScreen() {
+        if (mc == null) return;
         completePendingContentPageLoadIfNeeded();
         processPendingSceneRegistrations();
         GuideScreenNeiBridge.tick(this);
