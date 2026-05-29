@@ -4858,8 +4858,8 @@ public class LytGuidebookScene extends LytBlock {
             }
             int startIndex = ponderSceneParticles.size();
             if (particle.isExplosionPreset()) {
-                int count = particle
-                    .getCount(GuidebookSceneParticleFactory.defaultExplosionParticleCount(particle.getPower(2f)));
+                int amount = particle
+                    .getAmount(GuidebookSceneParticleFactory.defaultExplosionParticleAmount(particle.getPower(2f)));
                 GuidebookSceneParticleFactory.appendExplosionPreset(
                     ponderSceneParticles,
                     ponderParticleRng,
@@ -4868,7 +4868,7 @@ public class LytGuidebookScene extends LytBlock {
                     particle.getZ(),
                     particle.getLifetimeTicks(8),
                     particle.getPower(2f),
-                    count,
+                    amount,
                     this::acquirePonderParticle);
                 advancePonderParticles(startIndex, elapsedTicks);
                 continue;
@@ -4896,7 +4896,31 @@ public class LytGuidebookScene extends LytBlock {
                         true));
                 continue;
             }
-            int count = particle.getCount(1);
+            if (particle.isIndicatorPreset()) {
+                int[] xValues = particle.getIndicatorXValues();
+                int[] yValues = particle.getIndicatorYValues();
+                int[] zValues = particle.getIndicatorZValues();
+                if (xValues == null || yValues == null || zValues == null) {
+                    continue;
+                }
+                GuidebookSceneParticleFactory.appendIndicatorPreset(
+                    ponderSceneParticles,
+                    ponderParticleRng,
+                    xValues,
+                    yValues,
+                    zValues,
+                    particle.getIndicatorColor(),
+                    particle.getLifetimeTicks(GuidebookSceneParticleFactory.DEFAULT_INDICATOR_LIFETIME_TICKS),
+                    particle.getAmount(GuidebookSceneParticleFactory.DEFAULT_INDICATOR_PARTICLE_AMOUNT),
+                    particle.getSize(0.12f),
+                    particle.getVelocityX(),
+                    particle.getVelocityY(),
+                    particle.getVelocityZ(),
+                    this::acquirePonderParticle);
+                advancePonderParticles(startIndex, elapsedTicks);
+                continue;
+            }
+            int amount = particle.getAmount(1);
             int lifetime = particle.getLifetimeTicks(12);
             float size = particle.getSize(0.14f);
             String particleName = particle.getParticleName();
@@ -4906,7 +4930,7 @@ public class LytGuidebookScene extends LytBlock {
             float vx = particle.getVelocityX();
             float vy = particle.getVelocityY();
             float vz = particle.getVelocityZ();
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < amount; i++) {
                 ponderSceneParticles.add(
                     GuidebookSceneParticleFactory.createRuntimeParticle(
                         acquirePonderParticle(),
@@ -5601,9 +5625,9 @@ public class LytGuidebookScene extends LytBlock {
                 continue;
             }
             if (particle.isExplosionPreset()) {
-                int count = particle
-                    .getCount(GuidebookSceneParticleFactory.defaultExplosionParticleCount(particle.getPower(2f)));
-                total += 1 + count * 2;
+                int amount = particle
+                    .getAmount(GuidebookSceneParticleFactory.defaultExplosionParticleAmount(particle.getPower(2f)));
+                total += 1 + amount * 2;
                 continue;
             }
             if (particle.isWeatherPreset()) {
@@ -5613,7 +5637,21 @@ public class LytGuidebookScene extends LytBlock {
                 total += Math.clamp(density * 4, 1, 128);
                 continue;
             }
-            total += particle.getCount(1);
+            if (particle.isIndicatorPreset()) {
+                int[] xValues = particle.getIndicatorXValues();
+                int[] yValues = particle.getIndicatorYValues();
+                int[] zValues = particle.getIndicatorZValues();
+                if (xValues == null || yValues == null || zValues == null) {
+                    continue;
+                }
+                total += GuidebookSceneParticleFactory.estimateIndicatorParticleAmount(
+                    xValues,
+                    yValues,
+                    zValues,
+                    particle.getAmount(GuidebookSceneParticleFactory.DEFAULT_INDICATOR_PARTICLE_AMOUNT));
+                continue;
+            }
+            total += particle.getAmount(1);
         }
         return total;
     }
@@ -5625,7 +5663,7 @@ public class LytGuidebookScene extends LytBlock {
         if (particle.isWeatherPreset()) {
             return particle.getWeatherDurationTicks(80);
         }
-        return particle.getLifetimeTicks(12);
+        return particle.getLifetimeTicks(GuidebookSceneParticleFactory.DEFAULT_INDICATOR_LIFETIME_TICKS);
     }
 
     private int[] copyLevelBounds() {

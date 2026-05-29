@@ -174,7 +174,7 @@ assets/<modid>/guidebooks/
       "vz": 0.0,
       "size": 0.18,
       "time": 16,
-      "count": 3
+      "amount": 3
     }
   ]
 }
@@ -210,7 +210,7 @@ assets/<modid>/guidebooks/
       "x": [0, 2],
       "z": [0, 2],
       "time": 100,
-      "count": 8
+      "amount": 8
     }
   ]
 }
@@ -228,7 +228,7 @@ assets/<modid>/guidebooks/
 | `vx`、`vy`、`vz` | 浮点数 | `0.0` | 初速度向量。`motionX/Y/Z` 也可作为别名。 |
 | `time` / `lifetime` | 整数 | 依预设而定 | 粒子生命周期，单位为 tick。对 `preset: "rain"` 而言，这里表示包含开始和结束过渡在内的总天气时长。 |
 | `size` | 浮点数 | 依预设而定 | 普通粒子的半尺寸，单位为方块。 |
-| `count` | 整数 | 依预设而定 | 普通粒子的生成数量。对 `explosion`，省略时会根据 `power` 自动缩放；对 `preset: "rain"`，这里表示平均每 tick 的天气密度。 |
+| `amount` | 整数 | 依预设而定 | 普通粒子的生成数量。对 `explosion`，省略时会根据 `power` 自动缩放；对 `preset: "rain"`，这里表示平均每 tick 的天气密度。 |
 | `power` | 浮点数 | `2.0` | `explosion` 预设的爆炸强度。 |
 
 天气预设说明：

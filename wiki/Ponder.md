@@ -232,7 +232,7 @@ Generic particles:
       "vz": 0.0,
       "size": 0.18,
       "time": 16,
-      "count": 3
+      "amount": 3
     }
   ]
 }
@@ -268,7 +268,7 @@ Weather preset:
       "x": [0, 2],
       "z": [0, 2],
       "time": 100,
-      "count": 8
+      "amount": 8
     }
   ]
 }
@@ -286,7 +286,7 @@ Particle fields:
 | `vx`, `vy`, `vz` | float | `0.0` | Initial motion vector. `motionX/Y/Z` are accepted aliases. |
 | `time` / `lifetime` | integer | preset-specific | Particle lifetime in ticks. For `preset: "rain"` this is the total weather duration, including fade-in and fade-out. |
 | `size` | float | preset-specific | Generic particle half-size in block units. |
-| `count` | integer | preset-specific | Generic particle count. For `explosion`, omitted count scales from `power`. For `preset: "rain"`, this is the average per-tick weather density. |
+| `amount` | integer | preset-specific | Generic particle count. For `explosion`, omitted amount scales from `power`. For `preset: "rain"`, this is the average per-tick weather density. |
 | `power` | float | `2.0` | Explosion strength for the `explosion` preset. |
 
 Weather preset notes:
