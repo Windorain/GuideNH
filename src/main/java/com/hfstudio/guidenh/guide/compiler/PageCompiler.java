@@ -272,6 +272,32 @@ public class PageCompiler {
             parseFailureTo);
     }
 
+    /**
+     * Lightweight parse that extracts only YAML frontmatter from the raw source,
+     * deferring the full Micromark → mdast pipeline to first call of
+     * {@link ParsedGuidePage#getAstRoot()}.
+     *
+     * <p>F3+T reload uses this path so that index/navigation rebuilds —
+     * which only need frontmatter — complete without paying Micromark cost.</p>
+     */
+    public static ParsedGuidePage parseFrontmatterOnly(String sourcePack, String language, ResourceLocation id,
+        String pageContent) {
+        pageContent = pageContent != null ? pageContent : "";
+        pageContent = normalizeLineEndings(pageContent);
+        var sourceFrontmatter = parseFrontmatterFromSource(id, pageContent);
+
+        return new ParsedGuidePage(
+            sourcePack,
+            id,
+            pageContent,
+            null,               // astRoot — triggers lazy parse on first getAstRoot()
+            sourceFrontmatter,
+            language,
+            null,               // no parse failure yet
+            null,
+            null);
+    }
+
     public static String normalizeLineEndings(String pageContent) {
         return GuideStringLines.normalizeLineEndings(pageContent);
     }
