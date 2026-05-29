@@ -32,7 +32,8 @@ public class CommandLinkScript implements LytScript {
                     Minecraft.getMinecraft().thePlayer.sendChatMessage(command);
                 }
                 if (Boolean.TRUE.equals(close)) {
-                    Minecraft.getMinecraft().displayGuiScreen(null);
+                    Minecraft.getMinecraft()
+                        .displayGuiScreen(null);
                 }
             });
         }

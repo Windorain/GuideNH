@@ -17,26 +17,25 @@ import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.extensions.ExtensionCollection;
 import com.hfstudio.guidenh.guide.indices.PageIndex;
 import com.hfstudio.guidenh.guide.internal.extensions.DefaultExtensions;
-import com.hfstudio.guidenh.guide.internal.markdown.MdAstToMdxConverter;
-import com.hfstudio.guidenh.guide.navigation.NavigationTree;
-import com.hfstudio.guidenh.guide.scene.CameraSettings;
-import com.hfstudio.guidenh.guide.scene.cache.GuideSceneStructureCompileScope;
-import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
-import com.hfstudio.guidenh.guide.scene.PerspectivePreset;
-import com.hfstudio.guidenh.guide.scene.SceneTagCompiler;
-import com.hfstudio.guidenh.guide.scene.SceneTagCompiler.ScenePlaceholder;
-import com.hfstudio.guidenh.guide.scene.element.SceneElementTagCompiler;
-import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
-import com.hfstudio.guidenh.libs.mdast.MdAst;
-import com.hfstudio.guidenh.libs.mdast.model.MdAstRoot;
-import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
-import com.hfstudio.guidenh.libs.unist.UnistNode;
-
 import com.hfstudio.guidenh.guide.internal.host.EventType;
 import com.hfstudio.guidenh.guide.internal.host.LytEvent;
 import com.hfstudio.guidenh.guide.internal.host.LytScript;
 import com.hfstudio.guidenh.guide.internal.host.ScriptContext;
 import com.hfstudio.guidenh.guide.internal.host.ScriptType;
+import com.hfstudio.guidenh.guide.internal.markdown.MdAstToMdxConverter;
+import com.hfstudio.guidenh.guide.navigation.NavigationTree;
+import com.hfstudio.guidenh.guide.scene.CameraSettings;
+import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
+import com.hfstudio.guidenh.guide.scene.PerspectivePreset;
+import com.hfstudio.guidenh.guide.scene.SceneTagCompiler;
+import com.hfstudio.guidenh.guide.scene.SceneTagCompiler.ScenePlaceholder;
+import com.hfstudio.guidenh.guide.scene.cache.GuideSceneStructureCompileScope;
+import com.hfstudio.guidenh.guide.scene.element.SceneElementTagCompiler;
+import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
+import com.hfstudio.guidenh.libs.mdast.MdAst;
+import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
+import com.hfstudio.guidenh.libs.mdast.model.MdAstRoot;
+import com.hfstudio.guidenh.libs.unist.UnistNode;
 
 import cpw.mods.fml.common.FMLLog;
 
@@ -55,29 +54,36 @@ public class SceneScript implements LytScript {
     }
 
     @Override
-    public ScriptType type() { return ScriptType.JAVA; }
+    public ScriptType type() {
+        return ScriptType.JAVA;
+    }
 
     @Override
-    public String styleClass() { return "Scene"; }
+    public String styleClass() {
+        return "Scene";
+    }
 
     @Override
-    public boolean isAsync() { return true; }
+    public boolean isAsync() {
+        return true;
+    }
 
     @Override
     public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
         if (event.type() != EventType.MOUNT) return;
         if (!(node instanceof ScenePlaceholder ph)) return;
 
-        if (ph.childrenSource == null || ph.childrenSource.trim().isEmpty()) {
+        if (ph.childrenSource == null || ph.childrenSource.trim()
+            .isEmpty()) {
             ctx.replace(LytParagraph.error("[Scene] Empty scene: no scene elements"));
             return;
         }
 
         GuidebookLevel level = new GuidebookLevel();
         CameraSettings camera = new CameraSettings();
-        if (ph.perspective != null && !ph.perspective.trim().isEmpty()) {
-            camera.setPerspectivePreset(
-                PerspectivePreset.fromSerializedName(ph.perspective.trim()));
+        if (ph.perspective != null && !ph.perspective.trim()
+            .isEmpty()) {
+            camera.setPerspectivePreset(PerspectivePreset.fromSerializedName(ph.perspective.trim()));
         }
         if (!Float.isNaN(ph.zoom)) camera.setZoom(ph.zoom);
         if (!Float.isNaN(ph.rotateX)) camera.setRotationX(ph.rotateX);
@@ -99,8 +105,12 @@ public class SceneScript implements LytScript {
         // Parse children source and compile scene elements
         ExceptionCollector errorSink = new ExceptionCollector();
         PageCollection pc = ctx.getPageCollection();
-        PageCompiler runtimeCompiler = new PageCompiler(pc != null ? pc : new StubPageCollection(),
-            ExtensionCollection.EMPTY, "", new ResourceLocation(ph.pageDomain, "scene"), "");
+        PageCompiler runtimeCompiler = new PageCompiler(
+            pc != null ? pc : new StubPageCollection(),
+            ExtensionCollection.EMPTY,
+            "",
+            new ResourceLocation(ph.pageDomain, "scene"),
+            "");
         try {
             MdAstRoot ast = MdAst.fromMarkdown(ph.childrenSource, GuideMarkdownOptions.runtime());
             MdAstToMdxConverter.convert(ast, Collections.emptyMap());
@@ -115,7 +125,8 @@ public class SceneScript implements LytScript {
                 }
             });
         } catch (Exception e) {
-            FMLLog.getLogger().warn("[GuideNH] [SceneScript] Failed to re-parse scene children", e);
+            FMLLog.getLogger()
+                .warn("[GuideNH] [SceneScript] Failed to re-parse scene children", e);
             ctx.replace(LytParagraph.error("[Scene] Failed to parse scene elements"));
             return;
         }
@@ -152,23 +163,49 @@ public class SceneScript implements LytScript {
     }
 
     private static class ExceptionCollector implements LytErrorSink {
+
         @Override
         public void appendError(PageCompiler compiler, String text, UnistNode node) {
-            FMLLog.getLogger().warn("[GuideNH] [SceneScript] {}", text);
+            FMLLog.getLogger()
+                .warn("[GuideNH] [SceneScript] {}", text);
         }
     }
 
     private static class StubPageCollection implements PageCollection {
-        @Override public <T extends PageIndex> T getIndex(Class<T> c) { return null; }
-        @Override public Collection<ParsedGuidePage> getPages() {
+
+        @Override
+        public <T extends PageIndex> T getIndex(Class<T> c) {
+            return null;
+        }
+
+        @Override
+        public Collection<ParsedGuidePage> getPages() {
             return Collections.emptyList();
         }
-        @Override public ParsedGuidePage getParsedPage(ResourceLocation id) { return null; }
-        @Override public GuidePage getPage(ResourceLocation id) { return null; }
-        @Override public byte[] loadAsset(ResourceLocation id) { return null; }
-        @Override public NavigationTree getNavigationTree() {
+
+        @Override
+        public ParsedGuidePage getParsedPage(ResourceLocation id) {
+            return null;
+        }
+
+        @Override
+        public GuidePage getPage(ResourceLocation id) {
+            return null;
+        }
+
+        @Override
+        public byte[] loadAsset(ResourceLocation id) {
+            return null;
+        }
+
+        @Override
+        public NavigationTree getNavigationTree() {
             return new NavigationTree();
         }
-        @Override public boolean pageExists(ResourceLocation pageId) { return false; }
+
+        @Override
+        public boolean pageExists(ResourceLocation pageId) {
+            return false;
+        }
     }
 }

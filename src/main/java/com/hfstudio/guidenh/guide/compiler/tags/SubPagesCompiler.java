@@ -19,13 +19,15 @@ public class SubPagesCompiler extends BlockTagCompiler {
     protected void compile(PageCompiler compiler, LytBlockContainer parent, MdxJsxElementFields el) {
         var pageIdStr = el.getAttributeString("id", null);
         var alphabetical = MdxAttrs.getBoolean(compiler, parent, el, "alphabetical", false);
-        var currentPageId = compiler.getPageId().toString();
+        var currentPageId = compiler.getPageId()
+            .toString();
 
         SubPagesPlaceholder placeholder = new SubPagesPlaceholder(pageIdStr, alphabetical, currentPageId);
         parent.append(placeholder);
     }
 
     public static class SubPagesPlaceholder extends LytParagraph {
+
         public final String pageIdStr;
         public final boolean alphabetical;
         public final String currentPageId;

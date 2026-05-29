@@ -123,17 +123,32 @@ public class SceneTagCompiler extends BlockTagCompiler {
         // Create placeholder block that carries all scene config to SceneScript
         String styleClass = "GameScene".equals(el.name()) ? "GameScene" : "Scene";
         ScenePlaceholder placeholder = new ScenePlaceholder(
-            w, h, explicitWidth, explicitHeight,
-            zoom, explicitZoom,
+            w,
+            h,
+            explicitWidth,
+            explicitHeight,
+            zoom,
+            explicitZoom,
             perspective,
-            rx, ry, rz,
-            offX, offY, explicitOffX, explicitOffY,
-            centerX, centerY, centerZ, explicitCenter,
-            interactive, showBackground,
-            allowLayerSlider, gridButtonEnabled, showGrid,
+            rx,
+            ry,
+            rz,
+            offX,
+            offY,
+            explicitOffX,
+            explicitOffY,
+            centerX,
+            centerY,
+            centerZ,
+            explicitCenter,
+            interactive,
+            showBackground,
+            allowLayerSlider,
+            gridButtonEnabled,
+            showGrid,
             childrenSource,
-            compiler.getPageId().getResourceDomain()
-        );
+            compiler.getPageId()
+                .getResourceDomain());
         placeholder.setStyleClass(styleClass);
         placeholder.setStyle(LytParagraph.PLACEHOLDER_STYLE);
         placeholder.appendText("[" + styleClass + "]");
@@ -159,7 +174,8 @@ public class SceneTagCompiler extends BlockTagCompiler {
         public final boolean explicitHeight;
         public final float zoom;
         public final boolean explicitZoom;
-        @Nullable public final String perspective;
+        @Nullable
+        public final String perspective;
         public final float rotateX;
         public final float rotateY;
         public final float rotateZ;
@@ -176,23 +192,15 @@ public class SceneTagCompiler extends BlockTagCompiler {
         public final boolean allowLayerSlider;
         public final boolean gridButtonEnabled;
         public final boolean showGrid;
-        @Nullable public final String childrenSource;
+        @Nullable
+        public final String childrenSource;
         public final String pageDomain;
 
-        public ScenePlaceholder(
-            int width, int height,
-            boolean explicitWidth, boolean explicitHeight,
-            float zoom, boolean explicitZoom,
-            @Nullable String perspective,
-            float rotateX, float rotateY, float rotateZ,
-            float offsetX, float offsetY,
-            boolean explicitOffsetX, boolean explicitOffsetY,
-            float centerX, float centerY, float centerZ,
-            boolean explicitCenter,
-            boolean interactive, boolean showBackground,
-            boolean allowLayerSlider, boolean gridButtonEnabled,
-            boolean showGrid,
-            @Nullable String childrenSource,
+        public ScenePlaceholder(int width, int height, boolean explicitWidth, boolean explicitHeight, float zoom,
+            boolean explicitZoom, @Nullable String perspective, float rotateX, float rotateY, float rotateZ,
+            float offsetX, float offsetY, boolean explicitOffsetX, boolean explicitOffsetY, float centerX,
+            float centerY, float centerZ, boolean explicitCenter, boolean interactive, boolean showBackground,
+            boolean allowLayerSlider, boolean gridButtonEnabled, boolean showGrid, @Nullable String childrenSource,
             String pageDomain) {
             this.width = width;
             this.height = height;

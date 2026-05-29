@@ -19,13 +19,19 @@ import cpw.mods.fml.common.FMLLog;
 public class MermaidScript implements LytScript {
 
     @Override
-    public ScriptType type() { return ScriptType.JAVA; }
+    public ScriptType type() {
+        return ScriptType.JAVA;
+    }
 
     @Override
-    public String styleClass() { return "Mermaid"; }
+    public String styleClass() {
+        return "Mermaid";
+    }
 
     @Override
-    public boolean isAsync() { return true; }
+    public boolean isAsync() {
+        return true;
+    }
 
     @Override
     public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
@@ -47,22 +53,25 @@ public class MermaidScript implements LytScript {
             }
         }
 
-        if (sourceText == null || sourceText.trim().isEmpty()) {
+        if (sourceText == null || sourceText.trim()
+            .isEmpty()) {
             replaceWithError(ctx, "Source not found or empty");
             return;
         }
 
         try {
             var document = MermaidMindmapParser.parse(sourceText);
-            LytMermaidMindmap block = new LytMermaidMindmap(document, sourceText,
+            LytMermaidMindmap block = new LytMermaidMindmap(
+                document,
+                sourceText,
                 ph.nodeContentBlocks != null ? ph.nodeContentBlocks : java.util.Collections.emptyMap());
             if (ph.width > 0 || ph.height > 0) {
                 block.setPreferredSize(ph.width, ph.height);
             }
             ctx.replace(block);
         } catch (IllegalArgumentException e) {
-            FMLLog.getLogger().warn(
-                "[GuideNH] [MermaidScript] Failed to parse Mermaid source: {}", sourceText, e);
+            FMLLog.getLogger()
+                .warn("[GuideNH] [MermaidScript] Failed to parse Mermaid source: {}", sourceText, e);
             replaceWithError(ctx, "Failed to parse: " + e.getMessage());
         }
     }

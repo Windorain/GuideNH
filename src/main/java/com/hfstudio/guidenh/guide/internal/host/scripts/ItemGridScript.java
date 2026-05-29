@@ -15,10 +15,14 @@ import com.hfstudio.guidenh.guide.internal.host.ScriptType;
 public class ItemGridScript implements LytScript {
 
     @Override
-    public ScriptType type() { return ScriptType.JAVA; }
+    public ScriptType type() {
+        return ScriptType.JAVA;
+    }
 
     @Override
-    public String styleClass() { return "ItemGrid"; }
+    public String styleClass() {
+        return "ItemGrid";
+    }
 
     @Override
     @SuppressWarnings("deprecation")
@@ -44,8 +48,8 @@ public class ItemGridScript implements LytScript {
     @SuppressWarnings("deprecation")
     private static ItemStack resolveItemId(String itemId) {
         if (itemId == null || itemId.isEmpty()) return null;
-        com.hfstudio.guidenh.guide.compiler.IdUtils.ParsedItemRef ref =
-            com.hfstudio.guidenh.guide.compiler.IdUtils.parseItemRef(itemId, "minecraft");
+        com.hfstudio.guidenh.guide.compiler.IdUtils.ParsedItemRef ref = com.hfstudio.guidenh.guide.compiler.IdUtils
+            .parseItemRef(itemId, "minecraft");
         if (ref == null) return null;
         Item item = (Item) Item.itemRegistry.getObject(ref.rawKey());
         return item != null ? new ItemStack(item, 1, ref.concreteMeta()) : null;

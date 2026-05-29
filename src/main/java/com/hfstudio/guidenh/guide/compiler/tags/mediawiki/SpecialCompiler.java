@@ -57,6 +57,7 @@ public class SpecialCompiler extends BlockTagCompiler {
     }
 
     public static class SpecialPlaceholder extends LytParagraph {
+
         public final String name;
         public final int rows;
         public final ResourceLocation guideId;
@@ -65,8 +66,8 @@ public class SpecialCompiler extends BlockTagCompiler {
         public final String language;
         public final String query;
 
-        SpecialPlaceholder(String name, int rows, ResourceLocation guideId, String page, String prefix,
-            String language, String query) {
+        SpecialPlaceholder(String name, int rows, ResourceLocation guideId, String page, String prefix, String language,
+            String query) {
             this.name = name;
             this.rows = rows;
             this.guideId = guideId;

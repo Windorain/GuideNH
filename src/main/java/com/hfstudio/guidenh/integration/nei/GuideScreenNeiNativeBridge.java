@@ -1,5 +1,6 @@
 package com.hfstudio.guidenh.integration.nei;
 
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 
@@ -317,9 +318,10 @@ public class GuideScreenNeiNativeBridge {
         }
     }
 
+    @SuppressWarnings("JavaReflectionMemberAccess")
     public static void ensureManagerInitialized(GuiContainer gui) {
         try {
-            java.lang.reflect.Field f = GuiContainer.class.getDeclaredField("manager");
+            Field f = GuiContainer.class.getDeclaredField("manager");
             f.setAccessible(true);
             if (f.get(gui) == null) {
                 f.set(gui, new GuiContainerManager(gui));

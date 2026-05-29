@@ -18,10 +18,14 @@ import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialPageResolver;
 public class SpecialScript implements LytScript {
 
     @Override
-    public ScriptType type() { return ScriptType.JAVA; }
+    public ScriptType type() {
+        return ScriptType.JAVA;
+    }
 
     @Override
-    public String styleClass() { return "Special"; }
+    public String styleClass() {
+        return "Special";
+    }
 
     @Override
     public void onEvent(Object node, LytEvent event, ScriptContext ctx) {
@@ -44,17 +48,14 @@ public class SpecialScript implements LytScript {
         }
 
         MediaWikiListContext context = MediaWikiTagCompilerSupport.createListContext(guide, categoryIndex);
-        MediaWikiSpecialPageQuery query = new MediaWikiSpecialPageQuery("",
-            MediaWikiSpecialPageQuery.PAGE_SIZE);
+        MediaWikiSpecialPageQuery query = new MediaWikiSpecialPageQuery("", MediaWikiSpecialPageQuery.PAGE_SIZE);
         if (ph.page != null) query = query.withParameter("page", ph.page);
         if (ph.prefix != null) query = query.withParameter("prefix", ph.prefix);
         if (ph.language != null) query = query.withParameter("language", ph.language);
         if (ph.query != null) query = query.withSearchText(ph.query);
 
-        var result = resolver.resolve(context, specialName,
-            query.withVisibleCount(Integer.MAX_VALUE));
-        var block = MediaWikiTagCompilerSupport.createSpecialBlock(
-            result, ph.rows, context, query, resolver);
+        var result = resolver.resolve(context, specialName, query.withVisibleCount(Integer.MAX_VALUE));
+        var block = MediaWikiTagCompilerSupport.createSpecialBlock(result, ph.rows, context, query, resolver);
         ctx.replace(block);
     }
 }

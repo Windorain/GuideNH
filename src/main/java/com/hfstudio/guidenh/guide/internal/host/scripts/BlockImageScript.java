@@ -4,11 +4,9 @@ import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraftforge.oredict.OreDictionary;
 
 import com.hfstudio.guidenh.guide.compiler.GuideItemReferenceResolver;
 import com.hfstudio.guidenh.guide.compiler.tags.BlockImageCompiler.BlockImagePlaceholder;
-import com.hfstudio.guidenh.guide.document.block.LytBlock;
 import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.document.flow.LytFlowInlineBlock;
 import com.hfstudio.guidenh.guide.internal.host.EventType;
@@ -23,18 +21,23 @@ import com.hfstudio.guidenh.guide.scene.PerspectivePreset;
 import com.hfstudio.guidenh.guide.scene.element.BlockElementCompiler;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookPreviewBlockPlacer;
-import com.hfstudio.guidenh.guide.scene.ponder.PonderNbtPath;
 
 public class BlockImageScript implements LytScript {
 
     @Override
-    public ScriptType type() { return ScriptType.JAVA; }
+    public ScriptType type() {
+        return ScriptType.JAVA;
+    }
 
     @Override
-    public String styleClass() { return "BlockImage"; }
+    public String styleClass() {
+        return "BlockImage";
+    }
 
     @Override
-    public boolean isAsync() { return true; }
+    public boolean isAsync() {
+        return true;
+    }
 
     @Override
     @SuppressWarnings("deprecation")
@@ -42,8 +45,7 @@ public class BlockImageScript implements LytScript {
         if (event.type() != EventType.MOUNT) return;
 
         BlockImagePlaceholder ph;
-        boolean isWrapped = node instanceof LytFlowInlineBlock w
-            && w.getBlock() instanceof BlockImagePlaceholder p;
+        boolean isWrapped = node instanceof LytFlowInlineBlock w && w.getBlock() instanceof BlockImagePlaceholder p;
         if (isWrapped) {
             ph = (BlockImagePlaceholder) ((LytFlowInlineBlock) node).getBlock();
         } else if (node instanceof BlockImagePlaceholder p) {
@@ -72,20 +74,21 @@ public class BlockImageScript implements LytScript {
         }
 
         if (block == null) {
-            ctx.replace(
-                LytParagraph.error("[BlockImage] Block not found: " + (ph.ore != null ? ph.ore : ph.id)));
+            ctx.replace(LytParagraph.error("[BlockImage] Block not found: " + (ph.ore != null ? ph.ore : ph.id)));
             return;
         }
 
         NBTTagCompound tileTag = null;
-        if (ph.nbt != null && !ph.nbt.trim().isEmpty()) {
+        if (ph.nbt != null && !ph.nbt.trim()
+            .isEmpty()) {
             try {
                 tileTag = GuideTextNbtCodec.readTextSafeCompound(ph.nbt.trim());
             } catch (Exception ignored) {}
         }
 
         PerspectivePreset perspective = PerspectivePreset.ISOMETRIC_NORTH_EAST;
-        if (ph.perspective != null && !ph.perspective.trim().isEmpty()) {
+        if (ph.perspective != null && !ph.perspective.trim()
+            .isEmpty()) {
             perspective = PerspectivePreset.fromSerializedName(ph.perspective.trim());
         }
 
@@ -94,8 +97,7 @@ public class BlockImageScript implements LytScript {
         GuidebookPreviewBlockPlacer.place(level, 0, 0, 0, block, defaultMeta, tileTag);
 
         if (level.isEmpty()) {
-            ctx.replace(
-                LytParagraph.error("[BlockImage] Failed to create block preview"));
+            ctx.replace(LytParagraph.error("[BlockImage] Failed to create block preview"));
             return;
         }
 

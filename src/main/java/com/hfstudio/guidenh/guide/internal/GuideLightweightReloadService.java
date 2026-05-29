@@ -282,7 +282,8 @@ public class GuideLightweightReloadService {
     private static ParsedGuidePage parsePageBytes(String sourcePack, String language, String contentRootFolder,
         ResourceLocation pageId, ResourceLocation sourceId, byte[] bytes) {
         try {
-            return GuideLocalizedPageSourceResolver.parseFrontmatterOnly(sourcePack, language, contentRootFolder, pageId, bytes);
+            return GuideLocalizedPageSourceResolver
+                .parseFrontmatterOnly(sourcePack, language, contentRootFolder, pageId, bytes);
         } catch (Exception ex) {
             FMLLog.getLogger()
                 .error("[GuideNH] [GuideLightweightReloadService] Error parsing page {} from {}", pageId, sourceId, ex);

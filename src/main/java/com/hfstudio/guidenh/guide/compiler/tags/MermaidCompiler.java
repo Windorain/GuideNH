@@ -129,6 +129,7 @@ public class MermaidCompiler extends BlockTagCompiler {
     }
 
     public static class MermaidPlaceholder extends LytParagraph {
+
         public final String src;
         public final String sourceText;
         public final int width;

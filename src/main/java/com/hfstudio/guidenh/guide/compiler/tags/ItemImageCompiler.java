@@ -73,7 +73,14 @@ public class ItemImageCompiler extends FlowTagCompiler {
         labelFormat = (formatRaw != null && !formatRaw.isEmpty()) ? formatRaw : null;
 
         ItemImagePlaceholder placeholder = new ItemImagePlaceholder(
-            itemId, scale, yOffset, labelYOffset, showTooltip, showIcon, labelPosition, labelFormat);
+            itemId,
+            scale,
+            yOffset,
+            labelYOffset,
+            showTooltip,
+            showIcon,
+            labelPosition,
+            labelFormat);
 
         var inline = new LytFlowInlineBlock();
         inline.setBlock(placeholder);
@@ -96,6 +103,7 @@ public class ItemImageCompiler extends FlowTagCompiler {
     }
 
     public static class ItemImagePlaceholder extends LytParagraph {
+
         public final String itemId;
         public final float scale;
         @Nullable

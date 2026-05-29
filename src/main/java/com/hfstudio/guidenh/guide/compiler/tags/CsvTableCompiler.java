@@ -147,6 +147,7 @@ public class CsvTableCompiler extends BlockTagCompiler {
     }
 
     public static class CsvTablePlaceholder extends LytParagraph {
+
         public final String src;
         public final boolean header;
         public final List<Integer> widths;

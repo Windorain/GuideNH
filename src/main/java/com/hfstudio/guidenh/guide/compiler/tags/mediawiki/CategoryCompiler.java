@@ -53,6 +53,7 @@ public class CategoryCompiler extends BlockTagCompiler {
     }
 
     public static class CategoryPlaceholder extends LytParagraph {
+
         public final String name;
         public final int rows;
         public final ResourceLocation guideId;
