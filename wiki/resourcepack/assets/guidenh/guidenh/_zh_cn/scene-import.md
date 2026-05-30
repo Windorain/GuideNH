@@ -109,7 +109,7 @@ categories:
 ## PlaceBlock
 
 `<PlaceBlock id="..." />` 无条件地用单一方块类型填充一个轴对齐的包围盒，覆盖原有方块。
-使用 `dx`/`dy`/`dz` 可一次填充多方块区域：
+使用 `dx`/`dy`/`dz` 可一次填充多方块区域，顺序对应 X/Y/Z 轴上的长、高、宽：
 
 <GameScene width="384" height="256" zoom={4} interactive={true}>
   <PlaceBlock id="minecraft:stone" dx="5" dy="1" dz="5" />
@@ -151,4 +151,4 @@ categories:
   </LineAnnotation>
 </GameScene>
 
-搭配区域选择魔棒：选区是客户端全局状态，所有魔棒共享同一组 Pos1/Pos2。左键设置 Pos1，右键设置 Pos2；两种点击都可以对准空气，按光标 reach 终点选取坐标。潜行 + 左键清空当前选区，潜行 + 右键按当前模式导出。也可以使用 `/guidenhc pos1 <x> <y> <z>`、`/guidenhc pos2 <x> <y> <z>`、`/guidenhc clearselection`，其中 `~` 坐标相对玩家。`/guidenhc exportstructure [--mode snbt|snbt_e|blocks|blocks_e]` 会导出当前选区，也可以额外传入 `<x> <y> <z> <sizeX> <sizeY> <sizeZ>`。Scene Editor 读取同一片客户端选区；如果服务端也安装了 GuideNH，会优先请求服务端按选区导出方块数据，从权威世界取得 TileEntity 信息。
+搭配区域选择魔棒：选区是客户端全局状态，所有魔棒共享同一组 Pos1/Pos2。左键设置 Pos1，右键设置 Pos2；两种点击都可以对准空气，按光标 reach 终点选取坐标。潜行 + 左键清空当前选区，潜行 + 右键按当前模式导出。也可以使用 `/guidenhc pos1 <x> <y> <z>`、`/guidenhc pos2 <x> <y> <z>`、`/guidenhc clearselection`，其中 `~` 坐标相对玩家。`/guidenhc exportstructure [--mode snbt|snbt_e|blocks|blocks_e]` 会导出当前选区，也可以额外传入 `<x> <y> <z> <sizeX> <sizeY> <sizeZ>`；这里的 `sizeX/sizeY/sizeZ` 对应 X/Y/Z 轴上的长、高、宽。Scene Editor 读取同一片客户端选区；如果服务端也安装了 GuideNH，会优先请求服务端按选区导出方块数据，从权威世界取得 TileEntity 信息。

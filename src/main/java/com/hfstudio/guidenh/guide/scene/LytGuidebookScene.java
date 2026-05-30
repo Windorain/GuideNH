@@ -4186,15 +4186,23 @@ public class LytGuidebookScene extends LytBlock {
     }
 
     private boolean hasBottomControls() {
+        return hasPonderControls() || hasInteractiveBottomControls();
+    }
+
+    private boolean hasPonderControls() {
+        return bottomControlsVisible && ponderSceneData != null;
+    }
+
+    private boolean hasInteractiveBottomControls() {
         return interactive && bottomControlsVisible;
     }
 
     private boolean hasStructureLibTierSlider() {
-        return hasBottomControls() && hasStructureLibTierData();
+        return hasInteractiveBottomControls() && hasStructureLibTierData();
     }
 
     private List<StructureLibSceneMetadata.ChannelData> getBottomControlStructureLibChannels() {
-        return hasBottomControls() ? getSelectableStructureLibChannels() : List.of();
+        return hasInteractiveBottomControls() ? getSelectableStructureLibChannels() : List.of();
     }
 
     public void attachPonderData(PonderSceneData data, List<List<SceneAnnotation>> annotationsByKeyframe) {
@@ -4439,9 +4447,7 @@ public class LytGuidebookScene extends LytBlock {
     }
 
     public boolean containsPonderBar(int mouseX, int mouseY) {
-        if (!hasBottomControls() || ponderSceneData == null
-            || cachedPonderBarHitRect == null
-            || cachedPonderBarHitRect.isEmpty()) {
+        if (!hasPonderControls() || cachedPonderBarHitRect == null || cachedPonderBarHitRect.isEmpty()) {
             return false;
         }
         return cachedPonderBarHitRect.contains(mouseX, mouseY);
