@@ -5,6 +5,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 
 import org.jetbrains.annotations.Nullable;
@@ -12,7 +14,13 @@ import org.jetbrains.annotations.Nullable;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.hfstudio.guidenh.guide.compiler.tags.MdxAttrs;
+import com.hfstudio.guidenh.guide.internal.localization.GuideResourceLanguageIndex;
+import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.guide.scene.StructureLibSceneCondition;
+import com.hfstudio.guidenh.guide.scene.annotation.InWorldBoxAnnotation;
+import com.hfstudio.guidenh.guide.scene.annotation.InWorldLineAnnotation;
+import com.hfstudio.guidenh.guide.scene.annotation.PonderInputAnnotation;
+import com.hfstudio.guidenh.guide.scene.annotation.TextAnnotation;
 import com.hfstudio.guidenh.guide.sound.GuideSoundSpec;
 import com.hfstudio.guidenh.guide.sound.GuideSoundTrigger;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxAttribute;
@@ -35,6 +43,7 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
     private final GuideSiteHtmlCompiler fragmentCompiler;
     @Nullable
     private final GuideSitePageAssetExporter assetExporter;
+    private final GuideSiteItemIconResolver itemIconResolver;
 
     public GuideSiteSceneTagRenderer() {
         this(
@@ -55,12 +64,25 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
     public GuideSiteSceneTagRenderer(GuideSiteHtmlCompiler.RecipeTagRenderer recipeTagRenderer,
         GuideSiteHtmlCompiler.ImageResolver imageResolver, GuideSiteHtmlCompiler.MdxTagRenderer mdxTagRenderer,
         GuideSiteLatexExporter latexExporter) {
-        this(recipeTagRenderer, imageResolver, mdxTagRenderer, latexExporter, null);
+        this(recipeTagRenderer, imageResolver, mdxTagRenderer, latexExporter, null, GuideSiteItemIconResolver.NONE);
     }
 
     public GuideSiteSceneTagRenderer(GuideSiteHtmlCompiler.RecipeTagRenderer recipeTagRenderer,
         GuideSiteHtmlCompiler.ImageResolver imageResolver, GuideSiteHtmlCompiler.MdxTagRenderer mdxTagRenderer,
         GuideSiteLatexExporter latexExporter, @Nullable GuideSitePageAssetExporter assetExporter) {
+        this(
+            recipeTagRenderer,
+            imageResolver,
+            mdxTagRenderer,
+            latexExporter,
+            assetExporter,
+            GuideSiteItemIconResolver.NONE);
+    }
+
+    public GuideSiteSceneTagRenderer(GuideSiteHtmlCompiler.RecipeTagRenderer recipeTagRenderer,
+        GuideSiteHtmlCompiler.ImageResolver imageResolver, GuideSiteHtmlCompiler.MdxTagRenderer mdxTagRenderer,
+        GuideSiteLatexExporter latexExporter, @Nullable GuideSitePageAssetExporter assetExporter,
+        GuideSiteItemIconResolver itemIconResolver) {
         this.fragmentCompiler = new GuideSiteHtmlCompiler(
             recipeTagRenderer,
             (element, defaultNamespace, currentPageId, templates, exportedScene) -> "",
@@ -69,6 +91,7 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
             latexExporter,
             assetExporter);
         this.assetExporter = assetExporter;
+        this.itemIconResolver = itemIconResolver != null ? itemIconResolver : GuideSiteItemIconResolver.NONE;
     }
 
     @Override
@@ -209,7 +232,7 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
         }
         if (exportedScene.gridButtonEnabled()) {
             html.append(" data-scene-grid-toggle=\"true\" data-scene-grid-visible=\"")
-                .append(Boolean.toString(exportedScene.gridVisible()))
+                .append(exportedScene.gridVisible())
                 .append("\"");
             if (exportedScene.gridAnnotationJson() != null && !exportedScene.gridAnnotationJson()
                 .isEmpty()) {
@@ -220,7 +243,7 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
         }
         if (exportedScene.blockStatsButtonEnabled()) {
             html.append(" data-scene-block-stats-toggle=\"true\" data-scene-block-stats-visible=\"")
-                .append(Boolean.toString(exportedScene.blockStatsVisible()))
+                .append(exportedScene.blockStatsVisible())
                 .append("\"");
         }
     }
@@ -299,7 +322,7 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
             .append("\" data-scene-height=\"")
             .append(normalizedHeight)
             .append("\" data-scene-interactive=\"")
-            .append(Boolean.toString(interactive))
+            .append(interactive)
             .append("\" data-scene-default-namespace=\"")
             .append(escapeAttributeStatic(defaultNamespace != null ? defaultNamespace : "guidenh"))
             .append("\" data-scene-display-scale=\"")
@@ -410,9 +433,10 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
                         null,
                         null,
                         normalizeColor(readOptional(flowElement, "color"), "#ffffff"),
-                        readFloat(flowElement, "thickness", 1.0f),
+                        readFloat(flowElement, "thickness", InWorldBoxAnnotation.DEFAULT_THICKNESS),
                         createTemplateId(flowElement, defaultNamespace, currentPageId, templates),
-                        readBooleanValue(flowElement, "alwaysOnTop", false)));
+                        readBooleanValue(flowElement, "alwaysOnTop", false),
+                        parseStructureLibCondition(flowElement)));
                 continue;
             }
 
@@ -428,16 +452,17 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
                         null,
                         null,
                         normalizeColor(readOptional(flowElement, "color"), "#ffffff"),
-                        readFloat(flowElement, "thickness", 1.0f),
+                        readFloat(flowElement, "thickness", InWorldBoxAnnotation.DEFAULT_THICKNESS),
                         createTemplateId(flowElement, defaultNamespace, currentPageId, templates),
-                        readBooleanValue(flowElement, "alwaysOnTop", false)));
+                        readBooleanValue(flowElement, "alwaysOnTop", false),
+                        parseStructureLibCondition(flowElement)));
                 continue;
             }
 
             if ("LineAnnotation".equals(name)) {
                 List<float[]> points = parseLinePoints(flowElement);
-                float[] from = points.get(0);
-                float[] to = points.get(points.size() - 1);
+                float[] from = points.getFirst();
+                float[] to = points.getLast();
                 inWorld.add(
                     buildInWorldAnnotation(
                         "line",
@@ -446,10 +471,11 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
                         from,
                         to,
                         normalizeColor(readOptional(flowElement, "color"), "#ffffff"),
-                        readFloat(flowElement, "thickness", 1.0f),
+                        readFloat(flowElement, "thickness", InWorldLineAnnotation.DEFAULT_THICKNESS),
                         createTemplateId(flowElement, defaultNamespace, currentPageId, templates),
-                        readBooleanValue(flowElement, "alwaysOnTop", false)));
-                Map<String, Object> data = inWorld.get(inWorld.size() - 1);
+                        readBooleanValue(flowElement, "alwaysOnTop", false),
+                        parseStructureLibCondition(flowElement)));
+                Map<String, Object> data = inWorld.getLast();
                 data.put("points", points);
                 String arrow = readOptional(flowElement, "arrow");
                 if (arrow != null && !arrow.isEmpty()) {
@@ -466,7 +492,12 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
                             .toString()));
                 data.put(
                     "pointSize",
-                    readFloat(flowElement, "pointSize", readFloat(flowElement, "thickness", 1.0f) * 1.25f));
+                    GuideSiteSceneAnnotationSerializer.exportWorldAnnotationSize(
+                        readFloat(
+                            flowElement,
+                            "pointSize",
+                            readFloat(flowElement, "thickness", InWorldLineAnnotation.DEFAULT_THICKNESS)
+                                * InWorldLineAnnotation.DEFAULT_POINT_SIZE_SCALE)));
                 List<Map<String, Object>> pointStyles = collectLinePointStyles(flowElement);
                 if (!pointStyles.isEmpty()) {
                     data.put("pointStyles", pointStyles);
@@ -477,13 +508,30 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
             if ("DiamondAnnotation".equals(name)) {
                 float[] pos = parseVector3(readOptional(flowElement, "pos"), new float[] { 0f, 0f, 0f });
                 Map<String, Object> data = new LinkedHashMap<>();
-                data.put("type", "overlay");
+                data.put("type", "diamond");
                 data.put("position", pos);
                 data.put("color", normalizeColor(readOptional(flowElement, "color"), "#00e000"));
+                appendStructureLibCondition(data, parseStructureLibCondition(flowElement));
                 String templateId = createTemplateId(flowElement, defaultNamespace, currentPageId, templates);
                 if (templateId != null) {
                     data.put("contentTemplateId", templateId);
                 }
+                overlay.add(data);
+                continue;
+            }
+
+            if ("TextAnnotation".equals(name)) {
+                Map<String, Object> data = buildTextAnnotationData(
+                    flowElement,
+                    defaultNamespace,
+                    currentPageId,
+                    templates);
+                overlay.add(data);
+                continue;
+            }
+
+            if ("InputAnnotation".equals(name)) {
+                Map<String, Object> data = buildInputAnnotationData(flowElement);
                 overlay.add(data);
             }
         }
@@ -491,8 +539,189 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
         return new AnnotationPayload(GSON.toJson(inWorld), GSON.toJson(overlay));
     }
 
+    private Map<String, Object> buildTextAnnotationData(MdxJsxElementFields flowElement, String defaultNamespace,
+        ResourceLocation currentPageId, GuideSiteTemplateRegistry templates) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("type", "text");
+        data.put("position", parseTextAnnotationPosition(flowElement));
+        data.put("color", normalizeColor(readOptional(flowElement, "color"), "#ffffffff"));
+        data.put("text", compileTextAnnotationHtml(flowElement, defaultNamespace, currentPageId, templates));
+        data.put("plainText", resolveTextAnnotationPlainText(flowElement));
+        data.put("maxWidth", Math.max(0, readDimension(flowElement, "maxWidth", 0)));
+        data.put(
+            "backgroundAlpha",
+            clampInt(readDimension(flowElement, "backgroundAlpha", TextAnnotation.DEFAULT_BACKGROUND_ALPHA), 0, 255));
+        data.put("independent", readBooleanValue(flowElement, "independent", false));
+        data.put("screenYOffset", readFloat(flowElement, "yOffset", 0f));
+        data.put("connectorSide", normalizeConnectorSide(readOptional(flowElement, "connectorSide")));
+        data.put("connectorOffset", readDimension(flowElement, "connectorOffset", 0));
+        data.put(
+            "connectorLength",
+            Math.max(0, readDimension(flowElement, "connectorLength", TextAnnotation.CONNECTOR_HEIGHT)));
+        appendStructureLibCondition(data, parseStructureLibCondition(flowElement));
+        return data;
+    }
+
+    private Map<String, Object> buildInputAnnotationData(MdxJsxElementFields flowElement) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("type", "input");
+        data.put("position", parseTextAnnotationPosition(flowElement));
+        data.put("inputType", resolveInputType(readOptional(flowElement, "inputType")));
+        String modifier = normalizeOptionalText(readOptional(flowElement, "modifier"));
+        if (modifier != null) {
+            data.put("modifier", modifier);
+        }
+        GuideSiteExportedItem item = resolveExportedInputItem(readOptional(flowElement, "item"));
+        if (item != null && !item.isEmpty()) {
+            data.put("item", serializeExportedItem(item));
+        }
+        appendStructureLibCondition(data, parseStructureLibCondition(flowElement));
+        return data;
+    }
+
+    private float[] parseTextAnnotationPosition(MdxJsxElementFields flowElement) {
+        String pos = readOptional(flowElement, "pos");
+        if (pos != null && !pos.trim()
+            .isEmpty()) {
+            return parseVector3(pos, new float[] { 0f, 0f, 0f });
+        }
+        return new float[] { readFloat(flowElement, "x", 0f), readFloat(flowElement, "y", 0f),
+            readFloat(flowElement, "z", 0f) };
+    }
+
+    private String compileTextAnnotationHtml(MdxJsxElementFields flowElement, String defaultNamespace,
+        ResourceLocation currentPageId, GuideSiteTemplateRegistry templates) {
+        String source = resolveTextAnnotationPlainText(flowElement);
+        if (source == null || source.trim()
+            .isEmpty()) {
+            return "";
+        }
+        if (flowElement.children() != null && !flowElement.children()
+            .isEmpty()) {
+            String html = fragmentCompiler
+                .compileFragment(flowElement.children(), templates, defaultNamespace, currentPageId);
+            if (html != null && !html.trim()
+                .isEmpty()) {
+                return html;
+            }
+        }
+        return GuideSiteSceneAnnotationSerializer.renderPlainTextFragment(source);
+    }
+
+    private String resolveTextAnnotationPlainText(MdxJsxElementFields flowElement) {
+        String textKey = readOptional(flowElement, "textKey");
+        if (textKey != null && !textKey.trim()
+            .isEmpty()) {
+            String localized = GuideResourceLanguageIndex.getValue(LangUtil.getCurrentLanguage(), textKey.trim());
+            if (localized != null && !localized.isEmpty()) {
+                return localized;
+            }
+        }
+        String text = readOptional(flowElement, "text");
+        if (text != null && !text.trim()
+            .isEmpty()) {
+            return text;
+        }
+        StringBuilder builder = new StringBuilder();
+        for (MdAstAnyContent child : flowElement.children()) {
+            if (child instanceof MdAstNode node) {
+                if (!builder.isEmpty()) {
+                    builder.append('\n');
+                }
+                builder.append(node.toText());
+            }
+        }
+        return builder.toString();
+    }
+
+    private String normalizeConnectorSide(@Nullable String rawConnectorSide) {
+        if (rawConnectorSide == null || rawConnectorSide.trim()
+            .isEmpty()) {
+            return TextAnnotation.ConnectorSide.BOTTOM.serializedName();
+        }
+        try {
+            return TextAnnotation.ConnectorSide.fromSerializedName(rawConnectorSide)
+                .serializedName();
+        } catch (IllegalArgumentException ignored) {
+            return TextAnnotation.ConnectorSide.BOTTOM.serializedName();
+        }
+    }
+
+    private String resolveInputType(@Nullable String rawInputType) {
+        if (rawInputType == null) {
+            return PonderInputAnnotation.InputType.LMB.name()
+                .toLowerCase();
+        }
+        return switch (rawInputType.trim()
+            .toLowerCase()) {
+            case "rmb", "rightclick", "right_click", "right-click" -> PonderInputAnnotation.InputType.RMB.name()
+                .toLowerCase();
+            case "scroll", "scrollwheel", "scroll_wheel", "scroll-wheel" -> PonderInputAnnotation.InputType.SCROLL
+                .name()
+                .toLowerCase();
+            default -> PonderInputAnnotation.InputType.LMB.name()
+                .toLowerCase();
+        };
+    }
+
+    @Nullable
+    private GuideSiteExportedItem resolveExportedInputItem(@Nullable String rawItemId) {
+        String itemId = normalizeOptionalText(rawItemId);
+        if (itemId == null) {
+            return null;
+        }
+        ItemStack stack = resolveItemStack(itemId);
+        if (stack == null || stack.getItem() == null) {
+            return GuideSiteItemSupport.unresolved(itemId);
+        }
+        return GuideSiteItemSupport.export(null, stack, itemIconResolver, itemId);
+    }
+
+    @Nullable
+    private ItemStack resolveItemStack(@Nullable String itemId) {
+        String normalized = normalizeOptionalText(itemId);
+        if (normalized == null) {
+            return null;
+        }
+        String registryId = normalized;
+        int meta = 0;
+        int firstColon = normalized.indexOf(':');
+        int lastColon = normalized.lastIndexOf(':');
+        if (firstColon >= 0 && firstColon != lastColon) {
+            try {
+                meta = Integer.parseInt(normalized.substring(lastColon + 1));
+                registryId = normalized.substring(0, lastColon);
+            } catch (NumberFormatException ignored) {
+                registryId = normalized;
+            }
+        }
+        Item item = (Item) Item.itemRegistry.getObject(registryId);
+        if (item == null) {
+            return null;
+        }
+        return new ItemStack(item, 1, meta);
+    }
+
+    @Nullable
+    private String normalizeOptionalText(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private Map<String, Object> serializeExportedItem(GuideSiteExportedItem item) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("itemId", item.itemId());
+        data.put("displayName", item.displayName());
+        data.put("iconSrc", item.iconSrc());
+        return data;
+    }
+
     private Map<String, Object> buildInWorldAnnotation(String type, float[] min, float[] max, float[] from, float[] to,
-        String color, float thickness, String templateId, boolean alwaysOnTop) {
+        String color, float thickness, String templateId, boolean alwaysOnTop,
+        @Nullable StructureLibSceneCondition structureLibCondition) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("type", type);
         if (min != null) {
@@ -508,11 +737,12 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
             data.put("to", to);
         }
         data.put("color", color);
-        data.put("thickness", thickness);
+        data.put("thickness", GuideSiteSceneAnnotationSerializer.exportWorldAnnotationSize(thickness));
         if (templateId != null) {
             data.put("contentTemplateId", templateId);
         }
         data.put("alwaysOnTop", alwaysOnTop);
+        appendStructureLibCondition(data, structureLibCondition);
         return data;
     }
 
@@ -556,11 +786,30 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
                 style.put("color", normalizeColor(color, "#ffffff"));
             }
             if (pointElement.hasAttribute("size")) {
-                style.put("size", readFloat(pointElement, "size", 1.25f));
+                style.put(
+                    "size",
+                    GuideSiteSceneAnnotationSerializer.exportWorldAnnotationSize(
+                        readFloat(pointElement, "size", InWorldLineAnnotation.DEFAULT_POINT_SIZE_SCALE)));
             }
             styles.add(style);
         }
         return styles;
+    }
+
+    @Nullable
+    private StructureLibSceneCondition parseStructureLibCondition(MdxJsxElementFields element) {
+        return StructureLibSceneCondition.parse(
+            readOptional(element, "showWhenStructure"),
+            readOptional(element, "showWhenTier"),
+            readOptional(element, "showWhenChannels"));
+    }
+
+    private void appendStructureLibCondition(Map<String, Object> data,
+        @Nullable StructureLibSceneCondition structureLibCondition) {
+        if (data == null || structureLibCondition == null || !structureLibCondition.hasAnyConstraint()) {
+            return;
+        }
+        data.put("structureLibCondition", structureLibCondition.toSiteExportData());
     }
 
     private String createTemplateId(MdxJsxElementFields element, String defaultNamespace,
@@ -651,8 +900,8 @@ public class GuideSiteSceneTagRenderer implements GuideSiteHtmlCompiler.SceneTag
         }
     }
 
-    private String readBoolean(MdxJsxElementFields element, String name, boolean fallback) {
-        return Boolean.toString(readBooleanValue(element, name, fallback));
+    private int clampInt(int value, int min, int max) {
+        return Math.clamp(value, min, max);
     }
 
     private boolean readBooleanValue(MdxJsxElementFields element, String name, boolean fallback) {

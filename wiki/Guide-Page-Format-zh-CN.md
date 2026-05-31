@@ -269,7 +269,7 @@ GuideNH 会读取第一个 YAML frontmatter 块，并解析这些已知键：
 | 键 | 类型 | 含义 |
 | --- | --- | --- |
 | `navigation` | map | 将页面加入导航树 |
-| `categories` | 字符串列表 | 将页面加入分类索引 |
+| `categories` | 字符串列表 | 将页面加入 MediaWiki 风格分类；每一项可选使用 `分类名|排序名` |
 | `item_ids` | 物品引用列表 | 让页面可被 `<ItemLink>` 发现 |
 | `ore_ids` | 矿辞名列表 | 让页面可被矿辞物品（如 `ingotIron`、`oreCopper`）索引 |
 | `quest_ids` | BetterQuesting 任务 id 列表 | 让页面可被 `<QuestLink>` / `<QuestCard>` 以及 BQ 任务 GUI 中的打开指南快捷键发现。支持标准 UUID 字符串和 BetterQuesting 的紧凑 Base64 形式。仅在 BetterQuesting 加载时生效。参见 [模组兼容](Mod-Compatibility-zh-CN) |
@@ -328,7 +328,7 @@ navigation:
   #   - test2.png
 categories:
   - basics
-  - examples
+  - examples|Examples Overview
 ore_ids:
   - ingotIron
   - oreCopper
@@ -339,6 +339,10 @@ author: 示例作者
 date: 2024-01-15
 updated: 2024-06-01
 ```
+
+`categories` 既支持普通分类名，也支持 `分类名|排序名` 形式。
+可以使用 `<Category name="examples" rows="3" />` 渲染分类列表块，
+并使用 `<Special name="SpecialPages" rows="3" />` 嵌入自动生成的 MediaWiki 风格特殊页索引。
 
 对于 BetterQuesting 集成，`quest_ids` 支持两种格式：
 

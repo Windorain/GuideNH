@@ -95,7 +95,9 @@ The `src` attribute accepts both relative and absolute IDs:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `time` | integer | Yes | Tick at which this keyframe occurs (0 <= time <= totalTime). |
-| `label` | string | No | Optional label shown when hovering the keyframe node on the progress bar. |
+| `hidden` | boolean | No | When `true`, the keyframe still applies camera/NBT/entity/annotation state at its `time`, but no visible node is drawn for it on the progress bar and visible keyframe navigation skips it. |
+| `label` | string | No | Optional fallback label shown when hovering the keyframe node on the progress bar. |
+| `labelKey` | string | No | Translation key for the keyframe label. When resolved, it overrides `label`. |
 | `camera` | object | No | Camera state at this keyframe. Null fields inherit from the previous keyframe. |
 | `cameraEaseTicks` | integer or null | No | How many ticks the camera takes to ease from the **previous** keyframe to this one. `null` (default) = ease over the full segment. `0` = instant snap. `N > 0` = ease over N ticks, then hold at the target position. |
 | `layer` | integer or null | No | Visible layer override. `null` (or omitted) shows all layers. 1-based index. |
@@ -111,6 +113,11 @@ The `src` attribute accepts both relative and absolute IDs:
 | `mergeEntityNBT` | array | No | Merge an SNBT compound into a referenced entity. |
 | `modifyEntityNBT` | array | No | Set one referenced entity NBT path to an SNBT value. |
 | `removeEntityNBT` | array | No | Remove one referenced entity NBT path. |
+| `removeEntities` | array | No | Remove one or more Ponder-owned entities by `ref` using the stable scene-entity registry. |
+
+Hidden keyframes are useful when you want additional intermediate state changes without adding a new visible node
+to the timeline. For example, you can split several `modifyTileNBT` updates across multiple ticks, mark the
+intermediate keyframes as hidden, and keep only the major beats visible on the progress bar.
 
 ### Camera fields
 
@@ -225,7 +232,7 @@ Generic particles:
       "vz": 0.0,
       "size": 0.18,
       "time": 16,
-      "count": 3
+      "amount": 3
     }
   ]
 }
@@ -261,7 +268,7 @@ Weather preset:
       "x": [0, 2],
       "z": [0, 2],
       "time": 100,
-      "count": 8
+      "amount": 8
     }
   ]
 }
@@ -279,7 +286,7 @@ Particle fields:
 | `vx`, `vy`, `vz` | float | `0.0` | Initial motion vector. `motionX/Y/Z` are accepted aliases. |
 | `time` / `lifetime` | integer | preset-specific | Particle lifetime in ticks. For `preset: "rain"` this is the total weather duration, including fade-in and fade-out. |
 | `size` | float | preset-specific | Generic particle half-size in block units. |
-| `count` | integer | preset-specific | Generic particle count. For `explosion`, omitted count scales from `power`. For `preset: "rain"`, this is the average per-tick weather density. |
+| `amount` | integer | preset-specific | Generic particle count. For `explosion`, omitted amount scales from `power`. For `preset: "rain"`, this is the average per-tick weather density. |
 | `power` | float | `2.0` | Explosion strength for the `explosion` preset. |
 
 Weather preset notes:
@@ -357,6 +364,7 @@ their own entities with `createEntities`, then target those entities by `ref` in
   "createEntities": [
     {
       "ref": "marker",
+      "sceneEntityId": "marker",
       "id": "minecraft:pig",
       "x": 1.5, "y": 1.0, "z": 2.5,
       "yaw": 180,
@@ -369,11 +377,15 @@ their own entities with `createEntities`, then target those entities by `ref` in
 | Field | Description |
 |-------|-------------|
 | `ref` | Required local reference name for later operations. |
+| `sceneEntityId` | Optional stable scene-local id used for mount relations, replay-safe replacement, import/export restore, and any later removal of this logical entity. Defaults to an internal id derived from `ref`. |
 | `id` | Entity ID, e.g. `minecraft:pig`, `Pig`, or a mod entity ID supported by the scene entity loader. |
 | `x`, `y`, `z` | Optional spawn position. Defaults to `0, 0, 0` unless `nbt` supplies `Pos`. |
 | `yaw`, `pitch` | Optional spawn rotation. Defaults to `0, 0` unless `nbt` supplies `Rotation`. |
+| `bodyYaw`, `headYaw` | Optional living-entity body/head yaw overrides. If omitted while `yaw` is present, they follow `yaw`. |
 | `nbt` | Optional SNBT compound applied when the entity is created. |
 | `name`, `uuid` | Optional preview-player profile fields when creating a preview player entity. |
+| `mount` | Optional stable `sceneEntityId` of the vehicle that this entity should ride after creation or later replay. |
+| `unmount` | Optional boolean that clears the entity's current stable mount relation before any later `mount` is applied. |
 
 After creation, use the entity NBT operations:
 
@@ -403,9 +415,48 @@ After creation, use the entity NBT operations:
 }
 ```
 
+Entity actions can also update transform, preview-player pose, and stable mount state without
+changing NBT:
+
+```json
+{
+  "time": 80,
+  "createEntities": [
+    { "ref": "cart", "sceneEntityId": "cart", "id": "minecraft:minecart", "x": 1.5, "y": 1.0, "z": 1.5 },
+    { "ref": "rider", "sceneEntityId": "rider", "id": "player", "name": "GuideNH", "x": 1.5, "y": 1.0, "z": 1.5, "mount": "cart" }
+  ],
+  "modifyEntityNBT": [
+    { "ref": "rider", "headYaw": 270.0, "leftArmRotation": "-40 0 0" }
+  ]
+}
+```
+
+To detach or remove a timeline entity, use `unmount` or `removeEntities`:
+
+```json
+{
+  "time": 120,
+  "modifyEntityNBT": [
+    { "ref": "rider", "unmount": true, "x": 2.5, "y": 1.0, "z": 1.5 }
+  ],
+  "removeEntities": [
+    { "ref": "cart" }
+  ]
+}
+```
+
 Like tile operations, entity operations are replayed from the beginning whenever the active
 keyframe changes, so seeking backwards removes Ponder-created entities and recreates the correct
 state for the target tick.
+
+Notes:
+
+- `ref` identifies which Ponder-owned entity the current action should edit or remove.
+- `sceneEntityId` and `mount` identify stable cross-entity relations. `mount` always points to a
+  stable scene id, not to another `ref`.
+- Relying on raw passenger NBT alone is not recommended for cross-entity scene relationships. The
+  stable registry is what keeps mount and removal behavior deterministic across replay, rebuild,
+  import/export, and editor preview refresh.
 
 ---
 
@@ -442,7 +493,8 @@ Renders a 3D diamond marker at a world position.
 |-------|------|---------|-------------|
 | `x`, `y`, `z` | float | `0.0` | World-space position of the diamond tip. |
 | `color` | string | `"0xFF00E000"` | ARGB color as `"0xAARRGGBB"`. |
-| `tooltip` | string | `""` | Text shown on hover. |
+| `tooltip` | string | `""` | Fallback text shown on hover. |
+| `tooltipKey` | string | `""` | Translation key for the hover text. When resolved, it overrides `tooltip`. |
 | `alwaysOnTop` | boolean | `false` | If true, rendered through solid blocks. |
 
 ---
@@ -694,11 +746,11 @@ Colors are ARGB hexadecimal strings. Both `"0xFFFFFF00"` (with `0x` prefix) and
 
 | Control | Action |
 |---------|--------|
-| **Prev keyframe** | Jump to the start of the previous keyframe segment. |
+| **Prev keyframe** | Jump to the start of the previous visible keyframe segment. Hidden keyframes are skipped. |
 | **Play/Pause** | Toggle playback; restarts from the beginning if already finished. |
 | **Restart** | Return to tick 0, reset state, and begin playing. |
 | Progress bar | Click or drag to seek to any position. Seeking always pauses playback. |
-| Keyframe nodes | Small tick marks on the bar; hover to see the label and direction arrow. |
+| Keyframe nodes | Small tick marks on the bar for visible keyframes; hover to see the label and direction arrow. |
 
 ### Initial state
 
@@ -720,6 +772,7 @@ While playback is **paused** or **finished**:
 When you hover over a keyframe node on the progress bar:
 - The node grows slightly to indicate it is hovered.
 - If the keyframe has a `label`, it is displayed beside the node.
+- Hidden keyframes do not create hoverable nodes, but they still apply their timeline state when playback or seeking reaches them.
 
 ### Layer control during playback
 

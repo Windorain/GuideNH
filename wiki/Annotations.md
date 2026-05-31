@@ -171,6 +171,7 @@ bubble text itself rather than a hover tooltip.
 | `pos` | no | `x y z` world-space anchor vector |
 | `x`, `y`, `z` | no | Alternative world-space anchor components when `pos` is omitted |
 | `text` | no | Bubble text; child markdown is used when omitted |
+| `textKey` | no | Translation key resolved from resource-pack `lang` files before falling back to `text` or child markdown |
 | `color` | no | Bubble border color; defaults to light grey |
 | `backgroundAlpha` | no | Background opacity from `0` to `255`; defaults to `204` |
 | `maxWidth` | no | Wrap width in pixels; `0` keeps a single line |
@@ -193,6 +194,7 @@ Example:
 ````md
 <TextAnnotation
   pos="1.5 2 1.5"
+  textKey="guidenh.sample.scene.insert_items"
   color="#FF44AAFF"
   maxWidth={120}
   backgroundAlpha={180}

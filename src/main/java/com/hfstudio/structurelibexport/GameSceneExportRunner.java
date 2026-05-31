@@ -5,7 +5,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -85,8 +84,8 @@ public class GameSceneExportRunner {
                                     target.toString(),
                                     renderPlan.width,
                                     renderPlan.height,
-                                    Collections.emptyList(),
-                                    Collections.emptyList()));
+                                    List.of(),
+                                    List.of()));
                             checkpointManifest(sender, outputDirectory, manifest, options);
                             continue;
                         }
@@ -107,12 +106,12 @@ public class GameSceneExportRunner {
                             new GameSceneExportManifest.Entry(
                                 true,
                                 renderTask,
-                                image.getPath()
+                                image.path()
                                     .toString(),
-                                image.getWidth(),
-                                image.getHeight(),
-                                Collections.emptyList(),
-                                Collections.emptyList()));
+                                image.width(),
+                                image.height(),
+                                List.of(),
+                                List.of()));
                         checkpointManifest(sender, outputDirectory, manifest, options);
                     } catch (Throwable t) {
                         failureCount++;
@@ -125,7 +124,7 @@ public class GameSceneExportRunner {
                                 target.toString(),
                                 0,
                                 0,
-                                Collections.emptyList(),
+                                List.of(),
                                 errors));
                         checkpointManifest(sender, outputDirectory, manifest, options);
                     }
@@ -191,11 +190,11 @@ public class GameSceneExportRunner {
         List<InWorldAnnotation> annotations = scene
             .collectInWorldAnnotationsForExport(task.isShowAnnotations(), task.isShowGrid(), layers);
         List<OverlayAnnotation> overlays = task.isShowAnnotations() ? scene.collectOverlayAnnotationsForExport(layers)
-            : Collections.emptyList();
+            : List.of();
         return new ExportRenderPlan(
-            fittedCamera.getCamera(),
-            fittedCamera.getWidth(),
-            fittedCamera.getHeight(),
+            fittedCamera.camera(),
+            fittedCamera.width(),
+            fittedCamera.height(),
             layers,
             annotations,
             overlays);
@@ -207,7 +206,7 @@ public class GameSceneExportRunner {
         List<InWorldAnnotation> annotations = scene
             .collectInWorldAnnotationsForExport(task.isShowAnnotations(), false, layers);
         List<OverlayAnnotation> overlays = task.isShowAnnotations() ? scene.collectOverlayAnnotationsForExport(layers)
-            : Collections.emptyList();
+            : List.of();
         if (annotations.isEmpty() && overlays.isEmpty()) {
             throw new CommandException("GameScene has no blocks or annotations to render.");
         }
@@ -217,9 +216,9 @@ public class GameSceneExportRunner {
         }
         StructureLibSceneCameraFitter.FittedCamera fittedCamera = fitSceneCamera(scene, task);
         return new ExportRenderPlan(
-            fittedCamera.getCamera(),
-            fittedCamera.getWidth(),
-            fittedCamera.getHeight(),
+            fittedCamera.camera(),
+            fittedCamera.width(),
+            fittedCamera.height(),
             layers,
             annotations,
             overlays);
@@ -330,8 +329,8 @@ public class GameSceneExportRunner {
             this.width = width;
             this.height = height;
             this.layers = layers;
-            this.annotations = annotations != null ? annotations : Collections.emptyList();
-            this.overlays = overlays != null ? overlays : Collections.emptyList();
+            this.annotations = annotations != null ? annotations : List.of();
+            this.overlays = overlays != null ? overlays : List.of();
         }
     }
 }

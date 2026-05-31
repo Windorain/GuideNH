@@ -1,6 +1,5 @@
 package com.hfstudio.guidenh.network;
 
-import java.util.Collections;
 import java.util.List;
 
 import net.minecraft.entity.Entity;
@@ -76,13 +75,12 @@ public class GuideNhRegionExportServerHandler implements IMessageHandler<GuideNh
             .text();
     }
 
-    @SuppressWarnings("unchecked")
     private List<Entity> collectEntities(EntityPlayer player, int minX, int minY, int minZ, int maxX, int maxY,
         int maxZ) {
         List<Entity> all = player.worldObj.getEntitiesWithinAABBExcludingEntity(
             null,
             AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX + 1, maxY + 1, maxZ + 1));
-        return all != null ? all : Collections.emptyList();
+        return all != null ? all : List.of();
     }
 
     private static String getErrorMessage(Throwable throwable) {

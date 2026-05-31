@@ -1,6 +1,5 @@
 package com.hfstudio.guidenh.guide.scene;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -45,10 +44,10 @@ public class SceneTagCompiler extends BlockTagCompiler {
     public static final LytErrorSink NOOP_ERROR_SINK = (compiler, text, node) -> {};
     private static final String[] SCENE_ROOT_TAG_NAMES = { "GameScene", "Scene" };
     private static final String[] SCENE_HEAVY_TAG_NAMES = { "ImportStructure", "ImportStructureLib", "PlaceBlock",
-        "RemoveBlocks", "ReplaceBlock", "Block", "Entity" };
+        "RemoveBlocks", "RemoveEntity", "ReplaceBlock", "Block", "Entity" };
     private static final int SCENE_HEAVY_ELEMENT_THRESHOLD = 8;
 
-    private Map<String, SceneElementTagCompiler> elementCompilers = Collections.emptyMap();
+    private Map<String, SceneElementTagCompiler> elementCompilers = Map.of();
     private final GuideSceneStructureFingerprintResolver structureFingerprintResolver = new GuideSceneStructureFingerprintResolver();
 
     public static boolean likelyHasHeavySceneWork(@Nullable ParsedGuidePage parsedPage) {
@@ -208,7 +207,7 @@ public class SceneTagCompiler extends BlockTagCompiler {
                     float zX = spanX > 0.5f ? (float) w / spanX : Float.MAX_VALUE;
                     float zY = spanY > 0.5f ? (float) h / spanY : Float.MAX_VALUE;
                     autoZoom = Math.min(zX, zY) * 0.85f;
-                    autoZoom = Math.max(LytGuidebookScene.MIN_ZOOM, Math.min(LytGuidebookScene.MAX_ZOOM, autoZoom));
+                    autoZoom = Math.clamp(autoZoom, LytGuidebookScene.MIN_ZOOM, LytGuidebookScene.MAX_ZOOM);
                 }
                 cam.setZoom(autoZoom);
                 // Restore any explicit offsets that were zeroed for the measurement pass.
@@ -306,12 +305,7 @@ public class SceneTagCompiler extends BlockTagCompiler {
             boolean[] result = new boolean[1];
             compiler.withBlockTagChildrenSourceContext(
                 flow,
-                () -> result[0] = compileSceneChildrenWithCache(
-                    scene,
-                    compiler,
-                    errorSink,
-                    children,
-                    Collections.emptyMap()));
+                () -> result[0] = compileSceneChildrenWithCache(scene, compiler, errorSink, children, Map.of()));
             return result[0];
         });
     }
@@ -459,7 +453,7 @@ public class SceneTagCompiler extends BlockTagCompiler {
         scene.setBlockStatsDock(BlockStatsDock.INSIDE);
         scene.setBlockStatsShowNames(false);
         scene.setBlockStatsFilterMode(BlockStatsFilterMode.BLACKLIST);
-        scene.setBlockStatsFilterKeys(Collections.emptySet());
+        scene.setBlockStatsFilterKeys(Set.of());
     }
 
     private static Set<String> parseBlockStatsFilter(String raw) {

@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets;
 
 import org.jetbrains.annotations.Nullable;
 
-public final class GuideNhStructureChunkAssembler {
+public class GuideNhStructureChunkAssembler {
 
     private final byte[][] chunks;
     private int received;
@@ -44,6 +44,6 @@ public final class GuideNhStructureChunkAssembler {
             }
             out.write(chunk, 0, chunk.length);
         }
-        return new String(out.toByteArray(), StandardCharsets.UTF_8);
+        return out.toString(StandardCharsets.UTF_8);
     }
 }

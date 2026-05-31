@@ -1,6 +1,5 @@
 package com.hfstudio.guidenh.guide.scene.annotation;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -139,6 +138,10 @@ public class TextAnnotation extends OverlayAnnotation {
         this.connectorLength = Math.max(0, connectorLength);
     }
 
+    public ColorValue getBorderColor() {
+        return borderColor;
+    }
+
     public Vector3f getWorldPos() {
         return worldPos;
     }
@@ -151,22 +154,47 @@ public class TextAnnotation extends OverlayAnnotation {
         return text;
     }
 
+    public int getMaxWidth() {
+        return maxWidth;
+    }
+
+    public float getScreenYOffset() {
+        return screenYOffset;
+    }
+
+    public ConnectorSide getConnectorSide() {
+        return connectorSide;
+    }
+
+    public int getConnectorOffset() {
+        return connectorOffset;
+    }
+
+    public int getConnectorLength() {
+        return connectorLength;
+    }
+
+    @Nullable
+    public LytParagraph getRichContent() {
+        return richContent;
+    }
+
     private List<String> getLines(FontRenderer fr, int contentWidth) {
         if (resolvedLines != null && resolvedWrapWidth == contentWidth) {
             return resolvedLines;
         }
         if (text == null || text.isEmpty()) {
-            resolvedLines = Collections.emptyList();
+            resolvedLines = List.of();
             resolvedWrapWidth = contentWidth;
             return resolvedLines;
         }
         if (contentWidth <= 0) {
-            resolvedLines = Collections.singletonList(text);
+            resolvedLines = List.of(text);
             resolvedWrapWidth = contentWidth;
             return resolvedLines;
         }
         List<String> wrapped = fr.listFormattedStringToWidth(text, contentWidth);
-        resolvedLines = wrapped.isEmpty() ? Collections.singletonList(text) : wrapped;
+        resolvedLines = wrapped.isEmpty() ? List.of(text) : wrapped;
         resolvedWrapWidth = contentWidth;
         return resolvedLines;
     }
@@ -320,7 +348,7 @@ public class TextAnnotation extends OverlayAnnotation {
             cachedMeasure = new LayoutMeasure(
                 contentBounds.width() + PADDING_X * 2,
                 contentBounds.height() + PADDING_Y * 2,
-                Collections.emptyList(),
+                List.of(),
                 availableWidth);
             cachedMeasureWrapWidth = wrapWidth;
             return cachedMeasure;
@@ -346,7 +374,7 @@ public class TextAnnotation extends OverlayAnnotation {
     private int resolveContentWrapWidth(int viewportWidth) {
         int viewportContentWidth = Math.max(1, viewportWidth - PADDING_X * 2 - 2);
         if (maxWidth > 0) {
-            return Math.max(1, Math.min(maxWidth, viewportContentWidth));
+            return Math.min(maxWidth, viewportContentWidth);
         }
         return viewportContentWidth;
     }
@@ -391,12 +419,11 @@ public class TextAnnotation extends OverlayAnnotation {
             case LEFT -> drawFilledRect(anchorX, anchorY - 1, bubble.x(), anchorY + 1, argb);
             case RIGHT -> drawFilledRect(bubble.right(), anchorY - 1, anchorX, anchorY + 1, argb);
             case BOTTOM -> drawFilledRect(anchorX - 1, bubble.bottom(), anchorX + 1, anchorY, argb);
-            case NONE -> {}
         }
     }
 
     private static int clampAlpha(int value) {
-        return Math.max(0, Math.min(255, value));
+        return Math.clamp(value, 0, 255);
     }
 
     private static class LayoutMeasure {

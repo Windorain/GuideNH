@@ -14,6 +14,11 @@ const SCENE_BUTTON_ICONS = {
   toggleGrid: [16, 64],
   toggleBlockStats: [0, 0],
 };
+const PONDER_INPUT_LABELS = {
+  lmb: "LMB",
+  rmb: "RMB",
+  scroll: "Scroll",
+};
 
 function findDescriptor(target, property) {
   let current = target;
@@ -162,6 +167,24 @@ function createSceneNode(documentRef, descriptor, variant) {
   return node;
 }
 
+function getSceneDisplayScale(descriptor) {
+  const rawScale = Number(descriptor?.attributes?.["data-scene-display-scale"]);
+  return Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1;
+}
+
+function splitOverlayAnnotations(annotations) {
+  const vendorAnnotations = [];
+  const htmlAnnotations = [];
+  for (const annotation of Array.isArray(annotations) ? annotations : []) {
+    if (annotation?.type === "text" || annotation?.type === "input") {
+      htmlAnnotations.push(annotation);
+      continue;
+    }
+    vendorAnnotations.push(annotation);
+  }
+  return { vendorAnnotations, htmlAnnotations };
+}
+
 function attachSceneContext(sceneContext) {
   const wrapper = sceneContext?.runtime?.wrapper;
   if (wrapper instanceof HTMLElement) {
@@ -172,6 +195,7 @@ function attachSceneContext(sceneContext) {
     }
     normalizeVendorSceneControls(wrapper);
     mountSceneActionControls(sceneContext);
+    mountSceneOverlayAnnotations(sceneContext);
   }
 }
 
@@ -191,6 +215,8 @@ function disposeSceneContext(sceneContext, removeWrapper = true) {
   runtime.controller?.dispose?.();
   runtime.tooltipBridge?.hide?.();
   runtime.abortController?.abort?.();
+  sceneContext.overlayRuntime?.dispose?.();
+  sceneContext.overlayRuntime = null;
   if (removeWrapper && wrapper?.isConnected) {
     wrapper.remove();
   }
@@ -250,6 +276,191 @@ function crossVector(a, b) {
 function normalizeVector(value, fallback = [1, 0, 0]) {
   const len = Math.hypot(value[0], value[1], value[2]);
   return len > 1e-6 ? [value[0] / len, value[1] / len, value[2] / len] : fallback;
+}
+
+function ensureSceneOverlayHost(wrapper) {
+  if (!(wrapper instanceof HTMLElement)) {
+    return null;
+  }
+  let host = wrapper.querySelector(":scope > .scene-annotation-overlay");
+  if (!(host instanceof HTMLElement)) {
+    host = wrapper.ownerDocument.createElement("div");
+    host.className = "scene-annotation-overlay";
+    wrapper.append(host);
+  }
+  return host;
+}
+
+function createTextAnnotationNode(documentRef, annotation, displayScale) {
+  const bubble = documentRef.createElement("div");
+  const connectorSide = annotation?.independent ? "none" : annotation?.connectorSide || "bottom";
+  bubble.className = "scene-text-annotation";
+  bubble.dataset.connectorSide = connectorSide;
+  bubble.innerHTML = typeof annotation?.text === "string" ? annotation.text : "";
+  bubble.style.setProperty("--annotation-border-color", annotation?.color || "rgba(255,255,255,1)");
+  const alpha = Math.max(0, Math.min(255, Number(annotation?.backgroundAlpha) || 0));
+  bubble.style.setProperty("--annotation-background", `rgba(14, 14, 32, ${alpha / 255})`);
+  const width = Math.max(0, Number(annotation?.maxWidth) || 0);
+  if (width > 0) {
+    bubble.style.maxWidth = `${width * displayScale}px`;
+  }
+  bubble.style.setProperty(
+    "--annotation-connector-length",
+    `${Math.max(0, Number(annotation?.connectorLength) || 0) * displayScale}px`,
+  );
+  bubble.style.setProperty(
+    "--annotation-connector-offset",
+    `${(Number(annotation?.connectorOffset) || 0) * displayScale}px`,
+  );
+  return bubble;
+}
+
+function createInputAnnotationNode(documentRef, annotation) {
+  const wrapper = documentRef.createElement("div");
+  wrapper.className = "scene-input-annotation";
+
+  const modifier = `${annotation?.modifier || ""}`.trim();
+  if (modifier) {
+    const modifierNode = documentRef.createElement("div");
+    modifierNode.className = "scene-input-annotation-modifier";
+    modifierNode.textContent = modifier === "sneak" ? "Sneak +" : modifier === "ctrl" ? "Ctrl +" : `${modifier} +`;
+    wrapper.append(modifierNode);
+  }
+
+  const body = documentRef.createElement("div");
+  body.className = "scene-input-annotation-body";
+  wrapper.append(body);
+
+  const item = annotation?.item;
+  if (item?.iconSrc) {
+    const icon = documentRef.createElement("img");
+    icon.className = "scene-input-annotation-item";
+    icon.src = item.iconSrc;
+    icon.alt = item.displayName || item.itemId || "";
+    icon.decoding = "async";
+    body.append(icon);
+  } else if (item?.displayName || item?.itemId) {
+    const fallback = documentRef.createElement("span");
+    fallback.className = "scene-input-annotation-item scene-input-annotation-item--fallback";
+    fallback.textContent = item.displayName || item.itemId;
+    body.append(fallback);
+  }
+
+  const input = documentRef.createElement("span");
+  input.className = "scene-input-annotation-key";
+  input.textContent = PONDER_INPUT_LABELS[`${annotation?.inputType || ""}`.toLowerCase()] || "LMB";
+  body.append(input);
+
+  return wrapper;
+}
+
+function createOverlayAnnotationNode(documentRef, annotation, displayScale) {
+  if (annotation?.type === "text") {
+    return createTextAnnotationNode(documentRef, annotation, displayScale);
+  }
+  if (annotation?.type === "input") {
+    return createInputAnnotationNode(documentRef, annotation);
+  }
+  return null;
+}
+
+function resolveOverlayAnchorPosition(sceneContext, annotation) {
+  const projector = sceneContext?.runtime?.controller?.projectWorldPosition;
+  const displayScale = getSceneDisplayScale(sceneContext?.descriptor);
+  if (annotation?.independent) {
+    const viewport = sceneContext?.runtime?.viewport;
+    if (!(viewport instanceof HTMLElement)) {
+      return null;
+    }
+    return {
+      x: viewport.clientWidth * 0.5,
+      y: viewport.clientHeight * 0.5 + (Number(annotation?.screenYOffset) || 0) * displayScale,
+      visible: true,
+    };
+  }
+  if (typeof projector !== "function") {
+    return null;
+  }
+  const projected = projector(vectorFromArray(annotation?.position));
+  return projected?.visible ? projected : null;
+}
+
+function updateOverlayAnnotationNode(node, annotation, anchor) {
+  if (!(node instanceof HTMLElement) || !anchor?.visible) {
+    if (node instanceof HTMLElement) {
+      node.hidden = true;
+    }
+    return;
+  }
+  node.hidden = false;
+  node.style.left = `${anchor.x}px`;
+  node.style.top = `${anchor.y}px`;
+}
+
+function mountSceneOverlayAnnotations(sceneContext) {
+  const wrapper = sceneContext?.runtime?.wrapper;
+  const host = ensureSceneOverlayHost(wrapper);
+  if (!(host instanceof HTMLElement)) {
+    return;
+  }
+  host.textContent = "";
+  const annotations = sceneContext?.htmlOverlayAnnotations;
+  if (!Array.isArray(annotations) || annotations.length === 0) {
+    sceneContext.overlayRuntime = {
+      dispose() {
+        host.textContent = "";
+      },
+    };
+    return;
+  }
+
+  const documentRef = host.ownerDocument;
+  const displayScale = getSceneDisplayScale(sceneContext?.descriptor);
+  const entries = [];
+  for (const annotation of annotations) {
+    const node = createOverlayAnnotationNode(documentRef, annotation, displayScale);
+    if (!(node instanceof HTMLElement)) {
+      continue;
+    }
+    host.append(node);
+    entries.push({ annotation, node });
+  }
+
+  let rafId = 0;
+  let disposed = false;
+  let resizeObserver = null;
+  const needsAnimation = sceneContext?.descriptor?.interactive
+    && entries.some((entry) => !entry.annotation?.independent);
+  const update = () => {
+    if (disposed) {
+      return;
+    }
+    for (const entry of entries) {
+      updateOverlayAnnotationNode(entry.node, entry.annotation, resolveOverlayAnchorPosition(sceneContext, entry.annotation));
+    }
+    if (needsAnimation) {
+      rafId = window.requestAnimationFrame(update);
+    }
+  };
+  update();
+
+  if (typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver(() => {
+      update();
+    });
+    resizeObserver.observe(host);
+  }
+
+  sceneContext.overlayRuntime = {
+    dispose() {
+      disposed = true;
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      resizeObserver?.disconnect?.();
+      host.textContent = "";
+    },
+  };
 }
 
 function computeAnnotationLineHalfThickness(thickness) {
@@ -728,11 +939,21 @@ function createPonderControl(documentRef, control, currentTick, onChange) {
       ? control.keyframes.map((keyframe) => Math.max(0, Number(keyframe?.time) || 0))
       : [];
   const uniqueTicks = [...new Set([0, ...ticks, Math.max(0, Number(control.totalTime) || 0)])].sort((a, b) => a - b);
+  const keyframeByTick = new Map();
+  const visibleKeyframeTicks = [];
+  if (Array.isArray(control.keyframes)) {
+    for (const keyframe of control.keyframes) {
+      const tick = Math.max(0, Number(keyframe?.time) || 0);
+      if (!keyframeByTick.has(tick)) {
+        keyframeByTick.set(tick, keyframe);
+        visibleKeyframeTicks.push(tick);
+      }
+    }
+    visibleKeyframeTicks.sort((a, b) => a - b);
+  }
 
   const describeTick = (tick) => {
-    const keyframe = Array.isArray(control.keyframes)
-      ? control.keyframes.find((candidate) => Math.max(0, Number(candidate?.time) || 0) === tick)
-      : null;
+    const keyframe = keyframeByTick.get(tick) ?? null;
     const label = typeof keyframe?.label === "string" && keyframe.label.length > 0 ? keyframe.label : "";
     const tickLabel = `${control.timeLabel || "Tick"} ${tick}`;
     return label ? `${label} - ${tickLabel}` : tickLabel;
@@ -763,7 +984,7 @@ function createPonderControl(documentRef, control, currentTick, onChange) {
   previousButton.addEventListener("click", () => {
     const current = Number(range.value) || 0;
     let previous = 0;
-    for (const tick of uniqueTicks) {
+    for (const tick of visibleKeyframeTicks) {
       if (tick < current) {
         previous = tick;
       } else {
@@ -1000,6 +1221,11 @@ async function recreateSceneRuntime(sceneContext, variant) {
 
   const replacement = createSceneNode(parent.ownerDocument, sceneContext.descriptor, variant);
   sceneContext.descriptor = captureSceneDescriptor(replacement);
+  const split = splitOverlayAnnotations(
+    parseSceneJsonAttribute(replacement.getAttribute("data-scene-overlay-annotations"), []),
+  );
+  replacement.setAttribute("data-scene-overlay-annotations", serializeSceneJsonAttribute(split.vendorAnnotations));
+  sceneContext.htmlOverlayAnnotations = split.htmlAnnotations;
   parent.insertBefore(replacement, sceneContext.runtime.wrapper);
 
   disposeSceneContext(sceneContext);
@@ -1022,6 +1248,8 @@ async function initializeScene(node) {
 
   const descriptor = captureSceneDescriptor(node);
   applySceneGridDescriptor(node, descriptor);
+  const split = splitOverlayAnnotations(parseSceneJsonAttribute(node.getAttribute("data-scene-overlay-annotations"), []));
+  node.setAttribute("data-scene-overlay-annotations", serializeSceneJsonAttribute(split.vendorAnnotations));
   const runtime = await setupVendorGameScene(node);
   if (!runtime) {
     return null;
@@ -1029,6 +1257,8 @@ async function initializeScene(node) {
 
   const sceneContext = {
     descriptor,
+    htmlOverlayAnnotations: split.htmlAnnotations,
+    overlayRuntime: null,
     runtime,
     manifest: null,
     currentState: null,

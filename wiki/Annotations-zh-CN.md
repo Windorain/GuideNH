@@ -169,6 +169,7 @@ GuideNH 会在每个轴上自动交换反向提供的 min/max 坐标。
 | `pos` | 否 | `x y z` 世界坐标锚点 |
 | `x`, `y`, `z` | 否 | 未提供 `pos` 时可用的独立坐标分量 |
 | `text` | 否 | 气泡文本；省略时使用子 Markdown 内容 |
+| `textKey` | 否 | 优先从资源包 `lang` 文件解析的翻译键；解析失败时回退到 `text` 或子 Markdown 内容 |
 | `color` | 否 | 气泡边框颜色，默认浅灰色 |
 | `backgroundAlpha` | 否 | 背景透明度，范围 `0` 到 `255`，默认 `204` |
 | `maxWidth` | 否 | 像素换行宽度；`0` 表示单行 |
@@ -187,6 +188,7 @@ GuideNH 会在每个轴上自动交换反向提供的 min/max 坐标。
 ````md
 <TextAnnotation
   pos="1.5 2 1.5"
+  textKey="guidenh.sample.scene.insert_items"
   color="#FF44AAFF"
   maxWidth={120}
   backgroundAlpha={180}

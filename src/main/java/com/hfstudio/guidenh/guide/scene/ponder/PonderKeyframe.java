@@ -1,6 +1,5 @@
 package com.hfstudio.guidenh.guide.scene.ponder;
 
-import java.util.Collections;
 import java.util.List;
 
 import org.jetbrains.annotations.Nullable;
@@ -18,8 +17,11 @@ import org.jetbrains.annotations.Nullable;
 public class PonderKeyframe {
 
     private int time;
+    private boolean hidden;
     @Nullable
     private String label;
+    @Nullable
+    private String labelKey;
     @Nullable
     private PonderKeyframeCameraState camera;
     @Nullable
@@ -49,6 +51,8 @@ public class PonderKeyframe {
     @Nullable
     private List<PonderKeyframeEntityAction> removeEntityNBT;
     @Nullable
+    private List<PonderKeyframeEntityAction> removeEntities;
+    @Nullable
     private List<PonderKeyframeEntityAnimation> animateEntities;
     /**
      * Maximum number of ticks over which the camera eases from the previous keyframe's position
@@ -67,9 +71,25 @@ public class PonderKeyframe {
         return time;
     }
 
+    public boolean isHidden() {
+        return hidden;
+    }
+
     @Nullable
     public String getLabel() {
         return label;
+    }
+
+    @Nullable
+    public String getLabelKey() {
+        return labelKey;
+    }
+
+    public void applyLocalizedLabel(@Nullable String localizedLabel) {
+        if (localizedLabel == null || localizedLabel.isEmpty()) {
+            return;
+        }
+        this.label = localizedLabel;
     }
 
     @Nullable
@@ -87,15 +107,15 @@ public class PonderKeyframe {
     }
 
     public List<PonderKeyframeAnnotation> getAnnotations() {
-        return annotations != null ? annotations : Collections.emptyList();
+        return annotations != null ? annotations : List.of();
     }
 
     public List<PonderKeyframeSound> getSounds() {
-        return sounds != null ? sounds : Collections.emptyList();
+        return sounds != null ? sounds : List.of();
     }
 
     public List<PonderKeyframeParticle> getParticles() {
-        return particles != null ? particles : Collections.emptyList();
+        return particles != null ? particles : List.of();
     }
 
     /**
@@ -104,43 +124,47 @@ public class PonderKeyframe {
      * changes from keyframes 0..active, so seeking backwards works correctly.
      */
     public List<PonderKeyframeBlockChange> getBlockChanges() {
-        return blockChanges != null ? blockChanges : Collections.emptyList();
+        return blockChanges != null ? blockChanges : List.of();
     }
 
     public List<PonderKeyframeTileNbtOperation> getMergeTileNBT() {
-        return mergeTileNBT != null ? mergeTileNBT : Collections.emptyList();
+        return mergeTileNBT != null ? mergeTileNBT : List.of();
     }
 
     public List<PonderKeyframeTileNbtOperation> getModifyTileNBT() {
-        return modifyTileNBT != null ? modifyTileNBT : Collections.emptyList();
+        return modifyTileNBT != null ? modifyTileNBT : List.of();
     }
 
     public List<PonderKeyframeTileNbtOperation> getRemoveTileNBT() {
-        return removeTileNBT != null ? removeTileNBT : Collections.emptyList();
+        return removeTileNBT != null ? removeTileNBT : List.of();
     }
 
     public List<PonderKeyframeEntityAction> getCreateEntities() {
-        return createEntities != null ? createEntities : Collections.emptyList();
+        return createEntities != null ? createEntities : List.of();
     }
 
     public List<PonderKeyframeEntityAction> getSetEntityNBT() {
-        return setEntityNBT != null ? setEntityNBT : Collections.emptyList();
+        return setEntityNBT != null ? setEntityNBT : List.of();
     }
 
     public List<PonderKeyframeEntityAction> getMergeEntityNBT() {
-        return mergeEntityNBT != null ? mergeEntityNBT : Collections.emptyList();
+        return mergeEntityNBT != null ? mergeEntityNBT : List.of();
     }
 
     public List<PonderKeyframeEntityAction> getModifyEntityNBT() {
-        return modifyEntityNBT != null ? modifyEntityNBT : Collections.emptyList();
+        return modifyEntityNBT != null ? modifyEntityNBT : List.of();
     }
 
     public List<PonderKeyframeEntityAction> getRemoveEntityNBT() {
-        return removeEntityNBT != null ? removeEntityNBT : Collections.emptyList();
+        return removeEntityNBT != null ? removeEntityNBT : List.of();
+    }
+
+    public List<PonderKeyframeEntityAction> getRemoveEntities() {
+        return removeEntities != null ? removeEntities : List.of();
     }
 
     public List<PonderKeyframeEntityAnimation> getAnimateEntities() {
-        return animateEntities != null ? animateEntities : Collections.emptyList();
+        return animateEntities != null ? animateEntities : List.of();
     }
 
     /**

@@ -146,15 +146,19 @@ navigation:
 
 ### `categories`
 
-A list of category tags. Pages with the same category are grouped together by `<CategoryIndex>`.
+A list of MediaWiki-style categories. Each entry can be either `category` or `category|sort key`.
 
 ```yaml
 categories:
   - markdown
-  - charts
+  - charts|Charts Overview
 ```
 
-On the parent page, use `<CategoryIndex category="markdown"></CategoryIndex>` to auto-generate a list of all pages in that category.
+On the parent page, use `<Category name="markdown" rows="3" />` to auto-generate a list of all pages in that category.
+Each category also gets an auto-generated hidden searchable page such as `Category:markdown`.
+GuideNH also provides hidden special pages such as `Special:SpecialPages`, `Special:AllPages`, and `Special:Categories`.
+Use `<Special name="SpecialPages" rows="3" />`, `<Special name="AllPages" rows="3" />`, or `<Special name="Categories" rows="3" />` to embed them directly.
+All `Special:*` pages stay out of normal guide search, while `Category:*` pages remain searchable.
 
 ### `item_ids`
 

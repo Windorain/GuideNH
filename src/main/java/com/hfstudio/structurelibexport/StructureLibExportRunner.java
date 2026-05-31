@@ -5,7 +5,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import net.minecraft.command.ICommandSender;
@@ -106,8 +105,8 @@ public class StructureLibExportRunner {
                                             true,
                                             renderTask,
                                             target.toString(),
-                                            fittedCamera.getWidth(),
-                                            fittedCamera.getHeight(),
+                                            fittedCamera.width(),
+                                            fittedCamera.height(),
                                             buildResult.getWarnings(),
                                             new ArrayList<>()));
                                     checkpointManifest(sender, outputDirectory, manifest, options, buildContext);
@@ -115,22 +114,22 @@ public class StructureLibExportRunner {
                                 }
                                 StructureLibSceneImageExporter.ExportedImage image = imageExporter.export(
                                     buildResult.getLevel(),
-                                    fittedCamera.getCamera(),
+                                    fittedCamera.camera(),
                                     layers,
                                     renderTask.getBackground(),
                                     target,
-                                    fittedCamera.getWidth(),
-                                    fittedCamera.getHeight(),
+                                    fittedCamera.width(),
+                                    fittedCamera.height(),
                                     options.getMaxPixels());
                                 successCount++;
                                 manifest.add(
                                     new StructureLibExportManifest.Entry(
                                         true,
                                         renderTask,
-                                        image.getPath()
+                                        image.path()
                                             .toString(),
-                                        image.getWidth(),
-                                        image.getHeight(),
+                                        image.width(),
+                                        image.height(),
                                         buildResult.getWarnings(),
                                         new ArrayList<>()));
                                 checkpointManifest(sender, outputDirectory, manifest, options, buildContext);
@@ -172,14 +171,14 @@ public class StructureLibExportRunner {
     }
 
     private List<StructureLibExportTaskSpec> planController(StructureLibControllerSpec controller,
-        StructureLibExportOptions options) throws Exception {
+        StructureLibExportOptions options) {
         try {
-            return planner.plan(Collections.singletonList(controller), options);
+            return planner.plan(List.of(controller), options);
         } catch (Exception e) {
             if (options.getController() != null) {
                 throw e;
             }
-            return Collections.emptyList();
+            return List.of();
         }
     }
 

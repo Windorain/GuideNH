@@ -1,8 +1,6 @@
 package com.hfstudio.guidenh.guide.scene;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import org.jetbrains.annotations.Nullable;
@@ -12,23 +10,20 @@ public class GuidebookSceneWeatherEffect {
     public static final int INFINITE_DURATION = -1;
 
     private final GuidebookSceneWeatherType weatherType;
-    @Nullable
-    private final int[] xValues;
-    @Nullable
-    private final int[] zValues;
+    private final int @Nullable [] xValues;
+    private final int @Nullable [] zValues;
     @Nullable
     private final List<GuidebookSceneWeatherArea> areas;
     private final int startTick;
     private final int durationTicks;
     private final int density;
     private final boolean transitionEnabled;
-    @Nullable
-    private int[] cachedBounds;
+    private int @Nullable [] cachedBounds;
     @Nullable
     private List<GuidebookSceneWeatherArea> cachedResolvedAreas;
 
-    public GuidebookSceneWeatherEffect(GuidebookSceneWeatherType weatherType, @Nullable int[] xValues,
-        @Nullable int[] zValues, int startTick, int durationTicks, int density, boolean transitionEnabled) {
+    public GuidebookSceneWeatherEffect(GuidebookSceneWeatherType weatherType, int @Nullable [] xValues,
+        int @Nullable [] zValues, int startTick, int durationTicks, int density, boolean transitionEnabled) {
         this(weatherType, xValues, zValues, null, startTick, durationTicks, density, transitionEnabled);
     }
 
@@ -37,13 +32,13 @@ public class GuidebookSceneWeatherEffect {
         this(weatherType, null, null, areas, startTick, durationTicks, density, transitionEnabled);
     }
 
-    private GuidebookSceneWeatherEffect(GuidebookSceneWeatherType weatherType, @Nullable int[] xValues,
-        @Nullable int[] zValues, @Nullable List<GuidebookSceneWeatherArea> areas, int startTick, int durationTicks,
+    private GuidebookSceneWeatherEffect(GuidebookSceneWeatherType weatherType, int @Nullable [] xValues,
+        int @Nullable [] zValues, @Nullable List<GuidebookSceneWeatherArea> areas, int startTick, int durationTicks,
         int density, boolean transitionEnabled) {
         this.weatherType = weatherType != null ? weatherType : GuidebookSceneWeatherType.RAIN;
         this.xValues = xValues != null ? Arrays.copyOf(xValues, xValues.length) : null;
         this.zValues = zValues != null ? Arrays.copyOf(zValues, zValues.length) : null;
-        this.areas = areas != null ? Collections.unmodifiableList(new ArrayList<>(areas)) : null;
+        this.areas = areas != null ? List.copyOf(areas) : null;
         this.startTick = Math.max(0, startTick);
         this.durationTicks = durationTicks == INFINITE_DURATION ? INFINITE_DURATION : Math.max(1, durationTicks);
         this.density = Math.max(1, density);
@@ -105,7 +100,7 @@ public class GuidebookSceneWeatherEffect {
         if (tailTicks < transitionTicks) {
             intensity = Math.min(intensity, tailTicks / transitionTicks);
         }
-        return Math.max(0.0f, Math.min(1.0f, intensity));
+        return Math.clamp(intensity, 0.0f, 1.0f);
     }
 
     public float resolveCoverage() {
@@ -113,7 +108,7 @@ public class GuidebookSceneWeatherEffect {
         if (baseline <= 0.0f) {
             return 1.0f;
         }
-        return Math.max(0.08f, Math.min(1.0f, density / baseline));
+        return Math.clamp(density / baseline, 0.08f, 1.0f);
     }
 
     public List<GuidebookSceneWeatherArea> resolveAreas(int[] bounds) {

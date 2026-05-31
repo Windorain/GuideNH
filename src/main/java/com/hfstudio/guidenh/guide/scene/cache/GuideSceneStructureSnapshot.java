@@ -1,12 +1,14 @@
 package com.hfstudio.guidenh.guide.scene.cache;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.Entity;
@@ -30,6 +32,7 @@ import com.hfstudio.guidenh.guide.scene.level.GuidebookTileEntityLoader;
 
 public class GuideSceneStructureSnapshot implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     private final List<BlockStateEntry> blocks = new ArrayList<>();
@@ -54,6 +57,7 @@ public class GuideSceneStructureSnapshot implements Serializable {
         restoreBlocks(level, explicitBlockIdsByPos);
         restoreTileEntities(level);
         restoreEntities(level);
+        restoreEntityMounts(level);
         restorePreviewAuthority(level);
         return level;
     }
@@ -121,18 +125,23 @@ public class GuideSceneStructureSnapshot implements Serializable {
             if (entityId == null) {
                 continue;
             }
+            String sceneEntityId = level.getSceneEntityId(entity.getEntityId());
+            GuidebookLevel.SceneEntityMountState mountState = level.getSceneEntityMountState(sceneEntityId);
             entities.add(
                 new EntityEntry(
                     entityId,
                     encodeCompound(tag),
+                    sceneEntityId,
                     entity instanceof EntityPlayer ? entity.getCommandSenderName() : null,
                     entity instanceof EntityPlayer && entity.getUniqueID() != null ? entity.getUniqueID()
                         .toString() : null,
+                    mountState != null ? mountState.vehicleSceneEntityId() : null,
+                    mountState == null ? null : Boolean.FALSE,
                     entity instanceof GuidebookNameplateControllable nameplateControllable
-                        ? Boolean.valueOf(nameplateControllable.isGuidebookNameplateVisible())
+                        ? nameplateControllable.isGuidebookNameplateVisible()
                         : null,
                     entity instanceof GuidebookCapeControllable capeControllable
-                        ? Boolean.valueOf(capeControllable.isGuidebookCapeVisible())
+                        ? capeControllable.isGuidebookCapeVisible()
                         : null,
                     capturePreviewPlayerPose(entity),
                     entity instanceof EntityPlayer ? tryReadIsChild(entity) : null));
@@ -142,8 +151,7 @@ public class GuideSceneStructureSnapshot implements Serializable {
     private void captureExplicitBlockIds(GuidebookLevel level) {
         for (Map.Entry<Long, String> entry : level.snapshotExplicitBlockIds()
             .entrySet()) {
-            long packedPos = entry.getKey()
-                .longValue();
+            long packedPos = entry.getKey();
             explicitBlockIds.add(
                 new ExplicitBlockIdEntry(unpackX(packedPos), unpackY(packedPos), unpackZ(packedPos), entry.getValue()));
         }
@@ -153,17 +161,13 @@ public class GuideSceneStructureSnapshot implements Serializable {
         Map<Long, Map<String, byte[]>> snapshot = level.previewAuthorityStore()
             .snapshotAll();
         for (Map.Entry<Long, Map<String, byte[]>> entry : snapshot.entrySet()) {
-            previewAuthorityEntries.add(
-                new PreviewAuthorityEntry(
-                    entry.getKey()
-                        .longValue(),
-                    entry.getValue()));
+            previewAuthorityEntries.add(new PreviewAuthorityEntry(entry.getKey(), entry.getValue()));
         }
     }
 
     private Map<Long, String> indexExplicitBlockIds() {
         if (explicitBlockIds.isEmpty()) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         HashMap<Long, String> indexed = new HashMap<>(explicitBlockIds.size());
         for (ExplicitBlockIdEntry entry : explicitBlockIds) {
@@ -218,7 +222,27 @@ public class GuideSceneStructureSnapshot implements Serializable {
                 .loadFromNbt(world, entry.entityId, decodeCompound(entry.nbt), entry.playerName, entry.playerUuid);
             if (entity != null) {
                 applyEntityRuntimeState(entity, entry);
-                level.addEntity(entity);
+                level.addEntity(entity, entry.sceneEntityId);
+            }
+        }
+    }
+
+    private void restoreEntityMounts(GuidebookLevel level) {
+        if (entities.isEmpty()) {
+            return;
+        }
+        Set<String> appliedUnmounts = new HashSet<>();
+        for (EntityEntry entry : entities) {
+            String sceneEntityId = GuidebookSceneEntityLoader.trimToNull(entry.sceneEntityId);
+            if (sceneEntityId == null) {
+                continue;
+            }
+            if (Boolean.TRUE.equals(entry.unmount) && appliedUnmounts.add(sceneEntityId)) {
+                level.clearSceneEntityMount(sceneEntityId);
+            }
+            String mountTargetSceneEntityId = GuidebookSceneEntityLoader.trimToNull(entry.mountTargetSceneEntityId);
+            if (mountTargetSceneEntityId != null) {
+                level.setSceneEntityMount(sceneEntityId, mountTargetSceneEntityId);
             }
         }
     }
@@ -235,7 +259,7 @@ public class GuideSceneStructureSnapshot implements Serializable {
             .restoreAll(restored);
     }
 
-    private static boolean isValidPos(@Nullable int[] pos) {
+    private static boolean isValidPos(int @Nullable [] pos) {
         return pos != null && pos.length >= 3;
     }
 
@@ -295,10 +319,9 @@ public class GuideSceneStructureSnapshot implements Serializable {
     @Nullable
     private static Boolean tryReadIsChild(Entity entity) {
         try {
-            return Boolean.valueOf(
-                (Boolean) entity.getClass()
-                    .getMethod("isChild")
-                    .invoke(entity));
+            return (Boolean) entity.getClass()
+                .getMethod("isChild")
+                .invoke(entity);
         } catch (Throwable ignored) {
             return null;
         }
@@ -306,16 +329,16 @@ public class GuideSceneStructureSnapshot implements Serializable {
 
     private static void applyEntityRuntimeState(Entity entity, EntityEntry entry) {
         if (entry.previewNameplateVisible != null && entity instanceof GuidebookNameplateControllable nameplate) {
-            nameplate.setGuidebookNameplateVisible(entry.previewNameplateVisible.booleanValue());
+            nameplate.setGuidebookNameplateVisible(entry.previewNameplateVisible);
         }
         if (entry.previewCapeVisible != null && entity instanceof GuidebookCapeControllable cape) {
-            cape.setGuidebookCapeVisible(entry.previewCapeVisible.booleanValue());
+            cape.setGuidebookCapeVisible(entry.previewCapeVisible);
         }
         if (entry.previewPose != null && entity instanceof GuidebookPlayerPoseControllable poseControllable) {
             poseControllable.setGuidebookPreviewPlayerPose(entry.previewPose.restore());
         }
         if (entry.previewBaby != null) {
-            tryInvokeBooleanInstanceMethod(entity, "setGuidebookBaby", entry.previewBaby.booleanValue());
+            tryInvokeBooleanInstanceMethod(entity, "setGuidebookBaby", entry.previewBaby);
         }
     }
 
@@ -347,6 +370,7 @@ public class GuideSceneStructureSnapshot implements Serializable {
 
     public static class BlockStateEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final int x;
@@ -366,6 +390,7 @@ public class GuideSceneStructureSnapshot implements Serializable {
 
     public static class TileEntityEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final int x;
@@ -387,14 +412,21 @@ public class GuideSceneStructureSnapshot implements Serializable {
 
     public static class EntityEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final String entityId;
         private final String nbt;
         @Nullable
+        private final String sceneEntityId;
+        @Nullable
         private final String playerName;
         @Nullable
         private final String playerUuid;
+        @Nullable
+        private final String mountTargetSceneEntityId;
+        @Nullable
+        private final Boolean unmount;
         @Nullable
         private final Boolean previewNameplateVisible;
         @Nullable
@@ -404,13 +436,17 @@ public class GuideSceneStructureSnapshot implements Serializable {
         @Nullable
         private final Boolean previewBaby;
 
-        public EntityEntry(String entityId, String nbt, @Nullable String playerName, @Nullable String playerUuid,
+        public EntityEntry(String entityId, String nbt, @Nullable String sceneEntityId, @Nullable String playerName,
+            @Nullable String playerUuid, @Nullable String mountTargetSceneEntityId, @Nullable Boolean unmount,
             @Nullable Boolean previewNameplateVisible, @Nullable Boolean previewCapeVisible,
             @Nullable PreviewPlayerPoseEntry previewPose, @Nullable Boolean previewBaby) {
             this.entityId = entityId;
             this.nbt = nbt;
+            this.sceneEntityId = sceneEntityId;
             this.playerName = playerName;
             this.playerUuid = playerUuid;
+            this.mountTargetSceneEntityId = mountTargetSceneEntityId;
+            this.unmount = unmount;
             this.previewNameplateVisible = previewNameplateVisible;
             this.previewCapeVisible = previewCapeVisible;
             this.previewPose = previewPose;
@@ -420,6 +456,7 @@ public class GuideSceneStructureSnapshot implements Serializable {
 
     public static class ExplicitBlockIdEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final int x;
@@ -438,6 +475,7 @@ public class GuideSceneStructureSnapshot implements Serializable {
 
     public static class PreviewAuthorityEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final long packedPos;
@@ -455,12 +493,12 @@ public class GuideSceneStructureSnapshot implements Serializable {
                     }
                 }
             }
-            this.payloads = copied.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(copied);
+            this.payloads = copied.isEmpty() ? Map.of() : Map.copyOf(copied);
         }
 
         public Map<String, byte[]> payloads() {
             if (payloads.isEmpty()) {
-                return Collections.emptyMap();
+                return Map.of();
             }
             LinkedHashMap<String, byte[]> copied = new LinkedHashMap<>();
             for (Map.Entry<String, byte[]> entry : payloads.entrySet()) {
@@ -475,6 +513,7 @@ public class GuideSceneStructureSnapshot implements Serializable {
 
     public static class PreviewPlayerPoseEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         @Nullable
@@ -525,6 +564,7 @@ public class GuideSceneStructureSnapshot implements Serializable {
 
     public static class Vector3Entry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final float x;

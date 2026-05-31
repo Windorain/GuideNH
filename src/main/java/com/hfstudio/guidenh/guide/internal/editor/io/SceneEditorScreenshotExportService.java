@@ -120,8 +120,8 @@ public class SceneEditorScreenshotExportService {
     }
 
     private BufferedImage cropCentered(BufferedImage source, int width, int height) {
-        int cropWidth = Math.max(1, Math.min(width, source.getWidth()));
-        int cropHeight = Math.max(1, Math.min(height, source.getHeight()));
+        int cropWidth = Math.clamp(width, 1, source.getWidth());
+        int cropHeight = Math.clamp(height, 1, source.getHeight());
         if (cropWidth == source.getWidth() && cropHeight == source.getHeight()) {
             return source;
         }
@@ -209,8 +209,7 @@ public class SceneEditorScreenshotExportService {
             return renderTiled(scene, width, height, maxFboSize);
         }
 
-        private BufferedImage renderTiled(LytGuidebookScene scene, int fullWidth, int fullHeight, int tileSize)
-            throws Exception {
+        private BufferedImage renderTiled(LytGuidebookScene scene, int fullWidth, int fullHeight, int tileSize) {
             scene.setSceneSize(fullWidth, fullHeight);
             scene.layout(new LayoutContext(new MinecraftFontMetrics()), 0, 0, fullWidth);
 
@@ -278,7 +277,7 @@ public class SceneEditorScreenshotExportService {
             return success;
         }
 
-        public Path getSavedPath() {
+        public @Nullable Path getSavedPath() {
             return savedPath;
         }
 

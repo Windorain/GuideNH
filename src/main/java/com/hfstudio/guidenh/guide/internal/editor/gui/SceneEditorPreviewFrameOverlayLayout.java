@@ -3,7 +3,7 @@ package com.hfstudio.guidenh.guide.internal.editor.gui;
 import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.guide.document.LytRect;
 
-public final class SceneEditorPreviewFrameOverlayLayout {
+public class SceneEditorPreviewFrameOverlayLayout {
 
     public static final int LABEL_PADDING = 4;
     public static final int LABEL_ABOVE_OFFSET = 10;
@@ -15,8 +15,8 @@ public final class SceneEditorPreviewFrameOverlayLayout {
             return new Layout(LytRect.empty(), 0, 0);
         }
 
-        int frameWidth = Math.min(Math.max(0, previewWidth), previewViewport.width());
-        int frameHeight = Math.min(Math.max(0, previewHeight), previewViewport.height());
+        int frameWidth = Math.clamp(previewWidth, 0, previewViewport.width());
+        int frameHeight = Math.clamp(previewHeight, 0, previewViewport.height());
         if (frameWidth <= 0 || frameHeight <= 0) {
             return new Layout(LytRect.empty(), 0, 0);
         }

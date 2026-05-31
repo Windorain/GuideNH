@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.Set;
 
 import net.minecraft.block.Block;
-import net.minecraft.entity.Entity;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ResourceLocation;
@@ -19,6 +18,8 @@ import com.hfstudio.guidenh.guide.scene.CameraSettings;
 import com.hfstudio.guidenh.guide.scene.cache.GuideSceneStructureCompileScope;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookPreviewBlockPlacer;
+import com.hfstudio.guidenh.guide.scene.support.ScenePreviewFormedState;
+import com.hfstudio.guidenh.guide.scene.support.SceneStructureOptions;
 import com.hfstudio.guidenh.libs.mdast.mdx.model.MdxJsxElementFields;
 
 /**
@@ -103,6 +104,7 @@ public class ImportStructureElementCompiler implements SceneElementTagCompiler {
         int offsetZ = MdxAttrs.getString(compiler, errorSink, el, "offsetZ", null) != null
             ? MdxAttrs.getInt(compiler, errorSink, el, "offsetZ", 0)
             : MdxAttrs.getInt(compiler, errorSink, el, "z", 0);
+        boolean formed = SceneStructureOptions.isFormed(compiler, errorSink, el);
 
         if (!root.hasKey("palette") || !root.hasKey("blocks")) {
             errorSink.appendError(compiler, "Unsupported structure format (missing palette/blocks)", el);
@@ -129,13 +131,14 @@ public class ImportStructureElementCompiler implements SceneElementTagCompiler {
             int[] pos = b.getIntArray("pos");
             if (pos.length < 3) continue;
             int px = offsetX + pos[0];
-            int py = Math.max(0, Math.min(offsetY + pos[1], level.getHeight() - 1));
+            int py = Math.clamp(offsetY + pos[1], 0, level.getHeight() - 1);
             int pz = offsetZ + pos[2];
 
             int meta = b.hasKey("meta") ? b.getInteger("meta") : 0;
 
             NBTTagCompound tileTag = b.hasKey("nbt", 10) ? b.getCompoundTag("nbt") : null;
             GuidebookPreviewBlockPlacer.place(level, px, py, pz, block, meta, tileTag, name, b);
+            ScenePreviewFormedState.updateAfterPlacement(level, px, py, pz, formed);
             placed++;
         }
 
@@ -154,10 +157,17 @@ public class ImportStructureElementCompiler implements SceneElementTagCompiler {
             NBTTagList entitiesTag = root.getTagList("entities", 10);
             for (int i = 0; i < entitiesTag.tagCount(); i++) {
                 NBTTagCompound et = entitiesTag.getCompoundTagAt(i);
-                Entity entity = GuidebookSceneEntityImportSupport
-                    .loadImportedEntity(fakeWorld, et, offsetX, offsetY, offsetZ, level.getHeight() - 1f);
-                if (entity != null) {
-                    level.addEntity(entity);
+                GuidebookSceneEntityImportSupport.ImportedSceneEntity importedEntity = GuidebookSceneEntityImportSupport
+                    .loadImportedEntityRecord(fakeWorld, et, offsetX, offsetY, offsetZ, 0f, level.getHeight() - 1f);
+                if (importedEntity != null) {
+                    level.addEntity(importedEntity.entity(), importedEntity.sceneEntityId());
+                    if (MdxAttrs.getBoolean(importedEntity.unmount(), false)) {
+                        level.clearSceneEntityMount(importedEntity.sceneEntityId());
+                    } else if (importedEntity.mountTargetSceneEntityId() != null) {
+                        level.setSceneEntityMount(
+                            importedEntity.sceneEntityId(),
+                            importedEntity.mountTargetSceneEntityId());
+                    }
                 }
             }
         }

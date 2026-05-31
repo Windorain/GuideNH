@@ -112,7 +112,7 @@ All three support `color="#AARRGGBB" or "#RRGGBB"`, `thickness` in pixel units (
 <GameScene width="256" height="192" zoom={4} interactive={true}>
   <TextAnnotation
     pos="1.5 2.0 1.5"
-    text="Insert items here"
+    textKey="guidenh.sample.scene.insert_items"
     color="#FF44AAFF"
     maxWidth={120}
     backgroundAlpha={180}
@@ -141,6 +141,7 @@ Use `independent={true}` to place the bubble in fixed screen space instead of fo
 |-------|------|---------|-------------|
 | `x`, `y`, `z` | float | `0.0` | World-space anchor position. Ignored when `independent={true}`. |
 | `text` | string | - | Required. Text shown inside the bubble. |
+| `textKey` | string | - | Translation key resolved from resource-pack `lang` files before falling back to `text` or the tag body. |
 | `color` | string | `"0xFFAAAAAA"` | Bubble border color. |
 | `backgroundAlpha` | integer | `204` | Background opacity from `0` (transparent) to `255` (opaque). |
 | `maxWidth` | integer | `0` | Word-wrap width in pixels. `0` keeps the bubble on one line. |
@@ -220,11 +221,11 @@ Colors are ARGB hexadecimal strings. Both `"0xFFFFFF00"` (with `0x` prefix) and
 
 | Control | Action |
 |---------|--------|
-| **◀ (Prev keyframe)** | Jump to the start of the previous keyframe segment. |
+| **◀ (Prev keyframe)** | Jump to the start of the previous visible keyframe segment. Hidden keyframes are skipped. |
 | **▶ / ⏸ (Play/Pause)** | Toggle playback; restarts from the beginning if already finished. |
 | **↻ (Restart)** | Return to tick 0, reset state, and begin playing. |
 | Progress bar | Click or drag to seek to any position. Seeking always pauses playback. |
-| Keyframe nodes | Small tick marks on the bar; hover to see the label and direction arrow. |
+| Keyframe nodes | Small tick marks on the bar for visible keyframes; hover to see the label and direction arrow. |
 
 ### Initial state
 
@@ -246,6 +247,7 @@ While playback is **paused** or **finished**:
 When you hover over a keyframe node on the progress bar:
 - The node grows slightly to indicate it is hovered.
 - If the keyframe has a `label`, it is displayed beside the node.
+- Hidden keyframes do not create hoverable nodes, but they still apply their timeline state when playback or seeking reaches them.
 
 ### Layer control during playback
 

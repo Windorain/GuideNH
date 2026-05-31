@@ -2,13 +2,15 @@ package com.hfstudio.structurelibexport;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.jetbrains.annotations.Nullable;
 
+import lombok.Getter;
+
+@Getter
 public class StructureLibExportOptions {
 
     @Nullable
@@ -87,84 +89,6 @@ public class StructureLibExportOptions {
     }
 
     @Nullable
-    public String getController() {
-        return controller;
-    }
-
-    @Nullable
-    public Path getOutDir() {
-        return outDir;
-    }
-
-    public int getPixelsPerBlock() {
-        return pixelsPerBlock;
-    }
-
-    public float getScale() {
-        return scale;
-    }
-
-    public List<Integer> getTiers() {
-        return tiers;
-    }
-
-    public Map<String, List<Integer>> getChannels() {
-        return channels;
-    }
-
-    public boolean isTierExplicit() {
-        return tierExplicit;
-    }
-
-    public boolean isChannelsExplicit() {
-        return channelsExplicit;
-    }
-
-    public String getLayerExpression() {
-        return layerExpression;
-    }
-
-    public boolean isLayersEach() {
-        return layersEach;
-    }
-
-    public List<StructureLibOrientationSpec> getOrientations() {
-        return orientations;
-    }
-
-    public StructureLibExportView getView() {
-        return view;
-    }
-
-    public StructureLibExportBackground getBackground() {
-        return background;
-    }
-
-    public long getMaxPixels() {
-        return maxPixels;
-    }
-
-    public int getBatchSize() {
-        return batchSize;
-    }
-
-    public boolean isGtActiveController() {
-        return gtActiveController;
-    }
-
-    public boolean isGtPlaceHatches() {
-        return gtPlaceHatches;
-    }
-
-    public boolean isForce() {
-        return force;
-    }
-
-    public boolean isDryRun() {
-        return dryRun;
-    }
-
-    @Nullable
     private static String normalize(@Nullable String value) {
         if (value == null) {
             return null;
@@ -174,7 +98,7 @@ public class StructureLibExportOptions {
     }
 
     private static List<Integer> immutableValues(List<Integer> values, int fallback) {
-        ArrayList<Integer> copy = new ArrayList<>();
+        var copy = new ArrayList<Integer>();
         if (values != null) {
             for (Integer value : values) {
                 if (value != null) {
@@ -185,11 +109,11 @@ public class StructureLibExportOptions {
         if (copy.isEmpty()) {
             copy.add(fallback);
         }
-        return Collections.unmodifiableList(copy);
+        return List.copyOf(copy);
     }
 
     private static Map<String, List<Integer>> immutableChannels(Map<String, List<Integer>> channels) {
-        LinkedHashMap<String, List<Integer>> copy = new LinkedHashMap<>();
+        var copy = new LinkedHashMap<String, List<Integer>>();
         if (channels != null) {
             for (Map.Entry<String, List<Integer>> entry : channels.entrySet()) {
                 String key = normalize(entry.getKey());
@@ -198,11 +122,11 @@ public class StructureLibExportOptions {
                 }
             }
         }
-        return Collections.unmodifiableMap(copy);
+        return copy.isEmpty() ? Map.of() : Map.copyOf(copy);
     }
 
     private static List<StructureLibOrientationSpec> immutableOrientations(List<StructureLibOrientationSpec> values) {
-        ArrayList<StructureLibOrientationSpec> copy = new ArrayList<>();
+        var copy = new ArrayList<StructureLibOrientationSpec>();
         if (values != null) {
             for (StructureLibOrientationSpec value : values) {
                 if (value != null) {
@@ -213,6 +137,6 @@ public class StructureLibExportOptions {
         if (copy.isEmpty()) {
             copy.add(StructureLibOrientationSpec.DEFAULT);
         }
-        return Collections.unmodifiableList(copy);
+        return List.copyOf(copy);
     }
 }

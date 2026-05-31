@@ -2,7 +2,6 @@ package com.hfstudio.guidenh.guide.siteexport.site;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -17,6 +16,7 @@ import net.minecraft.util.ResourceLocation;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.hfstudio.guidenh.guide.Guide;
 import com.hfstudio.guidenh.guide.GuidePageIcon;
 import com.hfstudio.guidenh.guide.PageAnchor;
 import com.hfstudio.guidenh.guide.color.ColorValue;
@@ -47,9 +47,8 @@ import com.hfstudio.guidenh.guide.document.block.functiongraph.FunctionPlot;
 import com.hfstudio.guidenh.guide.document.block.functiongraph.MarkedPoint;
 import com.hfstudio.guidenh.guide.document.interaction.ItemTooltip;
 import com.hfstudio.guidenh.guide.document.interaction.TextTooltip;
-import com.hfstudio.guidenh.guide.indices.CategoryIndex;
 import com.hfstudio.guidenh.guide.indices.ItemIndex;
-import com.hfstudio.guidenh.guide.internal.MutableGuide;
+import com.hfstudio.guidenh.guide.internal.GuidebookText;
 import com.hfstudio.guidenh.guide.internal.markdown.FileTreeParser;
 import com.hfstudio.guidenh.guide.internal.markdown.FileTreeParser.FileTreeEntry;
 import com.hfstudio.guidenh.guide.internal.markdown.FileTreeParser.FileTreeIcon;
@@ -60,6 +59,17 @@ import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapNode;
 import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapNodeContentExtractor;
 import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapParser;
 import com.hfstudio.guidenh.guide.internal.util.GuideStringLines;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiExternalLinkSupport;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListContext;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListEntry;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListPlanner;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiPageListBuilder;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialGroupedEntry;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialListEntry;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialPageKind;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialPageQuery;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialPageResolver;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiSpecialPageResult;
 import com.hfstudio.guidenh.guide.navigation.NavigationNode;
 import com.hfstudio.guidenh.guide.navigation.NavigationTree;
 import com.hfstudio.guidenh.guide.sound.GuideSoundSpec;
@@ -75,6 +85,8 @@ import com.hfstudio.guidenh.libs.mdast.model.MdAstParent;
 
 public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRenderer {
 
+    private static final int SPECIAL_PAGES_GROUP_COLUMNS = 2;
+
     private static final Comparator<StructureBlockView> STRUCTURE_DRAW_ORDER = Comparator
         .comparingInt((StructureBlockView block) -> block.y)
         .thenComparing(
@@ -82,40 +94,54 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
                 .reversed())
         .thenComparingInt(block -> block.x);
 
-    private final MutableGuide guide;
+    private final Guide guide;
     private final Map<ResourceLocation, ParsedGuidePage> parsedPagesById;
     private final NavigationTree navigationTree;
     @Nullable
     private final GuideSitePageAssetExporter assetExporter;
     @Nullable
     private final Map<ResourceLocation, GuideSitePageAssetExporter> assetExportersByGuideId;
+    @Nullable
+    private final MediaWikiListContext mediaWikiListContext;
     private final GuideSiteItemIconResolver itemIconResolver;
+    @Nullable
+    private Map<String, PageAnchor> itemAnchorsByItemId;
+    private final MediaWikiSpecialPageResolver specialPageResolver = new MediaWikiSpecialPageResolver();
 
-    public GuideSiteMdxTagRenderer(MutableGuide guide, Map<ResourceLocation, ParsedGuidePage> parsedPagesById,
+    public GuideSiteMdxTagRenderer(Guide guide, Map<ResourceLocation, ParsedGuidePage> parsedPagesById,
         NavigationTree navigationTree) {
-        this(guide, parsedPagesById, navigationTree, null, GuideSiteItemIconResolver.NONE);
+        this(guide, parsedPagesById, navigationTree, null, GuideSiteItemIconResolver.NONE, null, null);
     }
 
-    public GuideSiteMdxTagRenderer(MutableGuide guide, Map<ResourceLocation, ParsedGuidePage> parsedPagesById,
+    public GuideSiteMdxTagRenderer(Guide guide, Map<ResourceLocation, ParsedGuidePage> parsedPagesById,
         NavigationTree navigationTree, GuideSiteItemIconResolver itemIconResolver) {
-        this(guide, parsedPagesById, navigationTree, null, itemIconResolver);
+        this(guide, parsedPagesById, navigationTree, null, itemIconResolver, null, null);
     }
 
-    public GuideSiteMdxTagRenderer(MutableGuide guide, Map<ResourceLocation, ParsedGuidePage> parsedPagesById,
+    public GuideSiteMdxTagRenderer(Guide guide, Map<ResourceLocation, ParsedGuidePage> parsedPagesById,
         NavigationTree navigationTree, @Nullable GuideSitePageAssetExporter assetExporter,
         GuideSiteItemIconResolver itemIconResolver) {
-        this(guide, parsedPagesById, navigationTree, assetExporter, itemIconResolver, null);
+        this(guide, parsedPagesById, navigationTree, assetExporter, itemIconResolver, null, null);
     }
 
-    public GuideSiteMdxTagRenderer(MutableGuide guide, Map<ResourceLocation, ParsedGuidePage> parsedPagesById,
+    public GuideSiteMdxTagRenderer(Guide guide, Map<ResourceLocation, ParsedGuidePage> parsedPagesById,
         NavigationTree navigationTree, @Nullable GuideSitePageAssetExporter assetExporter,
         GuideSiteItemIconResolver itemIconResolver,
         @Nullable Map<ResourceLocation, GuideSitePageAssetExporter> assetExportersByGuideId) {
+        this(guide, parsedPagesById, navigationTree, assetExporter, itemIconResolver, assetExportersByGuideId, null);
+    }
+
+    public GuideSiteMdxTagRenderer(Guide guide, Map<ResourceLocation, ParsedGuidePage> parsedPagesById,
+        NavigationTree navigationTree, @Nullable GuideSitePageAssetExporter assetExporter,
+        GuideSiteItemIconResolver itemIconResolver,
+        @Nullable Map<ResourceLocation, GuideSitePageAssetExporter> assetExportersByGuideId,
+        @Nullable MediaWikiListContext mediaWikiListContext) {
         this.guide = guide;
         this.parsedPagesById = parsedPagesById;
         this.navigationTree = navigationTree;
         this.assetExporter = assetExporter;
         this.assetExportersByGuideId = assetExportersByGuideId;
+        this.mediaWikiListContext = mediaWikiListContext;
         this.itemIconResolver = itemIconResolver != null ? itemIconResolver : GuideSiteItemIconResolver.NONE;
     }
 
@@ -139,8 +165,11 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
         if ("SubPages".equals(name)) {
             return renderSubPages(element, defaultNamespace, currentPageId);
         }
-        if ("CategoryIndex".equals(name)) {
-            return renderCategoryIndex(element, currentPageId);
+        if ("Category".equals(name)) {
+            return renderCategory(element, currentPageId);
+        }
+        if ("Special".equals(name)) {
+            return renderSpecial(element, currentPageId);
         }
         if ("Color".equals(name)) {
             return renderColor(element, defaultNamespace, currentPageId, templates, sceneResolver, compiler);
@@ -403,7 +432,7 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
         int offsetX = (width - contentWidth) / 2 - sxMin;
         int offsetY = (height - contentHeight) / 2 - syMin;
 
-        Collections.sort(blocks, STRUCTURE_DRAW_ORDER);
+        blocks.sort(STRUCTURE_DRAW_ORDER);
         LinkedHashMap<String, StructureLegendEntry> legendEntries = new LinkedHashMap<>();
 
         for (StructureBlockView block : blocks) {
@@ -579,7 +608,7 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
                 .append(escapeAttribute(templateId))
                 .append("\"");
         }
-        if (style.length() > 0) {
+        if (!style.isEmpty()) {
             html.append(" style=\"")
                 .append(escapeAttribute(style.toString()))
                 .append("\"");
@@ -911,20 +940,49 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
         return renderNavigationNodeList(sorted, currentPageId);
     }
 
-    private String renderCategoryIndex(MdxJsxElementFields element, @Nullable ResourceLocation currentPageId) {
-        String category = readOptional(element, "category");
-        if (category == null || category.isEmpty()) {
-            return renderError("Missing category");
+    private String renderCategory(MdxJsxElementFields element, @Nullable ResourceLocation currentPageId) {
+        String categoryName = readOptional(element, "name");
+        if (categoryName == null || categoryName.trim()
+            .isEmpty()) {
+            return renderError(GuidebookText.MediaWikiMissingCategoryName.text());
         }
 
-        List<PageAnchor> anchors;
-        try {
-            anchors = guide.getIndex(CategoryIndex.class)
-                .get(category);
-        } catch (Exception ignored) {
-            anchors = new ArrayList<>();
+        if (mediaWikiListContext == null) {
+            return renderError(GuidebookText.MediaWikiCategoryPageUnavailable.text());
         }
-        return renderPageAnchorList(anchors, currentPageId);
+
+        List<MediaWikiListEntry> entries = MediaWikiPageListBuilder
+            .buildCategoryMembers(mediaWikiListContext, categoryName.trim());
+        return renderMediaWikiEntryList(
+            entries,
+            readInt(element, "rows", MediaWikiListPlanner.DEFAULT_ROWS),
+            currentPageId,
+            GuidebookText.MediaWikiNoPagesInCategory.text());
+    }
+
+    private String renderSpecial(MdxJsxElementFields element, @Nullable ResourceLocation currentPageId) {
+        String rawSpecialName = readOptional(element, "name");
+        if (rawSpecialName == null || rawSpecialName.trim()
+            .isEmpty()) {
+            return renderError(GuidebookText.MediaWikiMissingSpecialPageName.text());
+        }
+        String specialName = specialPageResolver.normalizeSupportedName(rawSpecialName);
+        if (specialName == null) {
+            return renderError(GuidebookText.MediaWikiUnsupportedSpecialPage.text(rawSpecialName));
+        }
+
+        if (mediaWikiListContext == null) {
+            return renderError(GuidebookText.MediaWikiSpecialPageUnavailable.text());
+        }
+
+        MediaWikiSpecialPageQuery specialQuery = buildSpecialPageQuery(element, Integer.MAX_VALUE);
+        MediaWikiSpecialPageResult result = specialPageResolver
+            .resolve(mediaWikiListContext, specialName, specialQuery);
+        return renderSpecialResult(
+            result,
+            readInt(element, "rows", MediaWikiListPlanner.DEFAULT_ROWS),
+            currentPageId,
+            specialName);
     }
 
     private String renderCommandLink(MdxJsxElementFields element, String defaultNamespace,
@@ -972,7 +1030,7 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
         html.append(">");
         List<? extends MdAstAnyContent> children = element.children();
         int bodyStart = 0;
-        if (!children.isEmpty() && children.get(0) instanceof MdxJsxElementFields summaryEl
+        if (!children.isEmpty() && children.getFirst() instanceof MdxJsxElementFields summaryEl
             && "summary".equals(summaryEl.name())) {
             String summaryBody = compiler
                 .compileFragment(summaryEl.children(), templates, defaultNamespace, sceneResolver, currentPageId);
@@ -981,7 +1039,9 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
                 .append("</summary>");
             bodyStart = 1;
         } else {
-            html.append("<summary>Details</summary>");
+            html.append("<summary>")
+                .append(escapeHtml(GuidebookText.GuideEditorDetails.text()))
+                .append("</summary>");
         }
         html.append("<div class=\"guide-details-body\"");
         if (!bodyStyle.isEmpty()) {
@@ -1817,30 +1877,344 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
         return html.toString();
     }
 
+    private String renderMediaWikiEntryList(List<MediaWikiListEntry> entries, int rows,
+        @Nullable ResourceLocation currentPageId, String emptyText) {
+        List<MediaWikiListEntry> sorted = MediaWikiListPlanner.sortEntries(entries);
+        int columnCount = MediaWikiListPlanner.sanitizeRows(rows);
+        StringBuilder html = new StringBuilder();
+        html.append("<div class=\"guide-mediawiki-index\">");
+        if (sorted.isEmpty()) {
+            html.append("<div class=\"guide-mediawiki-empty\">")
+                .append(escapeHtml(emptyText))
+                .append("</div></div>");
+            return html.toString();
+        }
+
+        html.append("<div class=\"guide-mediawiki-columns\" style=\"--guide-mediawiki-columns:")
+            .append(columnCount)
+            .append(";\">");
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (MediaWikiListPlanner.MediaWikiListColumn column : MediaWikiListPlanner.planColumns(sorted, columnCount)) {
+            html.append("<div class=\"guide-mediawiki-column\">");
+            for (MediaWikiListPlanner.MediaWikiListSection section : column.sections()) {
+                if (!section.entries()
+                    .isEmpty()) {
+                    html.append("<div class=\"guide-mediawiki-section\">");
+                    html.append("<div class=\"guide-mediawiki-section-key\">")
+                        .append(escapeHtml(section.key()))
+                        .append("</div>");
+                }
+                for (MediaWikiListEntry entry : section.entries()) {
+                    String href = GuideSiteHrefResolver
+                        .resolvePageAnchor(currentPageId, PageAnchor.page(entry.pageId()));
+                    if (!seen.add(href)) {
+                        continue;
+                    }
+                    html.append("<a class=\"guide-mediawiki-row\" href=\"")
+                        .append(escapeAttribute(href))
+                        .append("\">")
+                        .append(buildGuideLinkContent(entry.title(), entry.icon(), null))
+                        .append("</a>");
+                }
+                if (!section.entries()
+                    .isEmpty()) {
+                    html.append("</div>");
+                }
+            }
+            html.append("</div>");
+        }
+        html.append("</div></div>");
+        return html.toString();
+    }
+
+    private String renderSpecialResult(MediaWikiSpecialPageResult result, int rows,
+        @Nullable ResourceLocation currentPageId, String specialName) {
+        if (result == null) {
+            return renderError("Special page result is not available");
+        }
+
+        StringBuilder html = new StringBuilder();
+        html.append("<div class=\"guide-mediawiki-special\" data-guide-special-page=\"")
+            .append(escapeAttribute(specialName))
+            .append("\" data-guide-special-mode=\"")
+            .append(
+                result.kind() == MediaWikiSpecialPageKind.GROUPED
+                    || result.kind() == MediaWikiSpecialPageKind.GROUP_INDEX ? "grouped" : "flat")
+            .append("\" data-guide-special-default-visible=\"")
+            .append(resolveSpecialDefaultVisibleCount(result))
+            .append("\">");
+        if (result.searchEnabled()) {
+            html.append("<div class=\"guide-mediawiki-special-search\">")
+                .append("<input class=\"guide-search-input guide-mediawiki-special-input\"")
+                .append(" data-guide-special-filter=\"true\"")
+                .append(" type=\"text\" autocomplete=\"off\">")
+                .append("</div>")
+                .append("<div class=\"guide-mediawiki-special-divider\"></div>");
+        }
+
+        switch (result.kind()) {
+            case GROUP_INDEX:
+            case GROUPED:
+                html.append(renderSpecialGrouped(result.groupedEntries(), rows, currentPageId, result.kind()));
+                break;
+            case GRID:
+                html.append(renderSpecialFlat(result.flatEntries(), rows, currentPageId, true));
+                break;
+            case FLAT:
+                html.append(renderSpecialFlat(result.flatEntries(), rows, currentPageId, false));
+                break;
+            case INFO:
+            case ACTION:
+            default:
+                html.append(renderSpecialInfo(result.flatEntries()));
+                break;
+        }
+        if (shouldRenderSpecialShowMore(result)) {
+            html.append(renderSpecialShowMoreButton());
+        }
+        html.append("</div>");
+        return html.toString();
+    }
+
+    private String renderSpecialGrouped(List<MediaWikiSpecialGroupedEntry> groups, int rows,
+        @Nullable ResourceLocation currentPageId, MediaWikiSpecialPageKind kind) {
+        int effectiveRows = kind == MediaWikiSpecialPageKind.GROUP_INDEX ? SPECIAL_PAGES_GROUP_COLUMNS : rows;
+        StringBuilder html = new StringBuilder();
+        html.append("<div class=\"guide-mediawiki-special-groups")
+            .append(kind == MediaWikiSpecialPageKind.GROUP_INDEX ? " guide-mediawiki-special-groups-index" : "")
+            .append("\">");
+        for (MediaWikiSpecialGroupedEntry group : groups) {
+            html.append(
+                "<section class=\"guide-mediawiki-special-group\" data-guide-special-group=\"true\" data-guide-special-search=\"")
+                .append(escapeAttribute(group.searchBlob()))
+                .append("\">")
+                .append("<h2 class=\"guide-mediawiki-special-group-title\">")
+                .append(escapeHtml(group.title()))
+                .append("</h2>");
+            if (group.summary() != null && !group.summary()
+                .isEmpty()) {
+                html.append("<div class=\"guide-mediawiki-special-group-summary\">")
+                    .append(escapeHtml(group.summary()))
+                    .append("</div>");
+            }
+            html.append(renderSpecialFlat(group.children(), effectiveRows, currentPageId, false))
+                .append("</section>");
+        }
+        html.append("</div>");
+        return html.toString();
+    }
+
+    private String renderSpecialFlat(List<MediaWikiSpecialListEntry> entries, int rows,
+        @Nullable ResourceLocation currentPageId, boolean grid) {
+        int columnCount = Math.max(1, rows);
+        StringBuilder html = new StringBuilder();
+        html.append("<div class=\"guide-mediawiki-special-list")
+            .append(grid ? " guide-mediawiki-special-grid" : " guide-mediawiki-special-flat")
+            .append(!grid && columnCount > 1 ? " guide-mediawiki-special-multi-column-flat" : "")
+            .append("\" style=\"--guide-mediawiki-columns:")
+            .append(columnCount)
+            .append(";\">");
+        for (MediaWikiSpecialListEntry entry : entries) {
+            html.append(renderSpecialEntry(entry, currentPageId));
+        }
+        if (entries.isEmpty()) {
+            html.append("<div class=\"guide-mediawiki-empty\">")
+                .append(escapeHtml(GuidebookText.MediaWikiNoPages.text()))
+                .append("</div>");
+        }
+        html.append("</div>");
+        return html.toString();
+    }
+
+    private int resolveSpecialDefaultVisibleCount(MediaWikiSpecialPageResult result) {
+        if (result == null || result.definition() == null
+            || result.definition()
+                .showsAllByDefault()) {
+            return Integer.MAX_VALUE;
+        }
+        return Math.max(
+            1,
+            result.definition()
+                .defaultVisibleCount());
+    }
+
+    private int resolveSpecialInitialVisibleCount(String specialName) {
+        var definition = specialPageResolver.findDefinition(specialName);
+        if (definition == null || definition.showsAllByDefault()) {
+            return Integer.MAX_VALUE;
+        }
+        return Math.max(1, definition.defaultVisibleCount());
+    }
+
+    private String renderSpecialShowMoreButton() {
+        return "<button type=\"button\" class=\"guide-mediawiki-special-show-more\" data-guide-special-show-more=\"true\">"
+            + escapeHtml(GuidebookText.SpecialPageShowMore.text())
+            + "</button>";
+    }
+
+    private MediaWikiSpecialPageQuery buildSpecialPageQuery(MdxJsxElementFields element, int visibleCount) {
+        LinkedHashMap<String, String> parameters = new LinkedHashMap<>();
+        appendSpecialParameter(parameters, MediaWikiSpecialPageQuery.PARAM_PAGE, readOptional(element, "page"));
+        appendSpecialParameter(parameters, MediaWikiSpecialPageQuery.PARAM_PREFIX, readOptional(element, "prefix"));
+        appendSpecialParameter(parameters, MediaWikiSpecialPageQuery.PARAM_LANGUAGE, readOptional(element, "language"));
+        String searchText = readOptional(element, "query");
+        return new MediaWikiSpecialPageQuery(searchText != null ? searchText.trim() : "", visibleCount, parameters);
+    }
+
+    private void appendSpecialParameter(Map<String, String> parameters, String key, @Nullable String value) {
+        if (value == null) {
+            return;
+        }
+        String trimmed = value.trim();
+        if (!trimmed.isEmpty()) {
+            parameters.put(key, trimmed);
+        }
+    }
+
+    private boolean shouldRenderSpecialShowMore(MediaWikiSpecialPageResult result) {
+        int defaultVisibleCount = resolveSpecialDefaultVisibleCount(result);
+        if (defaultVisibleCount == Integer.MAX_VALUE) {
+            return false;
+        }
+        int totalCount = result.kind() == MediaWikiSpecialPageKind.GROUPED
+            || result.kind() == MediaWikiSpecialPageKind.GROUP_INDEX
+                ? result.groupedEntries()
+                    .size()
+                : result.flatEntries()
+                    .size();
+        return totalCount > defaultVisibleCount;
+    }
+
+    private String renderSpecialEntry(MediaWikiSpecialListEntry entry, @Nullable ResourceLocation currentPageId) {
+        StringBuilder html = new StringBuilder();
+        html.append(
+            "<div class=\"guide-mediawiki-special-entry\" data-guide-special-entry=\"true\" data-guide-special-search=\"")
+            .append(escapeAttribute(entry.searchBlob()))
+            .append("\">");
+        String titleContent = buildSpecialEntryTitle(entry, currentPageId);
+        if (MediaWikiExternalLinkSupport.isSupportedExternalUrl(entry.externalUrl())) {
+            String href = GuideSiteHrefResolver
+                .resolveExternalConfirmHref(currentPageId, entry.externalUrl(), entry.title());
+            html.append("<a class=\"guide-mediawiki-special-link\" href=\"")
+                .append(escapeAttribute(href))
+                .append("\">")
+                .append(titleContent)
+                .append("</a>");
+        } else if (entry.pageId() != null) {
+            String rowAnchor = entry.lineNumber() != null ? "line-" + entry.lineNumber() : null;
+            String href = GuideSiteHrefResolver
+                .resolvePageAnchor(currentPageId, new PageAnchor(entry.pageId(), rowAnchor));
+            html.append("<a class=\"guide-mediawiki-special-link\" href=\"")
+                .append(escapeAttribute(href))
+                .append("\">")
+                .append(titleContent)
+                .append("</a>");
+        } else {
+            html.append("<span class=\"guide-mediawiki-special-text\">")
+                .append(titleContent)
+                .append("</span>");
+        }
+        if (entry.subtitle() != null && !entry.subtitle()
+            .isEmpty()) {
+            html.append("<div class=\"guide-mediawiki-special-subtitle\">")
+                .append(escapeHtml(entry.subtitle()))
+                .append("</div>");
+        }
+        html.append("</div>");
+        return html.toString();
+    }
+
+    private String buildSpecialEntryTitle(MediaWikiSpecialListEntry entry, @Nullable ResourceLocation currentPageId) {
+        StringBuilder html = new StringBuilder();
+        GuidePageIcon icon = entry.icon();
+        if (icon != null) {
+            appendGuidePageIcon(html, icon, currentPageId);
+        }
+        html.append("<span class=\"guide-generated-link-text\"");
+        if (entry.title() != null && !entry.title()
+            .isEmpty()) {
+            html.append(" title=\"")
+                .append(escapeAttribute(entry.title()))
+                .append("\"");
+        }
+        html.append(">")
+            .append(escapeHtml(entry.title()))
+            .append("</span>");
+        return html.toString();
+    }
+
+    private String renderSpecialInfo(List<MediaWikiSpecialListEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return "<div class=\"guide-mediawiki-empty\">" + escapeHtml(GuidebookText.MediaWikiNoDataAvailable.text())
+                + "</div>";
+        }
+        StringBuilder html = new StringBuilder();
+        html.append("<div class=\"guide-mediawiki-special-info\">");
+        for (MediaWikiSpecialListEntry entry : entries) {
+            html.append("<div class=\"guide-mediawiki-special-info-row\">")
+                .append(renderSpecialInfoEntry(entry))
+                .append("</div>");
+        }
+        html.append("</div>");
+        return html.toString();
+    }
+
+    private String renderSpecialInfoEntry(MediaWikiSpecialListEntry entry) {
+        if (entry == null) {
+            return "";
+        }
+        if (MediaWikiExternalLinkSupport.isSupportedExternalUrl(entry.externalUrl())) {
+            return "<a class=\"guide-mediawiki-special-link\" href=\""
+                + escapeAttribute(
+                    GuideSiteHrefResolver.resolveExternalConfirmHref(null, entry.externalUrl(), entry.title()))
+                + "\">"
+                + escapeHtml(entry.title())
+                + "</a>";
+        }
+        String title = entry.title() != null ? entry.title() : "";
+        if (MediaWikiExternalLinkSupport.isSupportedExternalUrl(title)) {
+            return "<a class=\"guide-mediawiki-special-link\" href=\""
+                + escapeAttribute(GuideSiteHrefResolver.resolveExternalConfirmHref(null, title, title))
+                + "\">"
+                + escapeHtml(title)
+                + "</a>";
+        }
+        return escapeHtml(title);
+    }
+
     private String buildGuideLinkContent(String title, @Nullable GuidePageIcon icon,
         @Nullable ResourceLocation guideId) {
         StringBuilder html = new StringBuilder();
-        if (icon != null && icon.isItemIcon() && icon.itemStack() != null) {
-            GuideSiteItemHtml.appendIcon(
-                html,
-                GuideSiteItemSupport.export(icon.itemStack(), itemIconResolver),
-                "guide-nav-item-icon");
-        } else if (icon != null) {
-            GuideSitePageAssetExporter resolvedAssetExporter = resolveAssetExporter(guideId);
-            ResourceLocation textureId = resolveTextureIconId(icon);
-            String src = resolvedAssetExporter != null && textureId != null
-                ? resolvedAssetExporter.exportResource(textureId)
-                : "";
-            if (!src.isEmpty()) {
-                html.append("<img class=\"item-icon guide-nav-item-icon\" src=\"")
-                    .append(escapeAttribute(src))
-                    .append("\" alt=\"\" width=\"32\" height=\"32\" decoding=\"async\">");
-            }
-        }
+        appendGuidePageIcon(html, icon, guideId);
         html.append("<span class=\"guide-generated-link-text\">")
             .append(escapeHtml(title))
             .append("</span>");
         return html.toString();
+    }
+
+    private void appendGuidePageIcon(StringBuilder html, @Nullable GuidePageIcon icon,
+        @Nullable ResourceLocation guideId) {
+        if (icon == null) {
+            return;
+        }
+        if (icon.isItemIcon() && icon.resolveCurrentItemStack() != null) {
+            GuideSiteItemHtml.appendIcon(
+                html,
+                GuideSiteItemSupport.export(icon.resolveCurrentItemStack(), itemIconResolver),
+                "guide-nav-item-icon");
+            return;
+        }
+        GuideSitePageAssetExporter resolvedAssetExporter = resolveAssetExporter(guideId);
+        ResourceLocation textureId = resolveTextureIconId(icon);
+        String src = resolvedAssetExporter != null && textureId != null
+            ? resolvedAssetExporter.exportResource(textureId)
+            : "";
+        if (src.isEmpty()) {
+            return;
+        }
+        html.append("<img class=\"item-icon guide-nav-item-icon\" src=\"")
+            .append(escapeAttribute(src))
+            .append("\" alt=\"\" width=\"32\" height=\"32\" decoding=\"async\">");
     }
 
     @Nullable
@@ -2247,7 +2621,7 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
                     break;
                 }
             }
-            if (initials.length() > 0) {
+            if (!initials.isEmpty()) {
                 return initials.toString();
             }
 
@@ -2336,7 +2710,7 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
                 .append(escapeAttribute(templateId))
                 .append("\"");
         }
-        if (style.length() > 0) {
+        if (!style.isEmpty()) {
             html.append(" style=\"")
                 .append(escapeAttribute(style.toString()))
                 .append("\"");
@@ -2365,6 +2739,15 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
         if (itemId == null || itemId.isEmpty()) {
             return null;
         }
+        return indexItemAnchorsByItemId().get(itemId);
+    }
+
+    private Map<String, PageAnchor> indexItemAnchorsByItemId() {
+        if (itemAnchorsByItemId != null) {
+            return itemAnchorsByItemId;
+        }
+
+        var indexedAnchors = new LinkedHashMap<String, PageAnchor>();
         for (ParsedGuidePage page : parsedPagesById.values()) {
             Object rawItemIds = page.getFrontmatter()
                 .additionalProperties()
@@ -2372,6 +2755,7 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
             if (!(rawItemIds instanceof List<?>values)) {
                 continue;
             }
+            PageAnchor pageAnchor = PageAnchor.page(page.getId());
             for (Object value : values) {
                 if (!(value instanceof String rawValue)) {
                     continue;
@@ -2382,12 +2766,13 @@ public class GuideSiteMdxTagRenderer implements GuideSiteHtmlCompiler.MdxTagRend
                     rawValue,
                     null,
                     null);
-                if (itemId.equals(normalized)) {
-                    return PageAnchor.page(page.getId());
+                if (!normalized.isEmpty()) {
+                    indexedAnchors.putIfAbsent(normalized, pageAnchor);
                 }
             }
         }
-        return null;
+        itemAnchorsByItemId = indexedAnchors;
+        return indexedAnchors;
     }
 
     @Nullable

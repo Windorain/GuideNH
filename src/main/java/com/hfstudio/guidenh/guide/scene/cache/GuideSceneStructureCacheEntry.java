@@ -1,5 +1,6 @@
 package com.hfstudio.guidenh.guide.scene.cache;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,7 +22,17 @@ import com.hfstudio.guidenh.integration.structurelib.StructureLibSceneMetadata;
 
 public class GuideSceneStructureCacheEntry implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
+    private static final int MAX_DECODED_ITEM_STACK_CACHE_SIZE = 512;
+    private static final Map<String, ItemStack> DECODED_ITEM_STACK_CACHE = Collections
+        .synchronizedMap(new LinkedHashMap<>(256, 0.75f, true) {
+
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, ItemStack> eldest) {
+                return size() > MAX_DECODED_ITEM_STACK_CACHE_SIZE;
+            }
+        });
 
     private final GuideSceneStructureSnapshot levelSnapshot;
     private final List<StructureLibBindingEntry> structureLibBindings;
@@ -59,6 +70,7 @@ public class GuideSceneStructureCacheEntry implements Serializable {
 
     public static class StructureLibBindingEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         @Nullable
@@ -82,6 +94,7 @@ public class GuideSceneStructureCacheEntry implements Serializable {
 
     public static class StructureLibMetadataEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final String controller;
@@ -185,6 +198,7 @@ public class GuideSceneStructureCacheEntry implements Serializable {
 
     public static class TierDataEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final int minValue;
@@ -210,6 +224,7 @@ public class GuideSceneStructureCacheEntry implements Serializable {
 
     public static class ChannelDataEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final String channelId;
@@ -235,6 +250,7 @@ public class GuideSceneStructureCacheEntry implements Serializable {
 
     public static class BlockTooltipDataEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         @Nullable
@@ -246,10 +262,10 @@ public class GuideSceneStructureCacheEntry implements Serializable {
         public BlockTooltipDataEntry(@Nullable String structureLibDescription, List<String> blockCandidates,
             List<HatchDescriptionLineEntry> hatchDescriptionLines, List<String> hatchCandidates) {
             this.structureLibDescription = structureLibDescription;
-            this.blockCandidates = blockCandidates != null ? new ArrayList<>(blockCandidates) : Collections.emptyList();
+            this.blockCandidates = blockCandidates != null ? new ArrayList<>(blockCandidates) : List.of();
             this.hatchDescriptionLines = hatchDescriptionLines != null ? new ArrayList<>(hatchDescriptionLines)
-                : Collections.emptyList();
-            this.hatchCandidates = hatchCandidates != null ? new ArrayList<>(hatchCandidates) : Collections.emptyList();
+                : List.of();
+            this.hatchCandidates = hatchCandidates != null ? new ArrayList<>(hatchCandidates) : List.of();
         }
 
         public static BlockTooltipDataEntry capture(StructureLibSceneMetadata.BlockTooltipData data) {
@@ -307,6 +323,7 @@ public class GuideSceneStructureCacheEntry implements Serializable {
 
     public static class HatchDescriptionLineEntry implements Serializable {
 
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final String kindId;
@@ -349,8 +366,16 @@ public class GuideSceneStructureCacheEntry implements Serializable {
         if (encoded == null || encoded.isEmpty()) {
             return null;
         }
+        ItemStack cached = DECODED_ITEM_STACK_CACHE.get(encoded);
+        if (cached != null) {
+            return cached.copy();
+        }
         try {
-            return ItemStack.loadItemStackFromNBT(GuideTextNbtCodec.readTextSafeCompound(encoded));
+            ItemStack stack = ItemStack.loadItemStackFromNBT(GuideTextNbtCodec.readTextSafeCompound(encoded));
+            if (stack != null) {
+                DECODED_ITEM_STACK_CACHE.put(encoded, stack.copy());
+            }
+            return stack;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to decode cached StructureLib item stack", e);
         }

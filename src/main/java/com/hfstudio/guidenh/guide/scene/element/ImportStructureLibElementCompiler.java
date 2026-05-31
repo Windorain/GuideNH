@@ -19,6 +19,8 @@ import com.hfstudio.guidenh.guide.scene.annotation.compiler.AnnotationTagCompile
 import com.hfstudio.guidenh.guide.scene.cache.GuideSceneStructureCompileScope;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookLevel;
 import com.hfstudio.guidenh.guide.scene.level.GuidebookPreviewBlockPlacer;
+import com.hfstudio.guidenh.guide.scene.support.ScenePreviewFormedState;
+import com.hfstudio.guidenh.guide.scene.support.SceneStructureOptions;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibImportRequest;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibImportResult;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibPreviewSelection;
@@ -66,18 +68,21 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
         int offsetX = MdxAttrs.getInt(compiler, errorSink, el, "offsetX", 0);
         int offsetY = MdxAttrs.getInt(compiler, errorSink, el, "offsetY", 0);
         int offsetZ = MdxAttrs.getInt(compiler, errorSink, el, "offsetZ", 0);
+        boolean formed = SceneStructureOptions.isFormed(compiler, errorSink, el);
         String structureName = MdxAttrs.getString(compiler, errorSink, el, "name", null);
         StructureLibSceneBinding binding = scene.registerStructureLibBinding(structureName);
         StructureLibPreviewSelection selectionOverride = binding.getPendingSelection() != null
             ? binding.getPendingSelection()
-            : scene.getPendingStructureLibPreviewSelection();
+            : scene.getPendingStructureLibPreviewSelection(structureName) != null
+                ? scene.getPendingStructureLibPreviewSelection(structureName)
+                : scene.getPendingStructureLibPreviewSelection();
         StructureLibImportRequest request = new StructureLibImportRequest(
             controller,
             MdxAttrs.getString(compiler, errorSink, el, "piece", null),
             MdxAttrs.getString(compiler, errorSink, el, "facing", null),
             MdxAttrs.getString(compiler, errorSink, el, "rotation", null),
             MdxAttrs.getString(compiler, errorSink, el, "flip", null),
-            requestedChannel == Integer.MIN_VALUE ? null : Integer.valueOf(requestedChannel),
+            requestedChannel == Integer.MIN_VALUE ? null : requestedChannel,
             selectionOverride != null ? selectionOverride
                 : requestedChannel == Integer.MIN_VALUE ? StructureLibPreviewSelection.defaultSelection()
                     : StructureLibPreviewSelection.ofMasterTier(requestedChannel));
@@ -95,7 +100,7 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
             if (block == null || block == Blocks.air) {
                 continue;
             }
-            int clampedY = Math.max(0, Math.min(placedBlock.getY() + offsetY, level.getHeight() - 1));
+            int clampedY = Math.clamp(placedBlock.getY() + offsetY, 0, level.getHeight() - 1);
 
             GuidebookPreviewBlockPlacer.place(
                 level,
@@ -106,6 +111,12 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
                 placedBlock.getMeta(),
                 placedBlock.getTileTag(),
                 placedBlock.getBlockId());
+            ScenePreviewFormedState.updateAfterPlacement(
+                level,
+                placedBlock.getX() + offsetX,
+                clampedY,
+                placedBlock.getZ() + offsetZ,
+                formed);
         }
     }
 
@@ -131,7 +142,7 @@ public class ImportStructureLibElementCompiler implements SceneElementTagCompile
 
     public static String resolveFailureMessage(List<String> errors, String controller) {
         if (errors != null && !errors.isEmpty()) {
-            String firstError = errors.get(0);
+            String firstError = errors.getFirst();
             if (firstError != null && !firstError.trim()
                 .isEmpty()) {
                 return firstError;

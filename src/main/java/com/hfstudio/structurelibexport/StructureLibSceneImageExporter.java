@@ -5,7 +5,6 @@ import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
 
 import javax.imageio.ImageIO;
@@ -16,6 +15,7 @@ import net.minecraft.client.shader.Framebuffer;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
+import com.github.bsideup.jabel.Desugar;
 import com.hfstudio.guidenh.guide.scene.CameraSettings;
 import com.hfstudio.guidenh.guide.scene.GuidebookSceneLayerSelection;
 import com.hfstudio.guidenh.guide.scene.annotation.InWorldAnnotation;
@@ -53,33 +53,13 @@ public class StructureLibSceneImageExporter {
 
     public ExportedImage export(GuidebookLevel level, CameraSettings camera, GuidebookSceneLayerSelection layers,
         StructureLibExportBackground background, Path target, int width, int height, long maxPixels) throws Exception {
-        return export(
-            level,
-            camera,
-            layers,
-            Collections.emptyList(),
-            Collections.emptyList(),
-            background,
-            target,
-            width,
-            height,
-            maxPixels);
+        return export(level, camera, layers, List.of(), List.of(), background, target, width, height, maxPixels);
     }
 
     public ExportedImage export(GuidebookLevel level, CameraSettings camera, GuidebookSceneLayerSelection layers,
         List<InWorldAnnotation> annotations, StructureLibExportBackground background, Path target, int width,
         int height, long maxPixels) throws Exception {
-        return export(
-            level,
-            camera,
-            layers,
-            annotations,
-            Collections.emptyList(),
-            background,
-            target,
-            width,
-            height,
-            maxPixels);
+        return export(level, camera, layers, annotations, List.of(), background, target, width, height, maxPixels);
     }
 
     public ExportedImage export(GuidebookLevel level, CameraSettings camera, GuidebookSceneLayerSelection layers,
@@ -100,7 +80,7 @@ public class StructureLibSceneImageExporter {
 
     private BufferedImage render(GuidebookLevel level, CameraSettings camera, GuidebookSceneLayerSelection layers,
         List<InWorldAnnotation> annotations, List<OverlayAnnotation> overlays, StructureLibExportBackground background,
-        int width, int height) throws Exception {
+        int width, int height) {
         int maxFboSize = GL11.glGetInteger(GL11.GL_MAX_TEXTURE_SIZE);
         if (maxFboSize <= 0) {
             maxFboSize = 8192;
@@ -222,28 +202,6 @@ public class StructureLibSceneImageExporter {
         return image;
     }
 
-    public static class ExportedImage {
-
-        private final Path path;
-        private final int width;
-        private final int height;
-
-        public ExportedImage(Path path, int width, int height) {
-            this.path = path;
-            this.width = width;
-            this.height = height;
-        }
-
-        public Path getPath() {
-            return path;
-        }
-
-        public int getWidth() {
-            return width;
-        }
-
-        public int getHeight() {
-            return height;
-        }
-    }
+    @Desugar
+    public record ExportedImage(Path path, int width, int height) {}
 }

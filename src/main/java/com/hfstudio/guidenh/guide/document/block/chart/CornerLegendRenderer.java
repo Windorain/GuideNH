@@ -59,12 +59,12 @@ public class CornerLegendRenderer {
         int x = switch (position) {
             case TOP_LEFT, BOTTOM_LEFT -> plotRect.x() + GAP;
             case TOP_RIGHT, BOTTOM_RIGHT -> plotRect.right() - width - GAP;
-            case NONE -> plotRect.right() - width - GAP;
+            default -> throw new IllegalStateException("Unexpected value: " + position);
         };
         int y = switch (position) {
             case TOP_LEFT, TOP_RIGHT -> plotRect.y() + GAP;
             case BOTTOM_LEFT, BOTTOM_RIGHT -> plotRect.bottom() - height - GAP;
-            case NONE -> plotRect.y() + GAP;
+            default -> throw new IllegalStateException("Unexpected value: " + position);
         };
         x = clamp(x, plotRect.x(), plotRect.right() - width);
         y = clamp(y, plotRect.y(), plotRect.bottom() - height);
@@ -121,6 +121,6 @@ public class CornerLegendRenderer {
     }
 
     private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
+        return Math.clamp(value, min, max);
     }
 }

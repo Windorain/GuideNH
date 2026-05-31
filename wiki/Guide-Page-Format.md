@@ -280,7 +280,7 @@ GuideNH reads the first YAML frontmatter block and parses these known keys:
 | Key | Type | Meaning |
 | --- | --- | --- |
 | `navigation` | map | Adds the page to the navigation tree |
-| `categories` | list of strings | Adds the page to the category index |
+| `categories` | list of strings | Adds the page to MediaWiki-style categories; each entry can optionally use `category|sort key` |
 | `item_ids` | list of item references | Makes the page discoverable by `<ItemLink>` |
 | `ore_ids` | list of ore dictionary names | Makes the page discoverable by ore-dictionary items (e.g. `ingotIron`, `oreCopper`) |
 | `quest_ids` | list of BetterQuesting quest ids | Makes the page discoverable by `<QuestLink>` / `<QuestCard>` and by the open-guide hotkey when a quest is hovered in the BQ GUI. Accepts canonical UUID strings and BetterQuesting's compact Base64 form. Only consumed when BetterQuesting is loaded. See [Mod Compatibility](Mod-Compatibility) |
@@ -339,7 +339,7 @@ navigation:
   #   - test2.png
 categories:
   - basics
-  - examples
+  - examples|Examples Overview
 ore_ids:
   - ingotIron
   - oreCopper
@@ -350,6 +350,10 @@ author: ExampleAuthor
 date: 2024-01-15
 updated: 2024-06-01
 ```
+
+`categories` accepts either plain category names or `category|sort key` entries.
+Use `<Category name="examples" rows="3" />` to render a category listing block, and
+`<Special name="SpecialPages" rows="3" />` to embed the generated MediaWiki-style special-page index.
 
 For BetterQuesting integration, `quest_ids` accepts either of these formats:
 

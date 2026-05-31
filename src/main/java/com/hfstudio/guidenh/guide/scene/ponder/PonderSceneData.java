@@ -1,6 +1,5 @@
 package com.hfstudio.guidenh.guide.scene.ponder;
 
-import java.util.Collections;
 import java.util.List;
 
 import org.jetbrains.annotations.Nullable;
@@ -20,7 +19,7 @@ public class PonderSceneData {
     }
 
     public List<PonderKeyframe> getKeyframes() {
-        return keyframes != null ? keyframes : Collections.emptyList();
+        return keyframes != null ? keyframes : List.of();
     }
 
     public int getKeyframeCount() {
@@ -65,6 +64,6 @@ public class PonderSceneData {
         if (total <= 0) {
             return 1f;
         }
-        return Math.max(0f, Math.min(1f, tick / (float) total));
+        return Math.clamp(tick / (float) total, 0f, 1f);
     }
 }

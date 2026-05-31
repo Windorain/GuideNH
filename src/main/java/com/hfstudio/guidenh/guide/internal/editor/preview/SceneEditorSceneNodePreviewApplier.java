@@ -4,11 +4,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
 import net.minecraft.block.Block;
-import net.minecraft.entity.Entity;
 import net.minecraft.init.Blocks;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -21,11 +21,14 @@ import com.hfstudio.guidenh.guide.color.ConstantColor;
 import com.hfstudio.guidenh.guide.compiler.PageCompiler;
 import com.hfstudio.guidenh.guide.document.block.LytParagraph;
 import com.hfstudio.guidenh.guide.internal.editor.SceneEditorSession;
+import com.hfstudio.guidenh.guide.internal.editor.io.SceneEditorStructureCache;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorElementModel;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorElementType;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneModel;
 import com.hfstudio.guidenh.guide.internal.editor.model.SceneEditorSceneNodeModel;
+import com.hfstudio.guidenh.guide.internal.localization.GuideResourceLanguageIndex;
 import com.hfstudio.guidenh.guide.internal.structure.GuideTextNbtCodec;
+import com.hfstudio.guidenh.guide.internal.util.LangUtil;
 import com.hfstudio.guidenh.guide.scene.LytGuidebookScene;
 import com.hfstudio.guidenh.guide.scene.StructureLibSceneBinding;
 import com.hfstudio.guidenh.guide.scene.StructureLibSceneCondition;
@@ -46,6 +49,7 @@ import com.hfstudio.guidenh.guide.scene.support.BlockAnnotationTemplateExpander;
 import com.hfstudio.guidenh.guide.scene.support.GuideBlockMatcher;
 import com.hfstudio.guidenh.guide.scene.support.GuideDebugLog;
 import com.hfstudio.guidenh.guide.scene.support.RemoveBlocksExecutor;
+import com.hfstudio.guidenh.guide.scene.support.ScenePreviewFormedState;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibImportRequest;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibImportResult;
 import com.hfstudio.guidenh.integration.structurelib.StructureLibPreviewSelection;
@@ -150,23 +154,24 @@ public class SceneEditorSceneNodePreviewApplier {
 
     private boolean applyNode(SceneEditorSession session, LytGuidebookScene scene, SceneEditorSceneNodeModel node,
         @Nullable StructureLibPreviewSelection structureLibSelectionOverride, boolean structureMutationEnabled) {
-        switch (node.getType()) {
-            case IMPORT_STRUCTURE:
-                return applyImportStructure(session, scene.getLevel(), node, structureMutationEnabled);
-            case IMPORT_STRUCTURE_LIB:
-                return applyImportStructureLib(scene, node, structureLibSelectionOverride, structureMutationEnabled);
-            case REMOVE_BLOCKS:
-                return applyRemoveBlocks(scene.getLevel(), node, structureMutationEnabled);
-            case BLOCK_ANNOTATION_TEMPLATE:
+        return switch (node.getType()) {
+            case IMPORT_STRUCTURE -> applyImportStructure(session, scene.getLevel(), node, structureMutationEnabled);
+            case IMPORT_STRUCTURE_LIB -> applyImportStructureLib(
+                scene,
+                node,
+                structureLibSelectionOverride,
+                structureMutationEnabled);
+            case REMOVE_BLOCKS -> applyRemoveBlocks(scene.getLevel(), node, structureMutationEnabled);
+            case BLOCK_ANNOTATION_TEMPLATE -> {
                 applyBlockAnnotationTemplate(scene, node);
-                return true;
-            case ANNOTATION:
+                yield true;
+            }
+            case ANNOTATION -> {
                 appendAnnotation(scene, node.getAnnotationElement());
-                return true;
-            case OPAQUE:
-            default:
-                return true;
-        }
+                yield true;
+            }
+            default -> true;
+        };
     }
 
     private void applyAnnotationNode(LytGuidebookScene scene, SceneEditorSceneNodeModel node) {
@@ -197,7 +202,17 @@ public class SceneEditorSceneNodePreviewApplier {
             return false;
         }
 
-        return loadStructureIntoLevel(level, structureText);
+        int offsetX = parseIntegerAttributeOrDefault(
+            node.getAttribute("offsetX") != null ? node.getAttribute("offsetX") : node.getAttribute("x"),
+            0);
+        int offsetY = parseIntegerAttributeOrDefault(
+            node.getAttribute("offsetY") != null ? node.getAttribute("offsetY") : node.getAttribute("y"),
+            0);
+        int offsetZ = parseIntegerAttributeOrDefault(
+            node.getAttribute("offsetZ") != null ? node.getAttribute("offsetZ") : node.getAttribute("z"),
+            0);
+        boolean formed = parseBooleanAttribute(node.getAttribute("formed"));
+        return loadStructureIntoLevel(level, structureText, offsetX, offsetY, offsetZ, formed);
     }
 
     private boolean applyImportStructureLib(LytGuidebookScene scene, SceneEditorSceneNodeModel node,
@@ -213,6 +228,7 @@ public class SceneEditorSceneNodePreviewApplier {
         int offsetX = parseIntegerAttributeOrDefault(node.getAttribute("offsetX"), 0);
         int offsetY = parseIntegerAttributeOrDefault(node.getAttribute("offsetY"), 0);
         int offsetZ = parseIntegerAttributeOrDefault(node.getAttribute("offsetZ"), 0);
+        boolean formed = parseBooleanAttribute(node.getAttribute("formed"));
         Integer requestedChannel = parseIntegerAttribute(node.getAttribute("channel"));
         String structureName = normalizeAttribute(node.getAttribute("name"));
         StructureLibSceneBinding binding = scene.registerStructureLibBinding(structureName);
@@ -243,7 +259,7 @@ public class SceneEditorSceneNodePreviewApplier {
             if (block == null || block == Blocks.air) {
                 continue;
             }
-            int clampedY = Math.max(0, Math.min(placedBlock.getY() + offsetY, level.getHeight() - 1));
+            int clampedY = Math.clamp(placedBlock.getY() + offsetY, 0, level.getHeight() - 1);
 
             GuidebookPreviewBlockPlacer.place(
                 level,
@@ -254,6 +270,12 @@ public class SceneEditorSceneNodePreviewApplier {
                 placedBlock.getMeta(),
                 placedBlock.getTileTag(),
                 placedBlock.getBlockId());
+            ScenePreviewFormedState.updateAfterPlacement(
+                level,
+                placedBlock.getX() + offsetX,
+                clampedY,
+                placedBlock.getZ() + offsetZ,
+                formed);
         }
         return true;
     }
@@ -315,7 +337,7 @@ public class SceneEditorSceneNodePreviewApplier {
                         .getTagName());
                 continue;
             }
-            templateAnnotations.add(toRuntimeAnnotation(templateElement));
+            templateAnnotations.addAll(toRuntimeAnnotations(templateElement));
         }
 
         if (templateAnnotations.isEmpty()) {
@@ -343,7 +365,11 @@ public class SceneEditorSceneNodePreviewApplier {
         if (element == null || !element.isVisible()) {
             return;
         }
-        scene.addAnnotation(toRuntimeAnnotation(element));
+        for (SceneAnnotation annotation : toRuntimeAnnotations(element)) {
+            if (annotation != null) {
+                scene.addAnnotation(annotation);
+            }
+        }
     }
 
     @Nullable
@@ -364,31 +390,37 @@ public class SceneEditorSceneNodePreviewApplier {
             return null;
         }
 
-        Path path = workingRoot.resolve(normalizedSource)
-            .normalize();
-        if (!Files.exists(path)) {
+        Path path = SceneEditorStructureCache.resolveSceneStructurePath(workingRoot, normalizedSource)
+            .orElse(null);
+        if (path == null || !Files.exists(path)) {
             return null;
         }
 
         try {
-            return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+            return Files.readString(path);
         } catch (Exception e) {
             GuideDebugLog.warn("Failed to read scene editor preview structure {}", normalizedSource, e);
             return null;
         }
     }
 
-    private boolean loadStructureIntoLevel(GuidebookLevel level, String structureText) {
+    private boolean loadStructureIntoLevel(GuidebookLevel level, String structureText, int offsetX, int offsetY,
+        int offsetZ, boolean formed) {
         try {
             NBTTagCompound root = GuideTextNbtCodec.readStructureNbt(structureText.getBytes(StandardCharsets.UTF_8));
-            return loadStructureIntoLevel(level, root);
+            return loadStructureIntoLevel(level, root, offsetX, offsetY, offsetZ, formed);
         } catch (Exception e) {
             GuideDebugLog.warn("Failed to parse scene editor preview structure text", e);
             return false;
         }
     }
 
-    private boolean loadStructureIntoLevel(GuidebookLevel level, NBTTagCompound root) {
+    private boolean loadStructureIntoLevel(GuidebookLevel level, String structureText) {
+        return loadStructureIntoLevel(level, structureText, 0, 0, 0, false);
+    }
+
+    private boolean loadStructureIntoLevel(GuidebookLevel level, NBTTagCompound root, int offsetX, int offsetY,
+        int offsetZ, boolean formed) {
         if (!root.hasKey("palette") || !root.hasKey("blocks")) {
             return false;
         }
@@ -414,11 +446,14 @@ public class SceneEditorSceneNodePreviewApplier {
             if (pos.length < 3) {
                 continue;
             }
+            int px = pos[0] + offsetX;
+            int py = Math.clamp(pos[1] + offsetY, 0, level.getHeight() - 1);
+            int pz = pos[2] + offsetZ;
             int meta = blockTag.hasKey("meta") ? blockTag.getInteger("meta") : 0;
             NBTTagCompound tileTag = blockTag.hasKey("nbt", 10) ? blockTag.getCompoundTag("nbt") : null;
-            GuidebookPreviewBlockPlacer
-                .place(level, pos[0], pos[1], pos[2], block, meta, tileTag, palette[state], blockTag);
-            level.setExplicitBlockId(pos[0], pos[1], pos[2], palette[state]);
+            GuidebookPreviewBlockPlacer.place(level, px, py, pz, block, meta, tileTag, palette[state], blockTag);
+            level.setExplicitBlockId(px, py, pz, palette[state]);
+            ScenePreviewFormedState.updateAfterPlacement(level, px, py, pz, formed);
         }
 
         // Spawn entities stored in the "entities" list (produced by snbt+entities export mode).
@@ -430,10 +465,17 @@ public class SceneEditorSceneNodePreviewApplier {
             NBTTagList entitiesTag = root.getTagList("entities", 10);
             for (int i = 0; i < entitiesTag.tagCount(); i++) {
                 NBTTagCompound et = entitiesTag.getCompoundTagAt(i);
-                Entity entity = GuidebookSceneEntityImportSupport
-                    .loadImportedEntityUnclamped(fakeWorld, et, 0f, 0f, 0f);
-                if (entity != null) {
-                    level.addEntity(entity);
+                GuidebookSceneEntityImportSupport.ImportedSceneEntity importedEntity = GuidebookSceneEntityImportSupport
+                    .loadImportedEntityRecord(fakeWorld, et, offsetX, offsetY, offsetZ, 0f, level.getHeight() - 1f);
+                if (importedEntity != null) {
+                    level.addEntity(importedEntity.entity(), importedEntity.sceneEntityId());
+                    if (Boolean.TRUE.equals(importedEntity.unmount())) {
+                        level.clearSceneEntityMount(importedEntity.sceneEntityId());
+                    } else if (importedEntity.mountTargetSceneEntityId() != null) {
+                        level.setSceneEntityMount(
+                            importedEntity.sceneEntityId(),
+                            importedEntity.mountTargetSceneEntityId());
+                    }
                 }
             }
         }
@@ -453,7 +495,7 @@ public class SceneEditorSceneNodePreviewApplier {
         }
     }
 
-    private SceneAnnotation toRuntimeAnnotation(SceneEditorElementModel element) {
+    private List<SceneAnnotation> toRuntimeAnnotations(SceneEditorElementModel element) {
         ConstantColor color = parseColor(element.getColorLiteral());
         if (element.getType() == SceneEditorElementType.BLOCK) {
             Vector3f min = new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ());
@@ -465,7 +507,7 @@ public class SceneEditorSceneNodePreviewApplier {
             annotation.setAlwaysOnTop(element.isAlwaysOnTop());
             applyTooltip(annotation, element.getTooltipMarkdown());
             applyStructureLibCondition(annotation, element);
-            return annotation;
+            return Collections.singletonList(annotation);
         }
         if (element.getType() == SceneEditorElementType.BOX) {
             Vector3f min = new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ());
@@ -475,7 +517,7 @@ public class SceneEditorSceneNodePreviewApplier {
             annotation.setAlwaysOnTop(element.isAlwaysOnTop());
             applyTooltip(annotation, element.getTooltipMarkdown());
             applyStructureLibCondition(annotation, element);
-            return annotation;
+            return Collections.singletonList(annotation);
         }
         if (element.getType() == SceneEditorElementType.LINE) {
             InWorldLineAnnotation annotation = new InWorldLineAnnotation(
@@ -485,22 +527,30 @@ public class SceneEditorSceneNodePreviewApplier {
             annotation.setAlwaysOnTop(element.isAlwaysOnTop());
             applyTooltip(annotation, element.getTooltipMarkdown());
             applyStructureLibCondition(annotation, element);
-            return annotation;
+            return Collections.singletonList(annotation);
         }
         if (element.getType() == SceneEditorElementType.TEXT) {
-            String text = element.getTextMarkdown();
-            TextAnnotation annotation = new TextAnnotation(
-                new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()),
-                text,
-                color,
-                element.getMaxWidth());
+            String text = resolveAnnotationText(element);
+            TextAnnotation annotation = createTextAnnotation(element, text, color);
             annotation.setBackgroundAlpha(element.getBackgroundAlpha());
+            annotation.setConnector(
+                parseConnectorSideAttribute(element),
+                parseIntegerAttributeOrDefault(element.getExtraAttribute("connectorOffset"), 0),
+                parseIntegerAttributeOrDefault(
+                    element.getExtraAttribute("connectorLength"),
+                    TextAnnotation.CONNECTOR_HEIGHT));
             LytParagraph paragraph = new LytParagraph();
             PageCompiler compiler = SceneEditorTooltipCompiler.createPreviewCompiler(text);
             compiler.compileInlineMarkdown(text, paragraph);
             annotation.setRichContent(paragraph);
             applyStructureLibCondition(annotation, element);
-            return annotation;
+            ArrayList<SceneAnnotation> annotations = new ArrayList<>();
+            annotations.add(annotation);
+            SceneAnnotation highlight = createTextHighlightAnnotation(element);
+            if (highlight != null) {
+                annotations.add(highlight);
+            }
+            return annotations;
         }
         DiamondAnnotation annotation = new DiamondAnnotation(
             new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()),
@@ -508,7 +558,7 @@ public class SceneEditorSceneNodePreviewApplier {
         annotation.setAlwaysOnTop(element.isAlwaysOnTop());
         applyTooltip(annotation, element.getTooltipMarkdown());
         applyStructureLibCondition(annotation, element);
-        return annotation;
+        return Collections.singletonList(annotation);
     }
 
     private List<Vector3f> resolveLinePoints(SceneEditorElementModel element) {
@@ -520,6 +570,52 @@ public class SceneEditorSceneNodePreviewApplier {
         fallback.add(new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()));
         fallback.add(new Vector3f(element.getSecondaryX(), element.getSecondaryY(), element.getSecondaryZ()));
         return fallback;
+    }
+
+    private TextAnnotation createTextAnnotation(SceneEditorElementModel element, String text, ConstantColor color) {
+        if (parseBooleanAttribute(element.getExtraAttribute("independent"))) {
+            return new TextAnnotation(
+                text,
+                color,
+                parseIntegerAttributeOrDefault(element.getExtraAttribute("yOffset"), 0),
+                element.getMaxWidth());
+        }
+        return new TextAnnotation(
+            new Vector3f(element.getPrimaryX(), element.getPrimaryY(), element.getPrimaryZ()),
+            text,
+            color,
+            element.getMaxWidth());
+    }
+
+    @Nullable
+    private SceneAnnotation createTextHighlightAnnotation(SceneEditorElementModel element) {
+        String hlMinX = normalizeAttribute(element.getExtraAttribute("hlMinX"));
+        String hlMinY = normalizeAttribute(element.getExtraAttribute("hlMinY"));
+        String hlMinZ = normalizeAttribute(element.getExtraAttribute("hlMinZ"));
+        String hlMaxX = normalizeAttribute(element.getExtraAttribute("hlMaxX"));
+        String hlMaxY = normalizeAttribute(element.getExtraAttribute("hlMaxY"));
+        String hlMaxZ = normalizeAttribute(element.getExtraAttribute("hlMaxZ"));
+        if (hlMinX == null && hlMinY == null && hlMinZ == null && hlMaxX == null && hlMaxY == null && hlMaxZ == null) {
+            return null;
+        }
+
+        Vector3f min = new Vector3f(
+            parseFloatAttributeOrDefault(hlMinX, 0f),
+            parseFloatAttributeOrDefault(hlMinY, 0f),
+            parseFloatAttributeOrDefault(hlMinZ, 0f));
+        Vector3f max = new Vector3f(
+            parseFloatAttributeOrDefault(hlMaxX, 1f),
+            parseFloatAttributeOrDefault(hlMaxY, 1f),
+            parseFloatAttributeOrDefault(hlMaxZ, 1f));
+        normalizeBounds(min, max);
+        ConstantColor highlightColor = parseColorOrDefault(element.getExtraAttribute("highlightColor"), 0x8000FFAA);
+        InWorldBoxAnnotation annotation = new InWorldBoxAnnotation(
+            min,
+            max,
+            highlightColor,
+            InWorldBoxAnnotation.DEFAULT_THICKNESS);
+        applyStructureLibCondition(annotation, element);
+        return annotation;
     }
 
     private void applyTooltip(SceneAnnotation annotation, @Nullable String tooltipMarkdown) {
@@ -565,6 +661,54 @@ public class SceneEditorSceneNodePreviewApplier {
         return new ConstantColor(color);
     }
 
+    private String resolveAnnotationText(SceneEditorElementModel element) {
+        if (element == null) {
+            return "";
+        }
+        String textKey = normalizeAttribute(element.getTextKey());
+        if (textKey != null) {
+            String localized = GuideResourceLanguageIndex.getValue(LangUtil.getCurrentLanguage(), textKey);
+            if (localized != null && !localized.isEmpty()) {
+                return localized;
+            }
+        }
+        return element.getTextMarkdown();
+    }
+
+    private boolean parseBooleanAttribute(@Nullable String value) {
+        String normalized = normalizeAttribute(value);
+        return normalized != null && Boolean.parseBoolean(normalized);
+    }
+
+    private TextAnnotation.ConnectorSide parseConnectorSideAttribute(SceneEditorElementModel element) {
+        String rawValue = element != null ? normalizeAttribute(element.getExtraAttribute("connectorSide")) : null;
+        if (rawValue == null) {
+            return TextAnnotation.ConnectorSide.BOTTOM;
+        }
+        try {
+            return TextAnnotation.ConnectorSide.fromSerializedName(rawValue);
+        } catch (IllegalArgumentException ignored) {
+            return TextAnnotation.ConnectorSide.BOTTOM;
+        }
+    }
+
+    private float parseFloatAttributeOrDefault(@Nullable String value, float defaultValue) {
+        String normalized = normalizeAttribute(value);
+        if (normalized == null) {
+            return defaultValue;
+        }
+        try {
+            return Float.parseFloat(normalized);
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
+    }
+
+    private ConstantColor parseColorOrDefault(@Nullable String colorLiteral, int defaultColor) {
+        String normalized = normalizeAttribute(colorLiteral);
+        return normalized != null ? parseColor(normalized) : new ConstantColor(defaultColor);
+    }
+
     @Nullable
     public static String normalizeAttribute(@Nullable String value) {
         if (value == null) {
@@ -589,6 +733,6 @@ public class SceneEditorSceneNodePreviewApplier {
 
     private static int parseIntegerAttributeOrDefault(@Nullable String value, int defaultValue) {
         Integer parsed = parseIntegerAttribute(value);
-        return parsed != null ? parsed.intValue() : defaultValue;
+        return parsed != null ? parsed : defaultValue;
     }
 }

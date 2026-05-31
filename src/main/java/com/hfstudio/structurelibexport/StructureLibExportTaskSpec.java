@@ -1,14 +1,16 @@
 package com.hfstudio.structurelibexport;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.jetbrains.annotations.Nullable;
 
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
 public class StructureLibExportTaskSpec {
 
     private final StructureLibControllerSpec controller;
@@ -27,6 +29,7 @@ public class StructureLibExportTaskSpec {
     private final boolean gtPlaceHatches;
     private final List<String> warnings;
     @Nullable
+    @Setter
     private Path outputPath;
 
     public StructureLibExportTaskSpec(StructureLibControllerSpec controller, StructureLibOrientationSpec orientation,
@@ -67,37 +70,7 @@ public class StructureLibExportTaskSpec {
         this.scale = scale > 0f ? scale : 1f;
         this.gtActiveController = gtActiveController;
         this.gtPlaceHatches = gtPlaceHatches;
-        this.warnings = warnings != null ? Collections.unmodifiableList(new ArrayList<>(warnings))
-            : Collections.emptyList();
-    }
-
-    public StructureLibControllerSpec getController() {
-        return controller;
-    }
-
-    public StructureLibOrientationSpec getOrientation() {
-        return orientation;
-    }
-
-    public int getTier() {
-        return tier;
-    }
-
-    public Map<String, Integer> getChannels() {
-        return channels;
-    }
-
-    public String getLayerExpression() {
-        return layerExpression;
-    }
-
-    public boolean isEachLayer() {
-        return eachLayer;
-    }
-
-    @Nullable
-    public Integer getExplicitLayer() {
-        return explicitLayer;
+        this.warnings = warnings != null ? List.copyOf(warnings) : List.of();
     }
 
     public StructureLibExportTaskSpec forExplicitLayer(int layer) {
@@ -118,47 +91,10 @@ public class StructureLibExportTaskSpec {
             warnings);
     }
 
-    public StructureLibExportView getView() {
-        return view;
-    }
-
-    public StructureLibExportBackground getBackground() {
-        return background;
-    }
-
-    public int getPixelsPerBlock() {
-        return pixelsPerBlock;
-    }
-
-    public float getScale() {
-        return scale;
-    }
-
-    public boolean isGtActiveController() {
-        return gtActiveController;
-    }
-
-    public boolean isGtPlaceHatches() {
-        return gtPlaceHatches;
-    }
-
-    public List<String> getWarnings() {
-        return warnings;
-    }
-
-    @Nullable
-    public Path getOutputPath() {
-        return outputPath;
-    }
-
-    public void setOutputPath(Path outputPath) {
-        this.outputPath = outputPath;
-    }
-
     private static Map<String, Integer> immutableChannels(Map<String, Integer> source) {
         if (source == null || source.isEmpty()) {
-            return Collections.emptyMap();
+            return Map.of();
         }
-        return Collections.unmodifiableMap(new LinkedHashMap<>(source));
+        return Map.copyOf(new LinkedHashMap<>(source));
     }
 }

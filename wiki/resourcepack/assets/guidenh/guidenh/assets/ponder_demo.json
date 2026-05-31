@@ -1,9 +1,9 @@
 {
-  "totalTime": 470,
+  "totalTime": 610,
   "keyframes": [
     {
       "time": 0,
-      "label": "Overview",
+      "labelKey": "guidenh.sample.ponder.label.overview",
       "camera": {
         "zoom": 1.8,
         "rotX": 25.0,
@@ -16,7 +16,7 @@
       "annotations": [
         {
           "type": "text",
-          "text": "A simple smelting setup: hopper feeds the furnace, chest collects output.",
+          "textKey": "guidenh.sample.ponder.text.overview",
           "independent": true,
           "yOffset": -60,
           "maxWidth": 180,
@@ -26,7 +26,7 @@
     },
     {
       "time": 60,
-      "label": "Input hopper",
+      "labelKey": "guidenh.sample.ponder.label.input",
       "camera": {
         "rotY": 240.0
       },
@@ -45,7 +45,7 @@
           "x": 0.5,
           "y": 2.8,
           "z": 1.5,
-          "text": "Place fuel and ore here",
+          "textKey": "guidenh.sample.ponder.text.insert_ore",
           "color": "0xFF44FF44",
           "hlMinX": 0.05,
           "hlMinY": 1.05,
@@ -93,7 +93,7 @@
           "vz": 0.0,
           "size": 0.18,
           "time": 16,
-          "count": 3
+          "amount": 3
         }
       ],
       "blockChanges": [
@@ -163,7 +163,7 @@
     },
     {
       "time": 270,
-      "label": "Output chest",
+      "labelKey": "guidenh.sample.ponder.label.output",
       "camera": {
         "rotY": 165.0
       },
@@ -192,7 +192,7 @@
           "x": 2.5,
           "y": 2.8,
           "z": 1.5,
-          "text": "Collect ingots from the chest",
+          "textKey": "guidenh.sample.ponder.text.collect_ingots",
           "color": "0xFF00AAFF"
         },
         {
@@ -217,12 +217,43 @@
           "y": 1,
           "z": 1,
           "path": "Items[0].Count",
+          "value": "2b"
+        }
+      ]
+    },
+    {
+      "time": 346,
+      "hidden": true,
+      "modifyTileNBT": [
+        {
+          "x": 2,
+          "y": 1,
+          "z": 1,
+          "path": "Items[0].Count",
           "value": "3b"
+        }
+      ]
+    },
+    {
+      "time": 370,
+      "label": "Done",
+      "camera": {
+        "rotY": 210.0,
+        "zoom": 1.8
+      },
+      "modifyTileNBT": [
+        {
+          "x": 2,
+          "y": 1,
+          "z": 1,
+          "path": "Items[0].Count",
+          "value": "4b"
         }
       ],
       "createEntities": [
         {
           "ref": "finished_pig",
+          "sceneEntityId": "finished_pig",
           "id": "minecraft:pig",
           "x": 1.5,
           "y": 1.0,
@@ -234,6 +265,7 @@
         },
         {
           "ref": "guide_operator",
+          "sceneEntityId": "guide_operator",
           "id": "player",
           "name": "GuideNH",
           "x": 2.45,
@@ -276,10 +308,16 @@
           "path": "CustomNameVisible"
         }
       ],
+      "setEntityNBT": [
+        {
+          "ref": "guide_operator",
+          "mount": "finished_pig"
+        }
+      ],
       "annotations": [
         {
           "type": "text",
-          "text": "The runtime can also animate timeline-owned entities with replay-safe presets.",
+          "text": "Timeline entities can use stable scene ids for mount, unmount, and removal without raw runtime ids.",
           "independent": true,
           "yOffset": 50,
           "maxWidth": 200,
@@ -296,7 +334,7 @@
       ]
     },
     {
-      "time": 352,
+      "time": 410,
       "label": "Entity presets",
       "camera": {
         "rotY": 214.0,
@@ -334,7 +372,7 @@
       ]
     },
     {
-      "time": 372,
+      "time": 455,
       "label": "Jump and crouch",
       "camera": {
         "rotY": 220.0,
@@ -369,17 +407,45 @@
       ]
     },
     {
-      "time": 392,
+      "time": 500,
       "label": "Unsneak",
       "animateEntities": [
         {
           "ref": "guide_operator",
           "preset": "unsneak"
         }
+      ],
+      "modifyEntityNBT": [
+        {
+          "ref": "guide_operator",
+          "unmount": true,
+          "x": 2.35,
+          "y": 1.0,
+          "z": 1.45
+        }
       ]
     },
     {
-      "time": 410,
+      "time": 530,
+      "label": "Remove mounted entity",
+      "removeEntities": [
+        {
+          "ref": "finished_pig"
+        }
+      ],
+      "annotations": [
+        {
+          "type": "text",
+          "text": "removeEntities deletes by ref while the stable registry keeps replay and seeking deterministic.",
+          "independent": true,
+          "yOffset": 56,
+          "maxWidth": 220,
+          "color": "0xFFFFD966"
+        }
+      ]
+    },
+    {
+      "time": 555,
       "label": "Explosion preset",
       "particles": [
         {
@@ -403,7 +469,7 @@
       ]
     },
     {
-      "time": 435,
+      "time": 580,
       "label": "Weather preset",
       "particles": [
         {
@@ -412,7 +478,7 @@
           "x": [0, 1, 2, 2],
           "z": [0, 2, 0, 2],
           "time": 80,
-          "count": 7
+          "amount": 7
         }
       ],
       "annotations": [
@@ -427,7 +493,40 @@
       ]
     },
     {
-      "time": 470,
+      "time": 600,
+      "label": "Indicator presets",
+      "particles": [
+        {
+          "preset": "indicator",
+          "color": "#6EDCFF",
+          "x": [0, 1],
+          "y": [1, 2],
+          "z": [0, 1],
+          "time": 16,
+          "amount": 6,
+          "size": 0.12
+        },
+        {
+          "preset": "redstone",
+          "x": 3,
+          "y": 1,
+          "z": 1,
+          "time": 16
+        }
+      ],
+      "annotations": [
+        {
+          "type": "text",
+          "text": "Indicator preset supports custom colors and 3-axis block volumes. Redstone is the default-red shortcut.",
+          "independent": true,
+          "yOffset": 56,
+          "maxWidth": 228,
+          "color": "0xFF9DE7FF"
+        }
+      ]
+    },
+    {
+      "time": 610,
       "camera": {
         "rotY": 210.0
       }

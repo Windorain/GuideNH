@@ -80,12 +80,8 @@ public class BlockImageCompiler extends BlockTagCompiler {
     }
 
     private int resolveBlockMeta(ResolvedBlockReference blockReference) {
-        if (blockReference.hasExplicitMeta() && blockReference.stack() != null) {
-            int meta = blockReference.stack()
-                .getItemDamage();
-            if (meta != OreDictionary.WILDCARD_VALUE) {
-                return meta;
-            }
+        if (blockReference.hasExplicitMeta() && blockReference.explicitMeta() != OreDictionary.WILDCARD_VALUE) {
+            return blockReference.explicitMeta();
         }
         return BlockElementCompiler.defaultMetaFor(blockReference.block(), null);
     }
@@ -208,10 +204,10 @@ public class BlockImageCompiler extends BlockTagCompiler {
     }
 
     private int clampSceneDimension(int dimension) {
-        return Math.max(64, Math.min(256, dimension));
+        return Math.clamp(dimension, 64, 256);
     }
 
     private float clampZoom(float zoom) {
-        return Math.max(LytGuidebookScene.MIN_ZOOM, Math.min(LytGuidebookScene.MAX_ZOOM, zoom));
+        return Math.clamp(zoom, LytGuidebookScene.MIN_ZOOM, LytGuidebookScene.MAX_ZOOM);
     }
 }

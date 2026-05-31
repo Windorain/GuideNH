@@ -1,6 +1,5 @@
 package com.hfstudio.guidenh.integration.ae2;
 
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +42,7 @@ import appeng.tile.AEBaseTile;
 import appeng.tile.crafting.TileCraftingTile;
 import appeng.tile.networking.TileCableBus;
 import appeng.tile.qnb.TileQuantumBridge;
+import appeng.tile.spatial.TileSpatialPylon;
 import cpw.mods.fml.common.Optional;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -52,7 +52,7 @@ import io.netty.buffer.Unpooled;
  * ({@link Ae2ServerPreviewRegistration#SUPPLEMENT_ID} cable bus; {@link Ae2BaseTileNetworkStreamPreview#SUPPLEMENT_ID}
  * other {@link AEBaseTile}), merged with locally inferred cable facings where applicable.
  */
-public final class Ae2Helpers {
+public class Ae2Helpers {
 
     /** Low six bits of PartCable stream {@code cs}: {@link ForgeDirection#VALID_DIRECTIONS} only. */
     private static final int CS_DIRECTION_MASK = 0x3F;
@@ -84,11 +84,11 @@ public final class Ae2Helpers {
     public static Map<String, byte[]> capturePonderPreviewSupplements(GuidebookLevel level, int x, int y, int z,
         @Nullable Block block, int meta) {
         if (level == null || block == null || block == Blocks.air) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         TileEntity tileEntity = level.getTileEntity(x, y, z);
         if (!(tileEntity instanceof TileCableBus)) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         NBTTagCompound structureBlockTag = new NBTTagCompound();
         structureBlockTag.setIntArray("pos", new int[] { x, y, z });
@@ -106,7 +106,7 @@ public final class Ae2Helpers {
 
     private static Map<String, byte[]> readPreviewSupplements(@Nullable NBTTagCompound tag) {
         if (tag == null || !tag.hasKey(ServerPreviewSupplementNbt.TAG_ROOT, 10)) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         NBTTagCompound root = tag.getCompoundTag(ServerPreviewSupplementNbt.TAG_ROOT);
         Map<String, byte[]> result = new LinkedHashMap<>();
@@ -116,7 +116,7 @@ public final class Ae2Helpers {
                 result.put(supplementId, payload);
             }
         }
-        return result.isEmpty() ? Collections.emptyMap() : result;
+        return result.isEmpty() ? Map.of() : result;
     }
 
     @Optional.Method(modid = "appliedenergistics2")
@@ -553,9 +553,11 @@ public final class Ae2Helpers {
         boolean applied = blob != null && blob.length > 0
             && Ae2BaseTileNetworkStreamPreview.applyAuthorityToPreviewTile(aeTile, blob);
         if (applied) {
+            syncSpecialPreviewConnectableSides(aeTile);
             return;
         }
         syncDescriptionPacket(aeTile);
+        syncSpecialPreviewConnectableSides(aeTile);
     }
 
     @Optional.Method(modid = "appliedenergistics2")
@@ -566,5 +568,28 @@ public final class Ae2Helpers {
                 tile.onDataPacket(null, updatePacket);
             }
         } catch (Throwable ignored) {}
+    }
+
+    @Optional.Method(modid = "appliedenergistics2")
+    private static void syncSpecialPreviewConnectableSides(AEBaseTile aeTile) {
+        if (aeTile instanceof TileSpatialPylon spatialPylon) {
+            syncSpatialPylonValidSides(spatialPylon);
+        }
+    }
+
+    @Optional.Method(modid = "appliedenergistics2")
+    private static void syncSpatialPylonValidSides(TileSpatialPylon spatialPylon) {
+        EnumSet<ForgeDirection> validSides = hasSpatialPylonClusterState(spatialPylon)
+            ? EnumSet.allOf(ForgeDirection.class)
+            : EnumSet.noneOf(ForgeDirection.class);
+        try {
+            spatialPylon.getProxy()
+                .setValidSides(validSides);
+        } catch (Throwable ignored) {}
+    }
+
+    @Optional.Method(modid = "appliedenergistics2")
+    private static boolean hasSpatialPylonClusterState(TileSpatialPylon spatialPylon) {
+        return (spatialPylon.getDisplayBits() & TileSpatialPylon.MB_STATUS) != 0;
     }
 }

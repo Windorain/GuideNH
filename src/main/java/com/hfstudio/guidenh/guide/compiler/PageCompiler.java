@@ -7,7 +7,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -23,6 +22,7 @@ import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import com.github.bsideup.jabel.Desugar;
+import com.hfstudio.guidenh.config.ModConfig;
 import com.hfstudio.guidenh.guide.GuidePage;
 import com.hfstudio.guidenh.guide.PageAnchor;
 import com.hfstudio.guidenh.guide.PageCollection;
@@ -84,6 +84,10 @@ import com.hfstudio.guidenh.guide.internal.markdown.MarkdownRuntimeBlocks.QuoteI
 import com.hfstudio.guidenh.guide.internal.markdown.MarkdownRuntimeBlocks.QuoteIconSpec;
 import com.hfstudio.guidenh.guide.internal.mermaid.MermaidMindmapParser;
 import com.hfstudio.guidenh.guide.internal.util.GuideStringLines;
+import com.hfstudio.guidenh.guide.internal.util.LangUtil;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListContext;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiListContextProvider;
+import com.hfstudio.guidenh.guide.mediawiki.MediaWikiPageIds;
 import com.hfstudio.guidenh.guide.render.GuidePageTexture;
 import com.hfstudio.guidenh.guide.sound.GuideSoundParsers;
 import com.hfstudio.guidenh.guide.style.BorderStyle;
@@ -150,11 +154,12 @@ public class PageCompiler {
     private static final State<List<SourceSlice>> SOURCE_SLICE_STACK = new State<>(
         "source_slice_stack",
         castClass(List.class),
-        Collections.emptyList());
+        List.of());
 
     private final PageCollection pages;
     private final ExtensionCollection extensions;
     private final String sourcePack;
+    private final String language;
     private final ResourceLocation pageId;
     private final String pageContent;
     private final Map<String, MdAstDefinition> definitions = new HashMap<>();
@@ -164,12 +169,20 @@ public class PageCompiler {
     // Data associated with the current page being compiled, this is used by
     // compilers to communicate with each other within the current page.
     private final Map<State<?>, Object> compilerState = new IdentityHashMap<>();
+    private final Map<MdxJsxElementFields, BlockTagChildrenCacheEntry> blockTagChildrenCache = new IdentityHashMap<>();
+    private final Map<String, ParsedGuidePage> inlineMarkdownParseCache = new HashMap<>();
 
     public PageCompiler(PageCollection pages, ExtensionCollection extensions, String sourcePack,
+        ResourceLocation pageId, String pageContent) {
+        this(pages, extensions, sourcePack, LangUtil.ENGLISH_LANGUAGE, pageId, pageContent);
+    }
+
+    public PageCompiler(PageCollection pages, ExtensionCollection extensions, String sourcePack, String language,
         ResourceLocation pageId, String pageContent) {
         this.pages = pages;
         this.extensions = extensions;
         this.sourcePack = sourcePack;
+        this.language = language;
         this.pageId = pageId;
         this.pageContent = pageContent;
 
@@ -279,22 +292,24 @@ public class PageCompiler {
         }
 
         long totalNs = System.nanoTime() - parseStartedAt;
-        FMLLog.getLogger()
-            .info(
-                "[GuideNH] [PageCompiler] Parsed page {} lang={} totalNs={} normalizeNs={} footnoteNs={} sourceFrontmatterNs={} latexMaskNs={} commentMaskNs={} markdownParseNs={} latexRestoreNs={} htmlNormalizeNs={} astFrontmatterNs={} parseFailed={}",
-                id,
-                language,
-                totalNs,
-                normalizeNs,
-                footnoteNs,
-                sourceFrontmatterNs,
-                latexMaskNs,
-                commentMaskNs,
-                markdownParseNs,
-                latexRestoreNs,
-                htmlNormalizeNs,
-                astFrontmatterNs,
-                parseFailureMessage != null);
+        if (ModConfig.debug.enableDebugMode) {
+            FMLLog.getLogger()
+                .info(
+                    "[GuideNH] [PageCompiler] Parsed page {} lang={} totalNs={} normalizeNs={} footnoteNs={} sourceFrontmatterNs={} latexMaskNs={} commentMaskNs={} markdownParseNs={} latexRestoreNs={} htmlNormalizeNs={} astFrontmatterNs={} parseFailed={}",
+                    id,
+                    language,
+                    totalNs,
+                    normalizeNs,
+                    footnoteNs,
+                    sourceFrontmatterNs,
+                    latexMaskNs,
+                    commentMaskNs,
+                    markdownParseNs,
+                    latexRestoreNs,
+                    htmlNormalizeNs,
+                    astFrontmatterNs,
+                    parseFailureMessage != null);
+        }
 
         return new ParsedGuidePage(
             sourcePack,
@@ -351,6 +366,7 @@ public class PageCompiler {
             pages,
             extensions,
             parsedPage.getSourcePack(),
+            parsedPage.getLanguage(),
             parsedPage.getId(),
             parsedPage.getSource()).compile(parsedPage.getAstRoot());
         var titleHeading = extractPageTitleHeading(document);
@@ -418,13 +434,13 @@ public class PageCompiler {
             }
         }
 
-        return result != null ? result : new Frontmatter(null, Collections.emptyMap());
+        return result != null ? result : new Frontmatter(null, Map.of());
     }
 
     public static Frontmatter parseFrontmatterFromSource(ResourceLocation pageId, String pageContent) {
         var yamlText = extractFrontmatterText(pageContent);
         if (yamlText == null) {
-            return new Frontmatter(null, Collections.emptyMap());
+            return new Frontmatter(null, Map.of());
         }
 
         try {
@@ -432,7 +448,7 @@ public class PageCompiler {
         } catch (Exception e) {
             FMLLog.getLogger()
                 .error("[GuideNH] [PageCompiler] Failed to parse frontmatter for page {}", pageId, e);
-            return new Frontmatter(null, Collections.emptyMap());
+            return new Frontmatter(null, Map.of());
         }
     }
 
@@ -459,17 +475,24 @@ public class PageCompiler {
     }
 
     public void compileBlockTagChildren(MdxJsxElementFields element, LytBlockContainer layoutParent) {
-        BlockTagChildSource reparsed = extractBlockTagChildrenSource(element);
-        if (reparsed == null) {
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.source() == null || cachedChildren.parsedPage() == null) {
             compileBlockContextInSourceContext(element.children(), layoutParent);
             return;
         }
 
-        ParsedGuidePage parsed = parse(sourcePack, "en_us", pageId, reparsed.source());
         Map<String, MdAstDefinition> previousDefinitions = new HashMap<>(definitions);
-        definitions.putAll(GuideMarkdownDefinitions.collect(parsed.getAstRoot()));
+        definitions.putAll(
+            GuideMarkdownDefinitions.collect(
+                cachedChildren.parsedPage()
+                    .getAstRoot()));
         try {
-            withSourceSlice(reparsed.source(), () -> compileBlockContext(parsed.getAstRoot(), layoutParent));
+            withSourceSlice(
+                cachedChildren.source(),
+                () -> compileBlockContext(
+                    cachedChildren.parsedPage()
+                        .getAstRoot(),
+                    layoutParent));
         } finally {
             definitions.clear();
             definitions.putAll(previousDefinitions);
@@ -477,12 +500,12 @@ public class PageCompiler {
     }
 
     public List<? extends MdAstAnyContent> reparseBlockTagChildren(MdxJsxElementFields element) {
-        String sourceText = getBlockTagChildrenSource(element);
-        if (sourceText == null) {
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.parsedPage() == null) {
             return element.children();
         }
-        ParsedGuidePage parsed = parse(sourcePack, "en_us", pageId, sourceText);
-        return parsed.getAstRoot()
+        return cachedChildren.parsedPage()
+            .getAstRoot()
             .children();
     }
 
@@ -492,9 +515,9 @@ public class PageCompiler {
      * Useful for tag compilers whose body is parsed by a non-Markdown grammar (file trees, etc.).
      */
     public @Nullable String getBlockTagChildrenSource(MdxJsxElementFields element) {
-        BlockTagChildSource reparsed = extractBlockTagChildrenSource(element);
-        if (reparsed != null) {
-            return reparsed.source();
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.source() != null) {
+            return cachedChildren.source();
         }
         return sourceForChildren(element.children());
     }
@@ -509,7 +532,11 @@ public class PageCompiler {
         if (source == null || source.isEmpty()) {
             return;
         }
-        ParsedGuidePage parsed = parse(sourcePack, "en_us", pageId, source);
+        ParsedGuidePage parsed = inlineMarkdownParseCache.get(source);
+        if (parsed == null) {
+            parsed = parse(sourcePack, "en_us", pageId, source);
+            inlineMarkdownParseCache.put(source, parsed);
+        }
         compileInlineFragment(
             parsed.getAstRoot()
                 .children(),
@@ -536,9 +563,9 @@ public class PageCompiler {
     }
 
     public void withBlockTagChildrenSourceContext(MdxJsxElementFields element, Runnable action) {
-        BlockTagChildSource reparsed = extractBlockTagChildrenSource(element);
-        if (reparsed != null) {
-            withSourceSlice(reparsed.source(), action);
+        BlockTagChildrenCacheEntry cachedChildren = getBlockTagChildrenCacheEntry(element);
+        if (cachedChildren.source() != null) {
+            withSourceSlice(cachedChildren.source(), action);
             return;
         }
         withChildrenSourceContext(element.children(), action);
@@ -576,10 +603,7 @@ public class PageCompiler {
                 paragraph.setMarginTop(DEFAULT_ELEMENT_SPACING);
                 paragraph.setMarginBottom(DEFAULT_ELEMENT_SPACING);
                 layoutChild = paragraph;
-            } else if (child instanceof MdAstYamlFrontmatter) {
-                // This is handled by compile directly
-                layoutChild = null;
-            } else if (child instanceof MdAstDefinition) {
+            } else if (child instanceof MdAstYamlFrontmatter || child instanceof MdAstDefinition) {
                 layoutChild = null;
             } else if (child instanceof GfmTable astTable) {
                 MarkdownTableMeta meta = extractMarkdownTableMeta(children, i + 1);
@@ -600,15 +624,13 @@ public class PageCompiler {
                     compiler.compileBlockContext(this, layoutParent, el);
                 }
             } else if (child instanceof MdAstPhrasingContent phrasingContent) {
-                // Wrap in a paragraph with no margins, but try appending to an existing paragraph before this
                 if (previousLayoutChild instanceof LytParagraph paragraph) {
                     compileFlowContent(paragraph, phrasingContent);
                     continue;
-                } else {
-                    var paragraph = new LytParagraph();
-                    compileFlowContent(paragraph, phrasingContent);
-                    layoutChild = paragraph;
                 }
+                var paragraph = new LytParagraph();
+                compileFlowContent(paragraph, phrasingContent);
+                layoutChild = paragraph;
             } else {
                 layoutChild = createErrorBlock("Unhandled Markdown node in block context", child);
             }
@@ -726,7 +748,7 @@ public class PageCompiler {
             .size(); i++) {
             var child = astListItem.children()
                 .get(i);
-            compileBlockContext(Collections.singletonList(child), listItem);
+            compileBlockContext(List.of(child), listItem);
         }
     }
 
@@ -742,7 +764,7 @@ public class PageCompiler {
                 compileParagraphBlock(firstParagraph, parent);
             }
             for (int i = 1; i < children.size(); i++) {
-                compileBlockContext(Collections.singletonList(children.get(i)), parent);
+                compileBlockContext(List.of(children.get(i)), parent);
             }
             return;
         }
@@ -788,6 +810,7 @@ public class PageCompiler {
             var itemImage = new LytItemImage(stack);
             itemImage.setInline(true);
             itemImage.setTooltipSuppressed(true);
+            itemImage.setInlineYOffsetOverride(-1);
             return LytFlowInlineBlock.of(itemImage);
         }
 
@@ -912,7 +935,7 @@ public class PageCompiler {
     private @Nullable String getTableRowText(GfmTableRow row) {
         StringBuilder sb = new StringBuilder();
         for (var cell : row.children()) {
-            if (sb.length() > 0) {
+            if (!sb.isEmpty()) {
                 sb.append(' ');
             }
             sb.append(cell.toText());
@@ -962,10 +985,10 @@ public class PageCompiler {
             span.modifyStyle(style -> style.italic(true));
             compileFlowContext(astEmphasis, span);
             layoutChild = span;
-        } else if (content instanceof MdAstDelete astEmphasis) {
+        } else if (content instanceof MdAstDelete astDelete) {
             var span = new LytFlowSpan();
             span.modifyStyle(style -> style.strikethrough(true));
-            compileFlowContext(astEmphasis, span);
+            compileFlowContext(astDelete, span);
             layoutChild = span;
         } else if (content instanceof MdAstUnderline astUnderline) {
             var span = new LytFlowSpan();
@@ -1246,11 +1269,11 @@ public class PageCompiler {
     private CsvFenceMeta parseCsvFenceMeta(@Nullable String meta) {
         if (meta == null || meta.trim()
             .isEmpty()) {
-            return new CsvFenceMeta(true, Collections.emptyList());
+            return new CsvFenceMeta(true, List.of());
         }
 
         boolean header = true;
-        List<Integer> widthHints = Collections.emptyList();
+        List<Integer> widthHints = List.of();
         for (String token : splitMetaTokens(meta)) {
             int equalsIndex = token.indexOf('=');
             if (equalsIndex <= 0 || equalsIndex == token.length() - 1) {
@@ -1292,7 +1315,7 @@ public class PageCompiler {
                 break;
             }
 
-            if (metaExpression.length() > 0) {
+            if (!metaExpression.isEmpty()) {
                 metaExpression.append(' ');
             }
             metaExpression.append(matcher.group(1));
@@ -1305,7 +1328,7 @@ public class PageCompiler {
 
         List<Integer> widthHints = parseWidthHintsFromMetaExpression(metaExpression.toString());
         if (widthHints.isEmpty()) {
-            return new MarkdownTableMeta(Collections.emptyList(), consumed);
+            return new MarkdownTableMeta(List.of(), consumed);
         }
 
         return new MarkdownTableMeta(widthHints, consumed);
@@ -1314,14 +1337,14 @@ public class PageCompiler {
     private MarkdownTableMeta extractMarkdownTableMetaFromSource(List<? extends MdAstAnyContent> children,
         int startIndex) {
         if (startIndex <= 0 || startIndex > children.size()) {
-            return new MarkdownTableMeta(Collections.emptyList(), 0);
+            return new MarkdownTableMeta(List.of(), 0);
         }
 
         MdAstAnyContent tableChild = children.get(startIndex - 1);
         if (!(tableChild instanceof MdAstNode tableNode) || tableNode.position() == null
             || tableNode.position()
                 .end() == null) {
-            return new MarkdownTableMeta(Collections.emptyList(), 0);
+            return new MarkdownTableMeta(List.of(), 0);
         }
 
         int endLine = tableNode.position()
@@ -1329,7 +1352,7 @@ public class PageCompiler {
             .line();
         String sourceText = getCurrentSourceText();
         if (endLine <= 0) {
-            return new MarkdownTableMeta(Collections.emptyList(), 0);
+            return new MarkdownTableMeta(List.of(), 0);
         }
 
         MarkdownTableMeta[] found = new MarkdownTableMeta[1];
@@ -1348,7 +1371,7 @@ public class PageCompiler {
             }
             return false;
         });
-        return found[0] != null ? found[0] : new MarkdownTableMeta(Collections.emptyList(), 0);
+        return found[0] != null ? found[0] : new MarkdownTableMeta(List.of(), 0);
     }
 
     private @Nullable String getParagraphTextValue(MdAstParagraph paragraph) {
@@ -1369,7 +1392,7 @@ public class PageCompiler {
                 return CsvTableCompiler.parseWidthHints(value);
             }
         }
-        return Collections.emptyList();
+        return List.of();
     }
 
     private List<String> splitMetaTokens(String meta) {
@@ -1391,7 +1414,7 @@ public class PageCompiler {
                 continue;
             }
             if (Character.isWhitespace(ch) && !inQuotes) {
-                if (current.length() > 0) {
+                if (!current.isEmpty()) {
                     tokens.add(current.toString());
                     current.setLength(0);
                 }
@@ -1399,7 +1422,7 @@ public class PageCompiler {
             }
             current.append(ch);
         }
-        if (current.length() > 0) {
+        if (!current.isEmpty()) {
             tokens.add(current.toString());
         }
         return tokens;
@@ -1473,6 +1496,24 @@ public class PageCompiler {
         return new BlockTagChildSource(dedentBlockTagBody(body));
     }
 
+    private BlockTagChildrenCacheEntry getBlockTagChildrenCacheEntry(MdxJsxElementFields element) {
+        BlockTagChildrenCacheEntry cachedEntry = blockTagChildrenCache.get(element);
+        if (cachedEntry != null) {
+            return cachedEntry;
+        }
+
+        BlockTagChildSource extractedSource = extractBlockTagChildrenSource(element);
+        if (extractedSource == null) {
+            cachedEntry = new BlockTagChildrenCacheEntry(null, null);
+        } else {
+            cachedEntry = new BlockTagChildrenCacheEntry(
+                extractedSource.source(),
+                parse(sourcePack, "en_us", pageId, extractedSource.source()));
+        }
+        blockTagChildrenCache.put(element, cachedEntry);
+        return cachedEntry;
+    }
+
     private String dedentBlockTagBody(String body) {
         String normalized = normalizeLineEndings(body);
         if (normalized.isEmpty()) {
@@ -1508,7 +1549,7 @@ public class PageCompiler {
             result.append(removeLeadingWhitespace(lines.get(i), minIndent));
         }
 
-        while (result.length() > 0 && result.charAt(result.length() - 1) == '\n') {
+        while (!result.isEmpty() && result.charAt(result.length() - 1) == '\n') {
             result.setLength(result.length() - 1);
         }
         if (Objects.equals(body, normalized) && body.endsWith("\n")) {
@@ -1554,19 +1595,23 @@ public class PageCompiler {
         try {
             String normalized = MermaidMindmapParser.normalize(source);
             LytMermaidMindmap block = new LytMermaidMindmap(MermaidMindmapParser.parse(normalized), normalized);
-            FMLLog.getLogger()
-                .info(
-                    "[GuideNH] [PageCompiler] Compiled fenced Mermaid runtime block for page {} ({} chars)",
-                    pageId,
-                    normalized.length());
+            if (ModConfig.debug.enableDebugMode) {
+                FMLLog.getLogger()
+                    .info(
+                        "[GuideNH] [PageCompiler] Compiled fenced Mermaid runtime block for page {} ({} chars)",
+                        pageId,
+                        normalized.length());
+            }
             return block;
         } catch (IllegalArgumentException e) {
-            FMLLog.getLogger()
-                .warn(
-                    "[GuideNH] [PageCompiler] Failed to compile fenced Mermaid runtime block for page {} from source: {}",
-                    pageId,
-                    source,
-                    e);
+            if (ModConfig.debug.enableDebugMode) {
+                FMLLog.getLogger()
+                    .warn(
+                        "[GuideNH] [PageCompiler] Failed to compile fenced Mermaid runtime block for page {} from source: {}",
+                        pageId,
+                        source,
+                        e);
+            }
             return null;
         }
     }
@@ -1669,11 +1714,15 @@ public class PageCompiler {
             span.appendText(tildes + "^");
             span.appendBreak();
 
-            FMLLog.getLogger()
-                .warn("[GuideNH] [PageCompiler] {}\n{}\n{}\n", text, line, tildes + "^");
+            if (ModConfig.debug.enableDebugMode) {
+                FMLLog.getLogger()
+                    .warn("[GuideNH] [PageCompiler] {}\n{}\n{}\n", text, line, tildes + "^");
+            }
         } else {
-            FMLLog.getLogger()
-                .warn("[GuideNH] [PageCompiler] {}\n", text);
+            if (ModConfig.debug.enableDebugMode) {
+                FMLLog.getLogger()
+                    .warn("[GuideNH] [PageCompiler] {}\n", text);
+            }
         }
 
         return span;
@@ -1692,6 +1741,10 @@ public class PageCompiler {
 
     public ResourceLocation getGuideId() {
         return pages.getId();
+    }
+
+    public String getLanguage() {
+        return language;
     }
 
     public PageCollection getPageCollection() {
@@ -1714,10 +1767,19 @@ public class PageCompiler {
         ResourceLocation pageId) {
         PageCollection pages = compiler.getPageCollection();
         if (guideId.equals(pages.getId())) {
-            return pages.pageExists(pageId);
+            return pages.pageExists(pageId) || syntheticPageExists(pages, pageId);
         }
         var guide = GuideRegistry.getById(guideId);
-        return guide != null && guide.pageExists(pageId);
+        return guide != null && (guide.pageExists(pageId) || syntheticPageExists(guide, pageId));
+    }
+
+    private static boolean syntheticPageExists(Object pageContainer, ResourceLocation pageId) {
+        if (!MediaWikiPageIds.isSyntheticPage(pageId)
+            || !(pageContainer instanceof MediaWikiListContextProvider provider)) {
+            return false;
+        }
+        MediaWikiListContext context = provider.getMediaWikiListContext();
+        return context != null && context.getParsedPage(pageId) != null;
     }
 
     public interface PageLinkResolver {
@@ -1749,7 +1811,7 @@ public class PageCompiler {
     public String getCurrentSourceText() {
         List<SourceSlice> sourceSlices = getCompilerState(SOURCE_SLICE_STACK);
         if (!sourceSlices.isEmpty()) {
-            return sourceSlices.get(sourceSlices.size() - 1)
+            return sourceSlices.getLast()
                 .source();
         }
         return pageContent;
@@ -1827,6 +1889,9 @@ public class PageCompiler {
 
     @Desugar
     private record BlockTagChildSource(String source) {}
+
+    @Desugar
+    private record BlockTagChildrenCacheEntry(@Nullable String source, @Nullable ParsedGuidePage parsedPage) {}
 
     @Desugar
     private record SourceSlice(String source) {}

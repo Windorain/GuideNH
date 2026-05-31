@@ -40,6 +40,11 @@ public class EntityElementCompiler implements SceneElementTagCompiler {
         String data = MdxAttrs.getString(compiler, errorSink, el, "data", null);
         String playerName = MdxAttrs.getString(compiler, errorSink, el, "name", null);
         String playerUuid = MdxAttrs.getString(compiler, errorSink, el, "uuid", null);
+        String sceneEntityId = GuidebookSceneEntityLoader
+            .trimToNull(MdxAttrs.getString(compiler, errorSink, el, "sceneEntityId", null));
+        String mountTargetSceneEntityId = GuidebookSceneEntityLoader
+            .trimToNull(MdxAttrs.getString(compiler, errorSink, el, "mount", null));
+        Boolean unmount = getOptionalBoolean(compiler, errorSink, el, "unmount");
         Boolean showName = getOptionalBoolean(compiler, errorSink, el, "showName");
         Boolean showCape = getOptionalBoolean(compiler, errorSink, el, "showCape");
         Boolean baby = getOptionalBoolean(compiler, errorSink, el, "baby");
@@ -86,7 +91,12 @@ public class EntityElementCompiler implements SceneElementTagCompiler {
             rightLegRotation,
             capeRotation);
         GuidebookSceneEntityStateSupport.applyVisualState(entity, id, showName, showCape, baby, pose, true);
-        level.addEntity(entity);
+        level.addEntity(entity, sceneEntityId);
+        if (MdxAttrs.getBoolean(unmount, false)) {
+            level.clearSceneEntityMount(sceneEntityId);
+        } else if (mountTargetSceneEntityId != null) {
+            level.setSceneEntityMount(sceneEntityId, mountTargetSceneEntityId);
+        }
     }
 
     public static Boolean getOptionalBoolean(PageCompiler compiler, LytErrorSink errorSink, MdxJsxElementFields el,

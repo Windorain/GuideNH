@@ -48,7 +48,9 @@ assets/<modid>/guidebooks/
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `time` | 整数 | 是 | 该关键帧所在刻（0 ≤ time ≤ totalTime）。 |
+| `hidden` | 布尔值 | 否 | 为 `true` 时，该关键帧仍会在对应 `time` 应用相机/NBT/实体/注释状态，但进度条不会绘制可见节点，上一关键帧这类可见节点导航也会跳过它。 |
 | `label` | 字符串 | 否 | 悬停在进度条节点上时显示的标签及方向箭头。 |
+| `labelKey` | 字符串 | 否 | 关键帧标签的翻译键。解析成功时会覆盖 `label`。 |
 | `camera` | 对象 | 否 | 该关键帧的摄像机状态，缺省字段从前一关键帧继承。 |
 | `cameraEaseTicks` | 整数 或 null | 否 | 摄像机从**上一个**关键帧的位置缓动到当前关键帧的时间（刻数）。`null`（默认）= 在整个片段内缓动；`0` = 立即跳转；`N > 0` = 在 N 刻内缓动，之后保持目标位置。 |
 | `layer` | 整数 或 null | 否 | 可见层覆盖。`null` 显示所有层；从 1 开始的整数限制到指定层。 |
@@ -64,6 +66,10 @@ assets/<modid>/guidebooks/
 | `mergeEntityNBT` | 数组 | 否 | 将 SNBT 复合标签合并到引用实体。 |
 | `modifyEntityNBT` | 数组 | 否 | 将引用实体的某个 NBT 路径设置为指定 SNBT 值。 |
 | `removeEntityNBT` | 数组 | 否 | 删除引用实体的某个 NBT 路径。 |
+| `removeEntities` | 数组 | 否 | 通过稳定场景实体注册表，按 `ref` 删除一个或多个思索时间轴实体。 |
+
+隐藏关键帧适合做“中间状态但不加节点”的场景。例如你可以把多次 `modifyTileNBT` 分散到不同 tick，
+并把中间关键帧标记为隐藏，这样进度条上仍只保留主要节奏点。
 
 ### 摄像机字段（均为可选）
 
@@ -168,7 +174,7 @@ assets/<modid>/guidebooks/
       "vz": 0.0,
       "size": 0.18,
       "time": 16,
-      "count": 3
+      "amount": 3
     }
   ]
 }
@@ -204,7 +210,7 @@ assets/<modid>/guidebooks/
       "x": [0, 2],
       "z": [0, 2],
       "time": 100,
-      "count": 8
+      "amount": 8
     }
   ]
 }
@@ -222,7 +228,7 @@ assets/<modid>/guidebooks/
 | `vx`、`vy`、`vz` | 浮点数 | `0.0` | 初速度向量。`motionX/Y/Z` 也可作为别名。 |
 | `time` / `lifetime` | 整数 | 依预设而定 | 粒子生命周期，单位为 tick。对 `preset: "rain"` 而言，这里表示包含开始和结束过渡在内的总天气时长。 |
 | `size` | 浮点数 | 依预设而定 | 普通粒子的半尺寸，单位为方块。 |
-| `count` | 整数 | 依预设而定 | 普通粒子的生成数量。对 `explosion`，省略时会根据 `power` 自动缩放；对 `preset: "rain"`，这里表示平均每 tick 的天气密度。 |
+| `amount` | 整数 | 依预设而定 | 普通粒子的生成数量。对 `explosion`，省略时会根据 `power` 自动缩放；对 `preset: "rain"`，这里表示平均每 tick 的天气密度。 |
 | `power` | 浮点数 | `2.0` | `explosion` 预设的爆炸强度。 |
 
 天气预设说明：
@@ -293,6 +299,7 @@ assets/<modid>/guidebooks/
   "createEntities": [
     {
       "ref": "marker",
+      "sceneEntityId": "marker",
       "id": "minecraft:pig",
       "x": 1.5, "y": 1.0, "z": 2.5,
       "yaw": 180,
@@ -305,11 +312,15 @@ assets/<modid>/guidebooks/
 | 字段 | 说明 |
 |------|------|
 | `ref` | 必填，本思索 JSON 内用于后续操作的引用名。 |
+| `sceneEntityId` | 可选，稳定的场景内实体 id，用于骑乘关系、可重放替换、导入导出恢复，以及后续删除同一个逻辑实体。默认会基于 `ref` 生成内部稳定 id。 |
 | `id` | 实体 ID，例如 `minecraft:pig`、`Pig` 或场景实体加载器支持的模组实体 ID。 |
 | `x`, `y`, `z` | 可选生成位置。未填写且 `nbt` 没有 `Pos` 时默认为 `0, 0, 0`。 |
 | `yaw`, `pitch` | 可选生成旋转。未填写且 `nbt` 没有 `Rotation` 时默认为 `0, 0`。 |
+| `bodyYaw`, `headYaw` | 可选的生物身体 / 头部 yaw 覆盖；若只写 `yaw`，未写这两个字段时会默认跟随 `yaw`。 |
 | `nbt` | 可选，实体创建时应用的 SNBT 复合标签。 |
 | `name`, `uuid` | 可选，创建预览玩家实体时使用的玩家档案字段。 |
+| `mount` | 可选，该实体创建后或后续重放时要骑乘的目标载具稳定 `sceneEntityId`。 |
+| `unmount` | 可选，布尔值；在后续新的 `mount` 应用前，先清除该实体当前稳定骑乘关系。 |
 
 实体创建后，可以使用实体 NBT 操作：
 
@@ -339,8 +350,43 @@ assets/<modid>/guidebooks/
 }
 ```
 
+实体动作也可以在不改 NBT 的情况下直接调整位置、预览玩家姿态和稳定骑乘关系：
+
+```json
+{
+  "time": 80,
+  "createEntities": [
+    { "ref": "cart", "sceneEntityId": "cart", "id": "minecraft:minecart", "x": 1.5, "y": 1.0, "z": 1.5 },
+    { "ref": "rider", "sceneEntityId": "rider", "id": "player", "name": "GuideNH", "x": 1.5, "y": 1.0, "z": 1.5, "mount": "cart" }
+  ],
+  "modifyEntityNBT": [
+    { "ref": "rider", "headYaw": 270.0, "leftArmRotation": "-40 0 0" }
+  ]
+}
+```
+
+若需要取消骑乘或删除时间轴实体，可以使用 `unmount` 或 `removeEntities`：
+
+```json
+{
+  "time": 120,
+  "modifyEntityNBT": [
+    { "ref": "rider", "unmount": true, "x": 2.5, "y": 1.0, "z": 1.5 }
+  ],
+  "removeEntities": [
+    { "ref": "cart" }
+  ]
+}
+```
+
 与方块实体操作一样，实体操作会在关键帧变化时从头重放；向后拖动进度条时，
 思索时间轴创建的实体会被移除并重新创建到目标时刻的正确状态。
+
+说明：
+
+- `ref` 用来定位当前要修改或删除的思索时间轴实体。
+- `sceneEntityId` 和 `mount` 用来描述稳定的跨实体关系；`mount` 指向的始终是稳定场景 id，而不是另一个 `ref`。
+- 不建议只依赖原始乘客 NBT 来表达跨实体场景关系。真正保证回放、重建、导入导出和编辑器预览刷新后仍然稳定一致的是这套稳定注册表。
 
 ---
 
@@ -376,7 +422,8 @@ assets/<modid>/guidebooks/
 |------|------|--------|------|
 | `x`, `y`, `z` | float | `0.0` | 菱形尖端的世界坐标。 |
 | `color` | 字符串 | `"0xFF00E000"` | ARGB 颜色，格式为 `"0xAARRGGBB"`。 |
-| `tooltip` | 字符串 | `""` | 悬停时显示的文本。 |
+| `tooltip` | 字符串 | `""` | 悬停时显示的回退文本。 |
+| `tooltipKey` | 字符串 | `""` | 悬停提示的翻译键。解析成功时会覆盖 `tooltip`。 |
 | `alwaysOnTop` | 布尔值 | `false` | 为 true 时穿透方块渲染。 |
 
 ---
@@ -508,7 +555,7 @@ assets/<modid>/guidebooks/
   "x": 1.5,
   "y": 2.5,
   "z": 1.5,
-  "text": "在此放置物品",
+  "textKey": "guidenh.sample.scene.insert_items",
   "color": "0xFF44AAFF",
   "connectorSide": "right",
   "connectorOffset": 8,
@@ -532,7 +579,8 @@ assets/<modid>/guidebooks/
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `x`, `y`, `z` | float | `0.0` | 锚点的世界坐标（独立模式下忽略）。 |
-| `text` | 字符串 | — | **必填。** 气泡框中显示的文本。 |
+| `text` | 字符串 | — | 回退显示文本。 |
+| `textKey` | 字符串 | — | 优先从资源包 `lang` 文件解析的翻译键；解析失败时回退到 `text`。 |
 | `color` | 字符串 | `"0xFFAAAAAA"` | ARGB 边框颜色。 |
 | `backgroundAlpha` | 整数 | `204` | 背景透明度，`0` 为完全透明，`255` 为完全不透明。 |
 | `maxWidth` | 整数 | `0` | 若 &gt; 0，按此像素宽度自动换行；`0` 表示单行。 |
@@ -614,11 +662,11 @@ assets/<modid>/guidebooks/
 
 | 控件 | 功能 |
 |------|------|
-| **◄（上一关键帧）** | 跳转到上一关键帧片段的起始位置。 |
+| **◄（上一关键帧）** | 跳转到上一个可见关键帧片段的起始位置。隐藏关键帧会被跳过。 |
 | **▶/⏸（播放/暂停）** | 切换播放状态；若已播完则重新从头开始。 |
 | **↺（从头开始）** | 返回第 0 刻并重新播放。 |
 | 进度条 | 点击或拖拽可跳转到任意位置（始终暂停）。 |
-| 关键帧节点 | 进度条上的小刻度标记，悬停时显示标签文本。 |
+| 关键帧节点 | 进度条上仅为可见关键帧绘制的小刻度标记，悬停时显示标签文本。 |
 
 ### 初始状态
 
@@ -637,6 +685,7 @@ assets/<modid>/guidebooks/
 悬停在进度条的关键帧节点上时：
 - 节点稍微放大以表示悬停。
 - 若该关键帧有 `label`，则在节点旁显示标签文本。
+- 隐藏关键帧不会生成可悬停节点，但当播放或拖动时间轴经过它们时，仍会照常应用对应的时间轴状态。
 
 ### 层控制
 

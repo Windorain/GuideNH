@@ -15,7 +15,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import net.minecraft.util.ResourceLocation;
@@ -101,6 +100,7 @@ public class GuideSiteWriter {
         writeResource(
             outDir.resolve("_site/textures/listitem.svg"),
             "/assets/guidenh/siteexport/textures/listitem.svg");
+        writeExternalLinkPage(outDir);
         GuideSiteLocalServerJarWriter.writeTo(outDir.resolve("_site/guidenh-site-server.jar"));
         writeStartScripts(outDir);
     }
@@ -136,33 +136,36 @@ public class GuideSiteWriter {
             .replace("{{sidebar}}", sidebarHtml)
             .replace("{{content}}", contentHtml + String.join("", templateHtml))
             .replace("{{root}}", relativeRoot(outDir, pagePath));
-        Files.write(pagePath, layout.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(pagePath, layout);
     }
 
     public void writeNavigationIndex(Path outDir, String namespace, String guidePath, String language, String json)
         throws Exception {
         Path path = outDir.resolve(Paths.get("_data", "nav", namespace, guidePath, language + ".json"));
         Files.createDirectories(path.getParent());
-        Files.write(path, json.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(path, json);
     }
 
     public void writeSearchIndex(Path outDir, String language, String json) throws Exception {
         Path path = outDir.resolve(Paths.get("_data", "search", language + ".json"));
         Files.createDirectories(path.getParent());
-        Files.write(path, json.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(path, json);
     }
 
     public void writeReport(Path outDir, String json) throws Exception {
-        Files.write(outDir.resolve("export-report.json"), json.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(outDir.resolve("export-report.json"), json);
     }
 
     public void writeLandingPage(Path outDir, @Nullable String firstPageUrl, String title) throws Exception {
+        SiteUiText uiText = SiteUiText.forLanguage("en_us");
         String html;
         if (firstPageUrl == null || firstPageUrl.isEmpty()) {
             html = "<!doctype html><html><head><meta charset=\"utf-8\"><title>" + escapeHtml(title)
                 + "</title></head><body><main><h1>"
                 + escapeHtml(title)
-                + "</h1><p>No guide pages were exported.</p></main></body></html>";
+                + "</h1><p>"
+                + escapeHtml(uiText.siteExportNoPages())
+                + "</p></main></body></html>";
         } else {
             String escapedUrl = escapeHtml(firstPageUrl);
             html = "<!doctype html><html><head><meta charset=\"utf-8\"><title>" + escapeHtml(title)
@@ -170,9 +173,79 @@ public class GuideSiteWriter {
                 + escapedUrl
                 + "\"></head><body><p><a href=\""
                 + escapedUrl
-                + "\">Open exported guide</a></p></body></html>";
+                + "\">"
+                + escapeHtml(uiText.siteExportOpenGuide())
+                + "</a></p></body></html>";
         }
-        Files.write(outDir.resolve("index.html"), html.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(outDir.resolve("index.html"), html);
+    }
+
+    public void writeExternalLinkPage(Path outDir) throws Exception {
+        Path pagePath = outDir.resolve(Paths.get("_site", "external-link.html"));
+        Files.createDirectories(pagePath.getParent());
+        SiteUiText english = SiteUiText.forLanguage("en_us");
+        SiteUiText chinese = SiteUiText.forLanguage("zh_cn");
+        String html = """
+            <!doctype html>
+            <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <title>{{title}}</title>
+              <link rel="stylesheet" href="./app.css">
+            </head>
+            <body class="guide-site-external-body">
+              <main class="guide-site-external-card">
+                <h1 id="guide-external-title">{{title}}</h1>
+                <p id="guide-external-message">{{message}}</p>
+                <p class="guide-site-external-target" id="guide-external-target"></p>
+                <div class="guide-site-external-actions">
+                  <a class="guide-mediawiki-special-link" id="guide-external-open" href="#">{{open}}</a>
+                  <a class="guide-site-external-cancel" href="javascript:history.back()">{{back}}</a>
+                </div>
+              </main>
+              <script>
+              (function () {
+                var params = new URLSearchParams(window.location.search);
+                var target = params.get("target") || "";
+                var label = params.get("label") || target;
+                var lang = (params.get("lang") || "en_us").toLowerCase();
+                var zh = lang.indexOf("zh") === 0;
+                var title = zh ? '{{zh_title}}' : '{{en_title}}';
+                var message = zh ? '{{zh_message}}' : '{{en_message}}';
+                var openText = zh ? '{{zh_open}}' : '{{en_open}}';
+                var backText = zh ? '{{zh_back}}' : '{{en_back}}';
+                document.title = title;
+                document.getElementById("guide-external-title").textContent = title;
+                document.getElementById("guide-external-message").textContent = message;
+                document.getElementById("guide-external-target").textContent = label || target;
+                var open = document.getElementById("guide-external-open");
+                open.textContent = openText;
+                if (target) {
+                  open.href = target;
+                  open.rel = "noopener noreferrer";
+                  open.target = "_blank";
+                } else {
+                  open.removeAttribute("href");
+                }
+                document.querySelector(".guide-site-external-cancel").textContent = backText;
+              }());
+              </script>
+            </body>
+            </html>
+            """.replace("{{title}}", escapeHtml(english.externalLinkTitle()))
+            .replace("{{message}}", escapeHtml(english.externalLinkMessage()))
+            .replace("{{open}}", escapeHtml(english.externalLinkOpen()))
+            .replace("{{back}}", escapeHtml(english.externalLinkBack()))
+            .replace("{{en_title}}", escapeJsString(english.externalLinkTitle()))
+            .replace("{{en_message}}", escapeJsString(english.externalLinkMessage()))
+            .replace("{{en_open}}", escapeJsString(english.externalLinkOpen()))
+            .replace("{{en_back}}", escapeJsString(english.externalLinkBack()))
+            .replace("{{zh_title}}", escapeJsString(chinese.externalLinkTitle()))
+            .replace("{{zh_message}}", escapeJsString(chinese.externalLinkMessage()))
+            .replace("{{zh_open}}", escapeJsString(chinese.externalLinkOpen()))
+            .replace("{{zh_back}}", escapeJsString(chinese.externalLinkBack()));
+        Files.writeString(pagePath, html);
     }
 
     public String pageUrl(String namespace, String guidePath, String language, String pageRelativeFile) {
@@ -255,12 +328,12 @@ public class GuideSiteWriter {
     }
 
     private void writeStartScripts(Path outDir) throws Exception {
-        Files.write(outDir.resolve("start.bat"), windowsStartScript().getBytes(StandardCharsets.UTF_8));
-        Files.write(outDir.resolve("stop.bat"), windowsStopScript().getBytes(StandardCharsets.UTF_8));
+        Files.writeString(outDir.resolve("start.bat"), windowsStartScript());
+        Files.writeString(outDir.resolve("stop.bat"), windowsStopScript());
         Path startSh = outDir.resolve("start.sh");
         Path stopSh = outDir.resolve("stop.sh");
-        Files.write(startSh, unixStartScript().getBytes(StandardCharsets.UTF_8));
-        Files.write(stopSh, unixStopScript().getBytes(StandardCharsets.UTF_8));
+        Files.writeString(startSh, unixStartScript());
+        Files.writeString(stopSh, unixStopScript());
         trySetExecutable(startSh);
         trySetExecutable(stopSh);
     }
@@ -668,7 +741,7 @@ public class GuideSiteWriter {
             while ((read = in.read(buffer)) >= 0) {
                 out.write(buffer, 0, read);
             }
-            return new String(out.toByteArray(), StandardCharsets.UTF_8);
+            return out.toString(StandardCharsets.UTF_8);
         }
     }
 
@@ -710,6 +783,13 @@ public class GuideSiteWriter {
             .replace("\"", "&quot;");
     }
 
+    private String escapeJsString(String text) {
+        return text.replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\r", "")
+            .replace("\n", "\\n");
+    }
+
     private static final class SiteUiText {
 
         private final String searchLabel;
@@ -718,21 +798,47 @@ public class GuideSiteWriter {
         private final String languagesLabel;
         private final String fallbackBadge;
         private final String fallbackPrefix;
+        private final String siteExportNoPages;
+        private final String siteExportOpenGuide;
+        private final String externalLinkTitle;
+        private final String externalLinkMessage;
+        private final String externalLinkOpen;
+        private final String externalLinkBack;
 
         private SiteUiText(String searchLabel, String searchPlaceholder, String searchEmptyTemplate,
-            String languagesLabel, String fallbackBadge, String fallbackPrefix) {
+            String languagesLabel, String fallbackBadge, String fallbackPrefix, String siteExportNoPages,
+            String siteExportOpenGuide, String externalLinkTitle, String externalLinkMessage, String externalLinkOpen,
+            String externalLinkBack) {
             this.searchLabel = searchLabel;
             this.searchPlaceholder = searchPlaceholder;
             this.searchEmptyTemplate = searchEmptyTemplate;
             this.languagesLabel = languagesLabel;
             this.fallbackBadge = fallbackBadge;
             this.fallbackPrefix = fallbackPrefix;
+            this.siteExportNoPages = siteExportNoPages;
+            this.siteExportOpenGuide = siteExportOpenGuide;
+            this.externalLinkTitle = externalLinkTitle;
+            this.externalLinkMessage = externalLinkMessage;
+            this.externalLinkOpen = externalLinkOpen;
+            this.externalLinkBack = externalLinkBack;
         }
 
         private static SiteUiText forLanguage(String language) {
             String normalized = language != null ? language.toLowerCase(Locale.ROOT) : "";
             if (normalized.startsWith("zh")) {
-                return new SiteUiText("搜索", "搜索页面", "没有找到“{{query}}”的匹配项", "语言", "回退", "回退自");
+                return new SiteUiText(
+                    "搜索",
+                    "搜索页面",
+                    "没有找到“{{query}}”的匹配项",
+                    "语言",
+                    "回退",
+                    "回退自",
+                    "没有导出任何指南页面。",
+                    "打开导出的指南",
+                    "外部链接",
+                    "你即将打开一个外部链接。",
+                    "继续打开",
+                    "返回");
             }
             return new SiteUiText(
                 "Search",
@@ -740,7 +846,13 @@ public class GuideSiteWriter {
                 "No matches for \"{{query}}\"",
                 "Languages",
                 "Fallback",
-                "Fallback from");
+                "Fallback from",
+                "No guide pages were exported.",
+                "Open exported guide",
+                "External Link",
+                "You are about to open an external link.",
+                "Open Link",
+                "Back");
         }
 
         private String searchLabel() {
@@ -770,6 +882,30 @@ public class GuideSiteWriter {
         private String sharedPageLabel() {
             return "Fallback from".equals(fallbackPrefix) ? "Shared page" : "共享页面";
         }
+
+        private String siteExportNoPages() {
+            return siteExportNoPages;
+        }
+
+        private String siteExportOpenGuide() {
+            return siteExportOpenGuide;
+        }
+
+        private String externalLinkTitle() {
+            return externalLinkTitle;
+        }
+
+        private String externalLinkMessage() {
+            return externalLinkMessage;
+        }
+
+        private String externalLinkOpen() {
+            return externalLinkOpen;
+        }
+
+        private String externalLinkBack() {
+            return externalLinkBack;
+        }
     }
 
     private void writeResource(Path target, String resourcePath) throws Exception {
@@ -795,7 +931,7 @@ public class GuideSiteWriter {
         if (Files.isDirectory(normalizedTarget)) {
             try (Stream<Path> stream = Files.walk(normalizedTarget)) {
                 for (Path path : stream.sorted(Comparator.reverseOrder())
-                    .collect(Collectors.toList())) {
+                    .toList()) {
                     Files.deleteIfExists(path);
                 }
             }

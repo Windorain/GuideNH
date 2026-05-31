@@ -1,8 +1,9 @@
 package com.hfstudio.guidenh.guide.internal.editor.model;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.joml.Vector3f;
@@ -22,6 +23,7 @@ public class SceneEditorElementModel {
     private boolean visible;
     private boolean alwaysOnTop;
     private String tooltipMarkdown;
+    private String textKey;
     private String textMarkdown;
     private String showWhenStructure;
     private String showWhenTier;
@@ -29,6 +31,7 @@ public class SceneEditorElementModel {
     private int maxWidth;
     private int backgroundAlpha;
     private final List<Vector3f> linePoints;
+    private final Map<String, String> extraAttributes;
 
     public SceneEditorElementModel(SceneEditorElementType type) {
         this.id = UUID.randomUUID();
@@ -44,6 +47,7 @@ public class SceneEditorElementModel {
         this.visible = true;
         this.alwaysOnTop = false;
         this.tooltipMarkdown = "";
+        this.textKey = "";
         this.textMarkdown = type.getDefaultText();
         this.showWhenStructure = "";
         this.showWhenTier = "";
@@ -51,6 +55,7 @@ public class SceneEditorElementModel {
         this.maxWidth = type.getDefaultMaxWidth();
         this.backgroundAlpha = type.getDefaultBackgroundAlpha();
         this.linePoints = new ArrayList<>();
+        this.extraAttributes = new LinkedHashMap<>();
     }
 
     public UUID getId() {
@@ -110,7 +115,7 @@ public class SceneEditorElementModel {
     }
 
     public List<Vector3f> getLinePoints() {
-        return Collections.unmodifiableList(linePoints);
+        return List.copyOf(linePoints);
     }
 
     public void setLinePoints(List<Vector3f> points) {
@@ -165,6 +170,14 @@ public class SceneEditorElementModel {
         this.tooltipMarkdown = tooltipMarkdown;
     }
 
+    public String getTextKey() {
+        return textKey;
+    }
+
+    public void setTextKey(String textKey) {
+        this.textKey = textKey != null ? textKey : "";
+    }
+
     public String getTextMarkdown() {
         return textMarkdown;
     }
@@ -210,7 +223,38 @@ public class SceneEditorElementModel {
     }
 
     public void setBackgroundAlpha(int backgroundAlpha) {
-        this.backgroundAlpha = Math.max(0, Math.min(255, backgroundAlpha));
+        this.backgroundAlpha = Math.clamp(backgroundAlpha, 0, 255);
+    }
+
+    public Map<String, String> getExtraAttributes() {
+        return Map.copyOf(extraAttributes);
+    }
+
+    public String getExtraAttribute(String name) {
+        return extraAttributes.get(name);
+    }
+
+    public void setExtraAttribute(String name, String value) {
+        if (name == null || name.trim()
+            .isEmpty()) {
+            return;
+        }
+        if (value == null || value.trim()
+            .isEmpty()) {
+            extraAttributes.remove(name);
+            return;
+        }
+        extraAttributes.put(name, value);
+    }
+
+    public void setExtraAttributes(Map<String, String> attributes) {
+        extraAttributes.clear();
+        if (attributes == null || attributes.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            setExtraAttribute(entry.getKey(), entry.getValue());
+        }
     }
 
     public SceneEditorElementModel duplicate() {
@@ -226,6 +270,7 @@ public class SceneEditorElementModel {
         duplicate.setVisible(this.visible);
         duplicate.setAlwaysOnTop(this.alwaysOnTop);
         duplicate.setTooltipMarkdown(this.tooltipMarkdown);
+        duplicate.setTextKey(this.textKey);
         duplicate.setTextMarkdown(this.textMarkdown);
         duplicate.setShowWhenStructure(this.showWhenStructure);
         duplicate.setShowWhenTier(this.showWhenTier);
@@ -233,6 +278,7 @@ public class SceneEditorElementModel {
         duplicate.setMaxWidth(this.maxWidth);
         duplicate.setBackgroundAlpha(this.backgroundAlpha);
         duplicate.setLinePoints(this.linePoints);
+        duplicate.setExtraAttributes(this.extraAttributes);
         return duplicate;
     }
 }

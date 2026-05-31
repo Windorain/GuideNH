@@ -25,7 +25,7 @@ import com.hfstudio.guidenh.guide.style.TextAlignment;
  * <a href=
  * "https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Flow_Layout/Block_and_Inline_Layout_in_Normal_Flow">...</a>
  */
-class LineBuilder implements Consumer<LytFlowContent> {
+public class LineBuilder implements Consumer<LytFlowContent> {
 
     private static final ThreadLocal<BreakIterator> LINE_BREAK_ITERATOR = ThreadLocal
         .withInitial(BreakIterator::getLineInstance);
@@ -201,7 +201,7 @@ class LineBuilder implements Consumer<LytFlowContent> {
         }
 
         iterateRuns(text, style, lastChar, (run, width, endLine) -> {
-            if (run.length() != 0) {
+            if (!run.isEmpty()) {
                 var el = new LineTextRun(run.toString(), style, hoverStyle);
                 el.flowContent = flowContent;
                 int w = Math.round(width);
@@ -308,7 +308,7 @@ class LineBuilder implements Consumer<LytFlowContent> {
                         .visitRun(lineBuffer.subSequence(0, precedingBreakOpportunity), widthAtBreakOpportunity, true);
                     curLineWidth -= widthAtBreakOpportunity;
                     lineBuffer.delete(0, precedingBreakOpportunity);
-                    if (lineBuffer.length() != 0 && Character.isWhitespace(lineBuffer.charAt(0))) {
+                    if (!lineBuffer.isEmpty() && Character.isWhitespace(lineBuffer.charAt(0))) {
                         var firstChar = lineBuffer.charAt(0);
                         lineBuffer.deleteCharAt(0);
                         curLineWidth -= context.getAdvance(firstChar, style);
@@ -331,7 +331,7 @@ class LineBuilder implements Consumer<LytFlowContent> {
             lineBuffer.appendCodePoint(codePoint);
         }
 
-        if (lineBuffer.length() != 0) {
+        if (!lineBuffer.isEmpty()) {
             consumer.visitRun(lineBuffer, curLineWidth, false);
         }
     }

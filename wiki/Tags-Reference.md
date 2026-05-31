@@ -54,7 +54,8 @@ Inline markdown also supports action links for sound playback:
 | `<BlockImage>` | non-interactive 3D single-block preview | `id` or `ore`, `scale`, `float`, `perspective`, `nbt` |
 | `<FloatingImage>` | floated image block | `src`, `align`, `title`, `width`, `height` |
 | `<SubPages>` | navigation child listing | `id`, `alphabetical` |
-| `<CategoryIndex>` | list pages from a category | `category` |
+| `<Category>` | list pages from a category | `name`, `rows` |
+| `<Special>` | list built-in MediaWiki special pages | `name`, `rows` |
 | `<Structure>` | 2.5D isometric block layout view | `width`, `height` |
 | `<Mermaid>` | runtime Mermaid graph import/inline | `src`, `width`, `height` |
 | `<CsvTable>` | runtime CSV file import table | `src`, `header`, `widths` |
@@ -454,7 +455,7 @@ Notes:
 
 See [Images And Assets](Images-And-Assets) for the full behavior.
 
-### `<SubPages>` And `<CategoryIndex>`
+### `<SubPages>`, `<Category>`, And `<Special>`
 
 See [Navigation](Navigation) for full navigation behavior.
 
@@ -605,8 +606,8 @@ These tags only work inside `<GameScene>` / `<Scene>`:
 
 | Tag | Purpose | Key attributes |
 | --- | --- | --- |
-| `<ImportStructure>` | import an external SNBT/NBT structure asset | `src`, `x`, `y`, `z` |
-| `<ImportStructureLib>` | import a StructureLib multiblock by controller id | `controller`, `name`, `piece`, `facing`, `rotation`, `flip`, `channel` |
+| `<ImportStructure>` | import an external SNBT/NBT structure asset | `src`, `x`, `y`, `z`, `offsetX`, `offsetY`, `offsetZ`, `formed` |
+| `<ImportStructureLib>` | import a StructureLib multiblock by controller id | `controller`, `name`, `piece`, `facing`, `rotation`, `flip`, `channel`, `offsetX`, `offsetY`, `offsetZ`, `formed` |
 | `<RemoveBlocks>` | remove already-placed blocks that match a block matcher | `id` |
 | `<BlockAnnotationTemplate>` | stamp the same child annotations onto every matching placed block | `id` |
 

@@ -55,7 +55,9 @@ Press ▶ to play, or drag the timeline. The keyframe nodes snap the timeline to
 | `totalTime` | int | Total animation length in game ticks (20 ticks = 1 second) |
 | `keyframes` | array | Ordered list of keyframe objects |
 | `time` | int | Tick at which this keyframe becomes active |
-| `label` | string? | Optional label shown when hovering the keyframe node |
+| `hidden` | bool? | When `true`, this keyframe still runs normally but does not render a visible progress-bar node, and visible-node navigation skips it |
+| `label` | string? | Optional fallback label shown when hovering the keyframe node |
+| `labelKey` | string? | Translation key for the keyframe label. When resolved, it overrides `label` |
 | `camera` | object? | Partial camera override (only specified fields are applied) |
 | `layer` | int? | Visible layer override (`null` = show all) |
 | `annotations` | array? | Annotation objects to show while this keyframe is active |
@@ -63,9 +65,14 @@ Press ▶ to play, or drag the timeline. The keyframe nodes snap the timeline to
 | `particles` | array? | Keyframe-triggered particle bursts and presets |
 | `blockChanges` | array? | Block replacements applied when this keyframe activates |
 | `mergeTileNBT` / `modifyTileNBT` / `removeTileNBT` | array? | Seek-safe tile-entity NBT operations |
-| `createEntities` | array? | Create Ponder-owned entities referenced by `ref`, including optional transform and preview-player pose fields |
-| `setEntityNBT` / `mergeEntityNBT` / `modifyEntityNBT` / `removeEntityNBT` | array? | Seek-safe entity updates; besides NBT, these actions can also adjust transform and preview-player visual state |
+| `createEntities` | array? | Create Ponder-owned entities referenced by `ref`, with optional stable `sceneEntityId`, mount state, transform, and preview-player pose fields |
+| `setEntityNBT` / `mergeEntityNBT` / `modifyEntityNBT` / `removeEntityNBT` | array? | Seek-safe entity updates; besides NBT, these actions can also adjust transform, stable mount state, and preview-player visual state |
+| `removeEntities` | array? | Remove Ponder-owned entities by `ref` through the stable scene-entity registry |
 | `animateEntities` | array? | Replay-safe timed animation presets applied to referenced Ponder entities |
+
+Use `hidden: true` for intermediate timeline states that should not create a new visible progress-bar node. This is
+especially useful for extra `modifyTileNBT` steps between two major visible beats.
+The bundled `/assets/ponder_demo.json` now includes a hidden intermediate tile-NBT update between visible milestones.
 
 ---
 
@@ -106,7 +113,7 @@ Generic particles:
     "vz": 0.0,
     "size": 0.18,
     "time": 16,
-    "count": 3
+    "amount": 3
   }
 ]
 ```
@@ -136,22 +143,45 @@ Weather preset:
     "x": [0, 2, 4, 4],
     "z": [0, 2, 0, 2],
     "time": 90,
-    "count": 9
+    "amount": 9
+  }
+]
+```
+
+Indicator preset:
+
+```json
+"particles": [
+  {
+    "preset": "indicator",
+    "color": "#6EDCFF",
+    "x": [1, 2],
+    "y": [1, 2],
+    "z": [0, 1],
+    "time": 12,
+    "amount": 6
+  },
+  {
+    "preset": "redstone",
+    "x": 3,
+    "y": 1,
+    "z": 1
   }
 ]
 ```
 
 | Field | Type | Description |
 |---|---|---|
-| `preset` | string? | Supports `explosion` for a vanilla-style flash + smoke + burst preset, and `rain` for the shared weather preset |
+| `preset` | string? | Supports `explosion` for a vanilla-style flash + smoke + burst preset, `rain` for the shared weather preset, `indicator` for colored block hint particles, and `redstone` as the default-red shortcut alias |
 | `weather` | string? | Used by `preset: "rain"`. Supports `rain` and `snow` |
+| `color` | string? | Used by `preset: "indicator"` / `preset: "redstone"`. Accepts `#RRGGBB`, `#RRGGBBAA`, or `0xRRGGBB` / `0xRRGGBBAA`. Omitted color uses the default Ponder-style red |
 | `name` | string? | Generic particle appearance. Supported values: `billboard`, `smoke`, `largesmoke`, `explode`, `flash`, `largeexplode`, `hugeexplosion` |
 | `particle` / `kind` | string? | Compatibility aliases for `name` |
-| `x`, `z` | float or array | Generic particle origin in world space, or weather coverage for `preset: "rain"` |
+| `x`, `y`, `z` | float or array | Generic particle origin in world space. For `preset: "rain"` only `x/z` matter. For `preset: "indicator"` / `preset: "redstone"`, scalars target one block and arrays or whitespace/comma-separated coordinate strings expand into block-coordinate sets |
 | `vx`, `vy`, `vz` | float? | Initial motion vector. `motionX/Y/Z` are accepted aliases |
 | `time` / `lifetime` | int? | Particle lifetime in ticks. For `preset: "rain"` this is the total weather duration including start/end transitions |
 | `size` | float? | Particle half-size in block units |
-| `count` | int? | Number of generic particles to spawn; for `explosion`, omitted count scales with `power`; for `preset: "rain"` it controls average density per tick |
+| `amount` | int? | Number of generic particles to spawn; for `explosion`, omitted amount scales with `power`; for `preset: "rain"` it controls average density per tick; for `preset: "indicator"` / `preset: "redstone"` it is the particle count per targeted block |
 | `power` | float? | Explosion strength for the `explosion` preset |
 
 Weather preset notes:
@@ -166,6 +196,13 @@ Weather preset notes:
 - If one axis has extra unmatched endpoint values, the unmatched tail is ignored.
 - The runtime automatically adds a short start transition and end transition around the steady phase.
 - Overlapping weather never stacks on the same `x/z` column at the same time; earlier weather keeps the shared columns.
+
+Indicator preset notes:
+
+- `preset: "indicator"` emits a short colored hint burst inside each targeted block, similar to the Create/Ponder redstone cue.
+- `preset: "redstone"` is a shorthand alias for the same effect with the default red color.
+- `x/y/z` all support scalar coordinates, arrays, or whitespace/comma-separated coordinate lists for these two presets.
+- The runtime expands each axis independently, then emits the effect for every combined target block.
 
 ---
 
@@ -321,6 +358,7 @@ Text with an accompanying highlight box:
 | `text` field | Type | Description |
 |---|---|---|
 | `text` | string | Label text |
+| `textKey` | string? | Translation key resolved from resource-pack `lang` files before falling back to `text` |
 | `color` | string | Border colour in `0xAARRGGBB` format |
 | `maxWidth` | int? | Word-wrap width in pixels; `0` or omitted = single line |
 | `independent` | bool? | `true` = screen-space mode (no world anchor) |
@@ -408,6 +446,7 @@ and update them later by `ref`.
 "createEntities": [
   {
     "ref": "marker",
+    "sceneEntityId": "marker",
     "id": "minecraft:pig",
     "x": 1.5, "y": 1.0, "z": 2.5,
     "yaw": 180.0,
@@ -446,12 +485,16 @@ and update them later by `ref`.
 
 Supported entity state fields:
 
+- `sceneEntityId` gives the entity a stable scene-local id. `mount` always targets one of those stable ids, not another `ref`.
 - `x`, `y`, `z` reposition the referenced entity.
 - `yaw`, `pitch`, `bodyYaw`, and `headYaw` control the facing direction. If `yaw` is provided without `bodyYaw` / `headYaw`, they follow `yaw` by default.
+- `mount` attaches the current entity to another stable `sceneEntityId`. `unmount: true` clears the current stable mount relation.
 - `showName`, `showCape`, and `baby` mirror the same options from `<Entity>`.
 - Preview-player entities (`id: "player"` and the other preview-player aliases) also accept `headRotation`, `leftArmRotation`, `rightArmRotation`, `leftLegRotation`, `rightLegRotation`, and `capeRotation`, each written as `"x y z"` degrees.
 
-`setEntityNBT` replaces the referenced entity's NBT with a new SNBT compound. The other entity action arrays may omit their NBT payload entirely if you only want to adjust transform or preview-player pose. All entity actions are replayed from keyframe 0 when seeking, so created entities do not linger when you scrub backwards.
+`setEntityNBT` replaces the referenced entity's NBT with a new SNBT compound. The other entity action arrays may omit their NBT payload entirely if you only want to adjust transform, mount state, or preview-player pose. `removeEntities` removes an entity by `ref` without needing raw runtime ids. All entity actions are replayed from keyframe 0 when seeking, so created entities do not linger when you scrub backwards.
+
+Raw passenger NBT alone is not the recommended way to build cross-entity scene relationships. Stable scene ids are what keep mount, unmount, replacement, and removal behavior deterministic across replay, preview rebuild, import/export, and site-facing captures.
 
 Timed entity presets use `animateEntities`:
 

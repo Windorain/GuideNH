@@ -59,14 +59,22 @@ public class GuidebookSceneEntityStateSupport {
             capeRotation);
     }
 
-    public static void applyOptionalPosition(Entity entity, @Nullable Double x, @Nullable Double y,
+    public static boolean applyOptionalPosition(Entity entity, @Nullable Double x, @Nullable Double y,
         @Nullable Double z) {
         if (entity == null || x == null && y == null && z == null) {
-            return;
+            return false;
         }
 
-        entity.setPosition(x != null ? x : entity.posX, y != null ? y : entity.posY, z != null ? z : entity.posZ);
+        double resolvedX = x != null ? x : entity.posX;
+        double resolvedY = y != null ? y : entity.posY;
+        double resolvedZ = z != null ? z : entity.posZ;
+        boolean changed = Double.compare(entity.posX, resolvedX) != 0 || Double.compare(entity.posY, resolvedY) != 0
+            || Double.compare(entity.posZ, resolvedZ) != 0;
+        entity.setPosition(resolvedX, resolvedY, resolvedZ);
         GuidebookSceneEntityImportSupport.syncPreviousTransform(entity);
+        entity.prevRotationYaw = entity.rotationYaw;
+        entity.prevRotationPitch = entity.rotationPitch;
+        return changed;
     }
 
     public static void applyOptionalRotation(Entity entity, @Nullable Float yaw, @Nullable Float pitch,
@@ -91,11 +99,11 @@ public class GuidebookSceneEntityStateSupport {
             .applyRotation(entity, resolvedYaw, resolvedPitch, resolvedBodyYaw, resolvedHeadYaw);
     }
 
-    public static void applyVisualState(Entity entity, @Nullable String entityId, @Nullable Boolean showName,
+    public static boolean applyVisualState(Entity entity, @Nullable String entityId, @Nullable Boolean showName,
         @Nullable Boolean showCape, @Nullable Boolean baby, @Nullable GuidebookPreviewPlayerPose pose,
         boolean usePreviewDefaults) {
         if (entity == null) {
-            return;
+            return false;
         }
 
         boolean previewPlayer = entityId != null && GuidebookSceneEntityLoader.isPreviewPlayerId(entityId);
@@ -116,40 +124,51 @@ public class GuidebookSceneEntityStateSupport {
             poseControllable.setGuidebookPreviewPlayerPose(pose);
         }
 
-        applyBabyState(entity, baby);
+        return applyBabyState(entity, baby);
     }
 
-    public static void applyBabyState(Entity entity, @Nullable Boolean baby) {
+    public static boolean applyBabyState(Entity entity, @Nullable Boolean baby) {
         if (entity == null || baby == null) {
-            return;
+            return false;
         }
 
         boolean child = baby;
         if (entity instanceof GuidebookScenePreviewPlayerEntity previewPlayer) {
+            if (previewPlayer.isChild() == child) {
+                return false;
+            }
             previewPlayer.setGuidebookBaby(child);
-            return;
+            return true;
         }
 
         if (entity instanceof EntityAgeable ageable) {
+            if (ageable.isChild() == child) {
+                return false;
+            }
             ageable.setGrowingAge(child ? -24000 : 0);
             realignEntityBounds(entity);
-            return;
+            return true;
         }
 
         if (entity instanceof EntityZombie zombie) {
+            if (zombie.isChild() == child) {
+                return false;
+            }
             zombie.setChild(child);
             realignEntityBounds(entity);
-            return;
+            return true;
         }
 
         if (tryInvokeBooleanInstanceMethod(entity, "setChild", child)) {
             realignEntityBounds(entity);
-            return;
+            return true;
         }
 
         if (tryInvokeBooleanInstanceMethod(entity, "setBaby", child)) {
             realignEntityBounds(entity);
+            return true;
         }
+        return false;
     }
 
     public static void realignEntityBounds(Entity entity) {

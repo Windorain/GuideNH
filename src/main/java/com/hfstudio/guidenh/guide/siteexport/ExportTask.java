@@ -2,7 +2,6 @@ package com.hfstudio.guidenh.guide.siteexport;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -18,6 +17,7 @@ import net.minecraft.client.resources.IResource;
 import net.minecraft.item.Item;
 import net.minecraft.util.ResourceLocation;
 
+import com.github.bsideup.jabel.Desugar;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.hfstudio.guidenh.guide.Guide;
@@ -100,10 +100,7 @@ public class ExportTask {
                 .toString());
         index.put("pages", pageIds);
         index.put("assetsCopied", assetsCopied);
-        Files.write(
-            outDir.resolve("index.json"),
-            GSON.toJson(index)
-                .getBytes(StandardCharsets.UTF_8));
+        Files.writeString(outDir.resolve("index.json"), GSON.toJson(index));
 
         return new Result(ok, failed, assetsCopied, outDir);
     }
@@ -112,20 +109,8 @@ public class ExportTask {
         return collector;
     }
 
-    public static class Result {
-
-        public final int pagesExported;
-        public final int pagesFailed;
-        public final int assetsCopied;
-        public final Path outDir;
-
-        Result(int pagesExported, int pagesFailed, int assetsCopied, Path outDir) {
-            this.pagesExported = pagesExported;
-            this.pagesFailed = pagesFailed;
-            this.assetsCopied = assetsCopied;
-            this.outDir = outDir;
-        }
-    }
+    @Desugar
+    public record Result(int pagesExported, int pagesFailed, int assetsCopied, Path outDir) {}
 
     public class Collector implements ResourceExporter {
 
